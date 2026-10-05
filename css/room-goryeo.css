@@ -1,0 +1,230 @@
+/* 작품 방 「정석가」(js/rooms/goryeo.js). 색은 base.css 토큰만 쓰고, 단청색(녹청·주홍)은 누를 수 있는 것에만 쓴다. */
+
+.room-goryeo {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 46% 54%;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  font-size: calc(16px * var(--text-scale));
+  line-height: 1.35;
+  color: var(--meok);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.room-goryeo p, .room-goryeo h2, .room-goryeo h3 { margin: 0; }
+
+/* ── 무대(2D 그림 판 겹, 3D면 비어 있고 뒤의 장면이 보인다) ── */
+.rg-stage { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.rg-art {
+  position: absolute;
+  inset: 0;
+  background-color: var(--hanji-deep);
+  background-size: cover;
+  background-position: 30% center;
+}
+.rg-art.is-placeholder {
+  background-image: repeating-linear-gradient(90deg, var(--hanji-deep) 0 38px, var(--hanji) 38px 40px);
+}
+.rg-nim {
+  position: absolute;
+  left: 4%;
+  bottom: 4%;
+  height: 46%;
+  transform-origin: 50% 100%;
+}
+.rg-nim.is-shaking { animation: rg-shake 0.7s ease-in-out; }
+@keyframes rg-shake {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-5deg); }
+  40% { transform: rotate(4deg); }
+  60% { transform: rotate(-3deg); }
+  80% { transform: rotate(2deg); }
+}
+.rg-tower {
+  position: absolute;
+  left: 20%;
+  bottom: 4%;
+  width: 22%;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  transition: opacity 0.4s;
+}
+.rg-tower.is-dim { opacity: 0.45; }
+.rg-tower-item {
+  padding: 0.2em 0.4em;
+  border: 2px solid var(--meok-soft);
+  background: var(--hanji);
+  font-family: var(--font-body);
+  font-size: 0.62em;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 0 var(--meok-soft);
+}
+.rg-tower-item:nth-child(even) { transform: rotate(-1.5deg); }
+.rg-tower-item:nth-child(odd) { transform: rotate(1deg); }
+.rg-tower-item.is-dropping { animation: rg-drop 0.6s cubic-bezier(0.2, 0.7, 0.3, 1); }
+@keyframes rg-drop { from { transform: translateY(-120%); opacity: 0; } to { opacity: 1; } }
+
+.rg-pearl {
+  position: absolute;
+  left: 29%;
+  bottom: 3%;
+  width: 13%;
+  height: auto;
+  overflow: visible;
+}
+.rg-pearl-rock { fill: var(--meok-fog); stroke: var(--meok); stroke-width: 2; }
+.rg-pearl-string { stroke: var(--meok); stroke-width: 1.6; }
+.rg-pearl-bead { fill: var(--gold); stroke: var(--meok); stroke-width: 1.5; }
+.rg-pearl-shine { fill: var(--hanji); }
+.rg-pearl.is-falling .rg-pearl-drop { animation: rg-fall 1.4s cubic-bezier(0.5, 0, 0.6, 1); }
+@keyframes rg-fall {
+  0% { transform: translateY(-90px); }
+  65% { transform: translateY(0); }
+  80% { transform: translateY(-10px); }
+  100% { transform: translateY(0); }
+}
+.rg-pearl.is-glowing .rg-pearl-bead { animation: rg-glow 1.2s ease-in-out; }
+@keyframes rg-glow { 50% { fill: var(--hanji); } }
+
+/* ── 왼쪽: 임의 말, 내세운 조건 쪽지, 마지막 연 ── */
+.rg-left {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  min-width: 0;
+  min-height: 0;
+  padding: max(env(safe-area-inset-top, 0px), 0.6em) 0.6em 0.6em max(var(--safe-l), 0.6em);
+}
+.rg-bubble {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 0.45em 0.7em;
+  background: var(--hanji);
+  border: 2px solid var(--meok);
+  border-radius: 0.8em;
+  box-shadow: 0 2px 0 var(--meok-soft);
+}
+.rg-speaker { font-weight: 700; color: var(--meok-soft); font-size: 0.8em; display: block; }
+.rg-say { font-family: var(--font-body); font-size: 0.95em; }
+.rg-left-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+.rg-slip, .rg-final {
+  background: color-mix(in srgb, var(--hanji) 94%, transparent);
+  border: 2px solid var(--meok-soft);
+  padding: 0.4em 0.6em;
+}
+.rg-slip-head { display: flex; flex-wrap: wrap; gap: 0 0.6em; align-items: baseline; margin-bottom: 0.2em; }
+.rg-slip-title { font-size: 0.75em; color: var(--meok-soft); }
+.rg-slip-label { font-weight: 700; font-size: 0.85em; }
+.rg-col-head { font-size: 0.8em; color: var(--meok-soft); font-weight: 700; margin-bottom: 0.15em; }
+
+.rg-line { position: relative; padding: 0.1em 0 0.15em; }
+.rg-line + .rg-line { border-top: 1px dashed var(--meok-fog); }
+.rg-orig { font-family: var(--font-body); font-size: 0.95em; font-weight: 700; display: inline; }
+.rg-foot.is-yeoeum { color: var(--meok-fog); font-weight: 400; }
+.rg-gloss { font-size: 0.72em; color: var(--meok-soft); }
+.rg-tag { margin-left: 0.4em; font-size: 0.65em; padding: 0 0.35em; border: 1px solid var(--meok-soft); border-radius: 0.6em; color: var(--meok-soft); }
+.rg-line.is-match { padding-left: 1.5em; }
+.rg-pair {
+  position: absolute;
+  left: 0;
+  top: 0.2em;
+  width: 1.2em;
+  height: 1.2em;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--meok);
+  font-size: 0.75em;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.rg-note { margin-top: 0.3em; font-size: 0.72em; color: var(--meok-soft); }
+.rg-refrain-note { margin-top: 0.2em; font-size: 0.68em; color: var(--meok-soft); }
+
+/* ── 오른쪽 패널 ── */
+.rg-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: max(env(safe-area-inset-top, 0px), 0.6em) max(var(--safe-r), 0.7em) max(var(--safe-b), 0.6em) 0.7em;
+  background: var(--hanji);
+  border-left: 2px solid var(--meok-soft);
+}
+.rg-title { font-family: var(--font-body); font-size: 1.15em; }
+.rg-prompt { font-size: 0.85em; color: var(--meok-soft); }
+
+.rg-hand { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4em; }
+.rg-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1em;
+  min-width: 0;
+  min-height: var(--touch-min);
+  padding: 0.35em 0.55em;
+  text-align: left;
+  background: var(--hanji);
+  color: var(--meok);
+  border: 2px solid var(--nokcheong);
+  border-radius: 6px;
+  box-shadow: 0 3px 0 var(--nokcheong);
+}
+.rg-card:hover { background: var(--hanji-deep); }
+.rg-card:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--nokcheong); }
+.rg-card-label { font-weight: 700; font-size: 0.9em; }
+.rg-card .rg-orig { font-size: 0.75em; font-weight: 400; color: var(--meok-soft); }
+
+.rg-row { display: flex; flex-wrap: wrap; gap: 0.5em; }
+.rg-btn {
+  min-height: var(--touch-min);
+  padding: 0.35em 0.9em;
+  border: 2px solid var(--nokcheong);
+  border-radius: 6px;
+  background: var(--nokcheong);
+  color: var(--hanji);
+  font-weight: 700;
+}
+.rg-btn.rg-quiet { background: var(--hanji); color: var(--meok); }
+.rg-btn.rg-quiet[aria-pressed='true'] { border-color: var(--juhong); box-shadow: inset 0 -3px 0 var(--juhong); }
+.rg-btn.rg-finish, .rg-btn.rg-to-final { border-color: var(--juhong); background: var(--juhong); }
+.rg-tabs { display: flex; gap: 0.4em; }
+.rg-tabs .rg-btn { flex: 1 1 0; }
+
+.rg-echo:empty { display: none; }
+.rg-echo { border: 2px solid var(--meok-soft); padding: 0.3em 0.55em; }
+.rg-message { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em 0.7em; }
+.rg-message:empty { display: none; }
+.rg-found { font-weight: 700; font-size: 0.9em; }
+.rg-not-here { font-size: 0.85em; color: var(--meok-soft); }
+
+/* 3D: 무대 장면이 비치도록 왼쪽은 투명하게 둔다 */
+.room-goryeo[data-mode='3d'] .rg-stage { display: none; }
+
+/* 낮은 화면(휴대폰 가로): 글자를 조금 줄이고 틈을 좁힌다 */
+@media (max-height: 520px) {
+  .room-goryeo { font-size: calc(13px * var(--text-scale)); line-height: 1.25; }
+  .rg-panel, .rg-left { gap: 0.3em; }
+}
+
+.reduce-motion .rg-nim, .reduce-motion .rg-tower-item, .reduce-motion .rg-pearl * { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .rg-nim, .rg-tower-item, .rg-pearl * { animation: none !important; }
+}

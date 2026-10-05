@@ -1130,3 +1130,21 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 | `prompt` | 생성에 쓴 프롬프트 파일(`tools/art/prompts/...txt`) |
 | `rawSha256` | 생성 원본(`assets/raw/art/`, 저장소 밖) PNG의 sha256 |
 | `image` | `{ format, width, height, alpha }` — `tests/check-assets.mjs`가 파일 머리와 맞춰 본다 |
+
+## 추가 제안(T13) — 작품 방 「정석가」
+
+작품 방 「정석가」(`js/rooms/goryeo.js`)가 쓴 것이다. 연결 단계가 확인해 본문(7.3)에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 방 `ctx`에 더하는 선택 열쇠
+
+| 열쇠 | 뜻 |
+| --- | --- |
+| `manifest` | 자산 목록(`assets/manifest.json`을 읽은 객체). 방이 `createAssets`로 2D 그림 판 `board/room-goryeo`와 3D 뒷벽 무늬를 꺼낸다. 없으면 자리표시 무늬 |
+| `assets` | 이미 만든 자산 손잡이(`createAssets`의 결과). 있으면 `manifest`보다 먼저 쓰고, 방은 이것을 치우지 않는다 |
+| `songs` | 노래 목록. 없으면 `js/data/songs/index.js`의 등록된 노래에서 「서경별곡」을 찾는다 |
+
+- `reduceMotion`은 함수(`() => boolean`)와 참거짓 값 모두 받는다.
+- `rhythm`은 `{ engine, buildGrid? }`(재기 화면과 같은 모양)이고, 엔진 자체를 넘겨도 된다. 방은 카드를 낼 때 그 연을, 마지막에 구슬 연과 「서경별곡」 같은 연을 `engine.play(grid, [그 연의 줄들])`로 낭송한다. 듣기만 하는 낭송이라 박자 없는 방식에서도 길이 같다.
+- 3D(`three: { THREE, root, camera }`)에서는 방이 카메라 자리를 바꾸고, 끝나거나 중단되면 원래대로 돌려놓는다. 그리기는 부르는 쪽이 한다. `container`에는 투명한 겹(왼쪽 말풍선·쪽지, 오른쪽 패널)이 올라가므로 장면 위에 겹쳐 놓는다.
+- 방 글은 `js/data/rooms-goryeo.js`의 `room`이다. 카드는 노래의 연·줄 번호(`unit`, `lines`, `conditionLine`)만 가리키고, 화면은 노래 데이터의 원문과 풀이를 그대로 보인다. 마지막 연은 `finalUnit: 5`, 같은 사설은 `echo: { songId: 'seogyeong-byeolgok', unit: 1 }`이다. 노래 데이터가 교과서 수록본으로 바뀌어 연 나눔이 달라지면 이 번호를 고친다(`tests/check-room-goryeo.mjs`가 어긋남을 잡는다).
+- 스타일은 `css/room-goryeo.css`. 방이 이 파일의 `<link>`가 없으면 스스로 머리에 붙이지만, 연결 단계가 `index.html`에 더하는 편이 깜박임이 없다.
