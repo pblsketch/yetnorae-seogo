@@ -1,0 +1,131 @@
+/* 향가관 2D 그림 판(js/world/wings/hyangga-board.js). 색은 base.css 토큰만 쓴다.
+   먹빛→단청은 세계 바탕이 그림 판에 거는 필터(--dancheong)가 맡고, 여기서는 단청이 다 돌아온 색으로 칠한다.
+   녹청·주홍은 누를 수 있는 것(서가 자리, 문, 기둥 문틀)에만 쓴다. */
+
+.hy-board { position: absolute; inset: 0; pointer-events: none; }
+.hy-svg { display: block; width: 100%; height: 100%; }
+
+/* 그림 판 그림이 오면 바탕과 탑 몸체 자리표시는 숨기고 반응하는 겹만 남긴다 */
+.hy-board.has-art .hy-backdrop,
+.hy-board.has-art .hy-tower-body,
+.hy-board.has-art .hy-next-door { display: none; }
+
+/* 바탕 */
+.hy-wall { fill: var(--hanji); }
+.hy-floor { fill: var(--hanji-deep); }
+.hy-wall__sill { fill: var(--meok-soft); }
+.hy-door__frame { fill: var(--juhong); }
+.hy-door__leaf { fill: var(--meok-soft); stroke: var(--meok); stroke-width: 3; }
+.hy-shelf { fill: var(--meok-soft); }
+.hy-shelf__top { fill: var(--meok); }
+.hy-shelf__divider { fill: var(--nokcheong); }
+.hy-stand { fill: var(--hanji); stroke: var(--meok-soft); stroke-width: 3; }
+
+/* 이름표 */
+.hy-plaque { fill: var(--hanji); stroke: var(--meok); stroke-width: 3; }
+.hy-plaque__text, .hy-title, .hy-tag__text {
+  fill: var(--meok);
+  font-family: var(--font-body);
+  font-weight: 700;
+  text-anchor: middle;
+}
+.hy-plaque__text { font-size: calc(26px * var(--text-scale)); }
+.hy-plaque__text--small { font-size: calc(22px * var(--text-scale)); }
+.hy-title { font-size: calc(22px * var(--text-scale)); }
+.hy-tag__text { font-size: calc(19px * var(--text-scale)); }
+
+/* 탑 */
+.hy-plinth { fill: var(--hanji-deep); stroke: var(--meok-soft); stroke-width: 3; }
+.hy-floor-wall { fill: var(--meok-soft); }
+.hy-eave, .hy-roof { fill: var(--meok); }
+.hy-finial { fill: var(--gold); }
+.hy-pillar { fill: var(--juhong); }
+.hy-beam { fill: var(--nokcheong); }
+
+/* 칸 불: 구를 셀 때 아래층부터 차오른다 */
+.hy-bay { fill: var(--meok); transition: fill 0.35s ease; }
+.hy-bay.is-lit { fill: color-mix(in srgb, var(--hanji) 75%, var(--gold)); }
+.hy-bay.is-revealed { fill: var(--hanji); }
+.hy-bay.is-pulse-soft { fill: color-mix(in srgb, var(--gold) 55%, var(--meok)); transition-duration: 0.05s; }
+.hy-bay.is-pulse { fill: var(--gold); transition-duration: 0.05s; }
+
+/* '아아' 문: 글자 없는 표지. 감탄사가 있으면 열리고, 없으면 닫힌 채 표지가 흐려진다 */
+.hy-aa-door__panel { fill: var(--meok-soft); stroke: var(--meok); stroke-width: 3; }
+.hy-aa-sign circle, .hy-aa-sign path, .hy-aa-sign line {
+  fill: none;
+  stroke: var(--juhong);
+  stroke-width: 7;
+  stroke-linecap: round;
+  vector-effect: none;
+}
+.hy-aa-sign .hy-aa-sign__dot { fill: var(--juhong); stroke: none; }
+.hy-aa-door__leaf {
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+  transition: transform 0.9s ease;
+}
+.hy-aa-door[data-state="open"] .hy-aa-door__leaf { transform: scaleX(0.16) skewY(-10deg); }
+.hy-aa-door[data-state="absent"] .hy-aa-sign circle,
+.hy-aa-door[data-state="absent"] .hy-aa-sign path,
+.hy-aa-door[data-state="absent"] .hy-aa-sign line { stroke: var(--meok-fog); }
+.hy-aa-door[data-state="absent"] .hy-aa-sign .hy-aa-sign__dot { fill: var(--meok-fog); }
+.hy-aa-door.is-shaking { animation: hy-shake 0.5s linear; }
+@keyframes hy-shake {
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+
+/* 서가 자리 */
+.hy-niche { fill: var(--meok); }
+.hy-niche__board { fill: var(--nokcheong); }
+.hy-cord { stroke: var(--nokcheong); stroke-width: 3; stroke-dasharray: 8 8; }
+.hy-slot__ghost { fill: var(--hanji-deep); stroke: var(--meok-fog); stroke-width: 2; stroke-dasharray: 6 4; }
+.hy-slot__book { fill: var(--meok-soft); stroke: var(--meok); stroke-width: 3; }
+.hy-slot__gold { fill: var(--gold); }
+.hy-slot__book, .hy-slot__gold, .hy-slot__pop { display: none; }
+.hy-slot[data-state="empty"] .hy-slot__ghost { display: inline; }
+.hy-slot:not([data-state="empty"]) .hy-slot__ghost { display: none; }
+.hy-slot[data-state="filled"] .hy-slot__book,
+.hy-slot[data-state="bound"] .hy-slot__book,
+.hy-slot[data-state="bound"] .hy-slot__gold { display: inline; }
+.hy-slot[data-state="popped"] .hy-slot__pop {
+  display: inline;
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+  animation: hy-pop-in 0.5s ease-out;
+}
+@keyframes hy-pop-in {
+  from { transform: scale(0.3, 0.6); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+.hy-pop__seg { fill: var(--meok-soft); stroke: var(--meok); stroke-width: 3; }
+.hy-pop__ring { fill: none; stroke: var(--gold); stroke-width: 3; }
+.hy-title-plaque[data-on="false"] { display: none; }
+.hy-bind { fill: none; stroke: var(--gold); stroke-width: 4; display: none; }
+.hy-bind[data-on="true"] { display: inline; }
+
+/* 바구니 */
+.hy-basket__body { fill: color-mix(in srgb, var(--hanji-deep) 65%, var(--gold)); stroke: var(--meok-soft); stroke-width: 3; }
+.hy-basket__rim { fill: var(--meok-soft); }
+.hy-scroll .hy-slot__book { fill: var(--hanji); }
+.hy-scroll__core { fill: var(--meok-soft); display: none; }
+.hy-scroll[data-state="filled"] .hy-scroll__core { display: inline; }
+.hy-tag[data-on="false"] { display: none; }
+.hy-tag__card { fill: var(--hanji); stroke: var(--meok); stroke-width: 2; }
+
+/* 작품 방 문: 탑이 묶이면 열린다 */
+.hy-room-door__dark { fill: var(--meok); }
+.hy-room-door__leaf {
+  transform-box: fill-box;
+  transform-origin: 0% 50%;
+  transition: transform 1s ease;
+}
+.hy-room-door[data-open="true"] .hy-room-door__leaf { transform: scaleX(0.15) skewY(8deg); }
+
+/* 먹안개 */
+.hy-fog__stop-in { stop-color: var(--meok-fog); stop-opacity: 0.75; }
+.hy-fog__stop-out { stop-color: var(--meok-fog); stop-opacity: 0; }
+.hy-fog { transition: opacity 2s ease; }
+.hy-fog[data-on="false"] { opacity: 0; }
