@@ -873,3 +873,22 @@ dispose()
 
 - 세계 바탕이 내는 사건: `orientation:pause`·`orientation:resume`, 그와 함께 `audio:pause`·`audio:resume`(`reason: 'orientation'`).
 - `settings:reduce-motion`: 설정 화면이 내면 세계 바탕이 기기 설정 값으로 받는다. 세계 바탕도 실제 적용 값(기기 설정 또는 브라우저 선호)이 바뀌면 낸다. 브라우저 선호 때문에 받은 값과 실제 값이 다르면 실제 값을 한 번 더 낸다.
+
+## 추가 제안(T8) — 고려가요관 모형
+
+고려가요관 모형(T8)이 정한 것이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 자리(`anchors`) 열쇠 더하기
+
+| 열쇠 | 3D | 2D | 뜻 |
+| --- | --- | --- | --- |
+| `songs` | `THREE.Vector3` 목록 | `{ x, y }` 목록 | 떠다니는 노래 자리. 세계 바탕이 다른 자리처럼 다룬다(2D 누를 자리, 도착 알림 `{ key: 'songs', index }`) |
+| `focus` | `{ position, target }`(`camera`와 같은 모양) | `{ left, top, width, height }`(그림 판 백분율 사각형) | 재기 화면 왼쪽 반이 비출 곳(연 방 줄과 복도). 점이 아니어서 누를 자리를 만들지 않는다. 세계 바탕은 아직 쓰지 않고, 3D `getAnchors()`에서도 빠진다 |
+
+### 반응의 약속
+
+- `diorama:refrain-link`의 연 번호는 방 번호 `unit % 7`로 그린다(연 방 일곱 칸). 같은 연 안의 후렴(`from.unit === to.unit`)은 그 방 고리에 작은 고리로 처진다. 한꺼번에 12개까지 보이고, 넘으면 오래된 것부터 거둔다.
+- 재기 흔적(후렴 고리, 음보 구슬, 접힌 경계 빛)은 `diorama:slot-set`·`diorama:shelf-bound`가 오면 걷힌다. `diorama:pillar-light`가 `{ unit: 0, line: 0, foot: 0 }`으로 오면 음보 구슬만 새로 시작한다.
+- `diorama:pop-out`을 받으면 갈래 모양으로 삐져나온 모습을 2.2초 보인 뒤 그 자리를 빈 책등으로 되돌린다(`slot-set`을 따로 내지 않아도 된다).
+- `diorama:shelf-bound { area: 'shelf' }`가 오면 작품 방 「정석가」 문이 열린다. `diorama:dancheong-restore`도 먹안개를 걷는다.
+- 관 모형은 `ctx.restored` 말고는 판 상태를 모른다. 판 도중에 관을 나갔다 다시 들어오면 한 판 화면이 지금 상태(`slot-set`, `shelf-bound`, `fog-recede`)를 다시 내 주어야 꽂힌 책등·묶음·먹안개가 맞게 보인다.
