@@ -1,0 +1,2203 @@
+{
+  "version": 1,
+  "parts": [
+    "art.json",
+    "audio.json"
+  ],
+  "assets": [
+    {
+      "path": "assets/img/sprite/student-a.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_student · 승인된 화풍 샘플을 그대로 가공",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "인물: 견습 사서(생김새 a)",
+      "prompt": "tools/art/prompts/style_student.txt",
+      "rawSha256": "d11e81dfc9df6aa367387fd32fb9a5acf08d1eacf8d0b6edb09b86654b9e762b",
+      "image": {
+        "format": "webp",
+        "width": 344,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/student-b.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "인물: 견습 사서(생김새 b)",
+      "prompt": "tools/art/prompts/sprite/student-b.txt",
+      "rawSha256": "8a824258450356ff6aacd2c6c829472ab8b2d225932cb975aa10d969c531eeea",
+      "image": {
+        "format": "webp",
+        "width": 310,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/mentor.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "인물: 선대 사서",
+      "prompt": "tools/art/prompts/sprite/mentor.txt",
+      "rawSha256": "712ed97a5f102d41da340626fac7bcae314e9c4925bfa049550a75ecf7260adb",
+      "image": {
+        "format": "webp",
+        "width": 313,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/jom.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "인물: 좀",
+      "prompt": "tools/art/prompts/sprite/jom.txt",
+      "rawSha256": "b1df49a7e5b20ff3135e2f7eb7d3e307a99f0ac3d0c6cfdc9a2d11d8a5de928e",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/jom-king.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "인물: 좀 대왕",
+      "prompt": "tools/art/prompts/sprite/jom-king.txt",
+      "rawSha256": "711522c1066f5f2bb367e85a67bdea37e7120cd714b1948014e60062734946d3",
+      "image": {
+        "format": "webp",
+        "width": 768,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-seodongyo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 서동(「서동요」)",
+      "prompt": "tools/art/prompts/singer/seodong.txt",
+      "rawSha256": "ec190b7362bf391fcc12f47ccb6aac68dcdd39ed60aa260adb12364e2f51b5f2",
+      "image": {
+        "format": "webp",
+        "width": 343,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-cheoyongga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 처용(「처용가」)",
+      "prompt": "tools/art/prompts/singer/cheoyong.txt",
+      "rawSha256": "5e6c0d4ff7259407f245977e63fe153ae1c0e0f62ca1f7d6ef108d6cc977e47b",
+      "image": {
+        "format": "webp",
+        "width": 481,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-chan-giparangga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 충담사(「찬기파랑가」)",
+      "prompt": "tools/art/prompts/singer/chungdam.txt",
+      "rawSha256": "eabf859c882c3b8cd359afb70a5e78bd5f48ef840a6d57db5a0cd78f5665fff3",
+      "image": {
+        "format": "webp",
+        "width": 290,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-jemangmaega.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer · 승인된 화풍 샘플을 그대로 가공",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 월명사(「제망매가」)",
+      "prompt": "tools/art/prompts/style_singer.txt",
+      "rawSha256": "6a4cf0234e00c8d271121d388d4f60627984f4c327fb9fb3415bd6d243552018",
+      "image": {
+        "format": "webp",
+        "width": 293,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-heonhwaga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 노인(「헌화가」)",
+      "prompt": "tools/art/prompts/singer/anon-elder.txt",
+      "rawSha256": "a8a09fcd720077d7437aaa2bed46fb30b1a3995cb513abea05c3d8ad3ff324ec",
+      "image": {
+        "format": "webp",
+        "width": 438,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-mojukjirangga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 득오(「모죽지랑가」)",
+      "prompt": "tools/art/prompts/singer/deugo.txt",
+      "rawSha256": "64c0008eeaeb4f643d2d98c2764b8107ebee16e7e54a8156e0546900428c35d2",
+      "image": {
+        "format": "webp",
+        "width": 299,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-anminga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 충담사(「안민가」)",
+      "prompt": "tools/art/prompts/singer/chungdam.txt",
+      "rawSha256": "eabf859c882c3b8cd359afb70a5e78bd5f48ef840a6d57db5a0cd78f5665fff3",
+      "image": {
+        "format": "webp",
+        "width": 290,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-wonwangsaengga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 광덕(「원왕생가」)",
+      "prompt": "tools/art/prompts/singer/gwangdeok.txt",
+      "rawSha256": "ef4e0e8088668070f9e93a30166e6d19545ec302dbb80ea183ec9b0bbbe083e6",
+      "image": {
+        "format": "webp",
+        "width": 312,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-cheongsan-byeolgok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 고려 백성(「청산별곡」)",
+      "prompt": "tools/art/prompts/singer/anon-goryeo.txt",
+      "rawSha256": "2f54c8d0720b6500c4fb28e1b60adbc11241d587cf55d60766caf6bc7f1d99fb",
+      "image": {
+        "format": "webp",
+        "width": 346,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-seogyeong-byeolgok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 고려 백성(「서경별곡」)",
+      "prompt": "tools/art/prompts/singer/anon-goryeo.txt",
+      "rawSha256": "2f54c8d0720b6500c4fb28e1b60adbc11241d587cf55d60766caf6bc7f1d99fb",
+      "image": {
+        "format": "webp",
+        "width": 346,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-gasiri.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 고려 백성(「가시리」)",
+      "prompt": "tools/art/prompts/singer/anon-goryeo.txt",
+      "rawSha256": "2f54c8d0720b6500c4fb28e1b60adbc11241d587cf55d60766caf6bc7f1d99fb",
+      "image": {
+        "format": "webp",
+        "width": 346,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-jeongseokga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 고려 백성(「정석가」)",
+      "prompt": "tools/art/prompts/singer/anon-goryeo.txt",
+      "rawSha256": "2f54c8d0720b6500c4fb28e1b60adbc11241d587cf55d60766caf6bc7f1d99fb",
+      "image": {
+        "format": "webp",
+        "width": 346,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-dongdong.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 고려 백성(「동동」)",
+      "prompt": "tools/art/prompts/singer/anon-goryeo.txt",
+      "rawSha256": "2f54c8d0720b6500c4fb28e1b60adbc11241d587cf55d60766caf6bc7f1d99fb",
+      "image": {
+        "format": "webp",
+        "width": 346,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-sangjeoga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 고려 백성(「상저가」)",
+      "prompt": "tools/art/prompts/singer/anon-goryeo.txt",
+      "rawSha256": "2f54c8d0720b6500c4fb28e1b60adbc11241d587cf55d60766caf6bc7f1d99fb",
+      "image": {
+        "format": "webp",
+        "width": 346,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-jeongeupsa.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 정읍 행상인의 아내(「정읍사」)",
+      "prompt": "tools/art/prompts/singer/anon-jeongeup.txt",
+      "rawSha256": "0084305c4c8d24f7d98d5da3c1ad05827ca144fedf83f5e1014942111747caed",
+      "image": {
+        "format": "webp",
+        "width": 344,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-samogok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 고려 백성(「사모곡」)",
+      "prompt": "tools/art/prompts/singer/anon-goryeo.txt",
+      "rawSha256": "2f54c8d0720b6500c4fb28e1b60adbc11241d587cf55d60766caf6bc7f1d99fb",
+      "image": {
+        "format": "webp",
+        "width": 346,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-taesan.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 양사언(「태산이 높다 하되」)",
+      "prompt": "tools/art/prompts/singer/yang-saeon.txt",
+      "rawSha256": "0c07c6b2c7d3b8e8bc24719d0ce131c0c744d3405447679f7809484471cd85e5",
+      "image": {
+        "format": "webp",
+        "width": 323,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-dongjitdal.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 황진이(「동짓달 기나긴 밤을」)",
+      "prompt": "tools/art/prompts/singer/hwang-jini.txt",
+      "rawSha256": "294d8de81517199ed99ba6babb567d17b9ce12df5ce14e6c866ed550acd7b687",
+      "image": {
+        "format": "webp",
+        "width": 371,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-ireondeul.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이방원(「이런들 어떠하며」)",
+      "prompt": "tools/art/prompts/singer/yi-bangwon.txt",
+      "rawSha256": "7f7ea23eb288e7864aab29c927a0195b7a827532f66d5331cf2434073302c1ab",
+      "image": {
+        "format": "webp",
+        "width": 376,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-imomi-jukgo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 정몽주(「이 몸이 죽고 죽어」)",
+      "prompt": "tools/art/prompts/singer/jeong-mongju.txt",
+      "rawSha256": "50907a6992ffae05e56c0b6b8ca288415d84979ea5f6e132558c75e7cf0153f9",
+      "image": {
+        "format": "webp",
+        "width": 313,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-simnyeon-gyeongyeong.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 송순(「십 년을 경영하야」)",
+      "prompt": "tools/art/prompts/singer/song-sun.txt",
+      "rawSha256": "6ee3f39457f6cfdf95c01f294dadc0343a3de168f4582405c61c6fcfb94a0f6f",
+      "image": {
+        "format": "webp",
+        "width": 389,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-cheongsanri-byeokgyesu.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 황진이(「청산리 벽계수야」)",
+      "prompt": "tools/art/prompts/singer/hwang-jini.txt",
+      "rawSha256": "294d8de81517199ed99ba6babb567d17b9ce12df5ce14e6c866ed550acd7b687",
+      "image": {
+        "format": "webp",
+        "width": 371,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-obaengnyeon-doeupji.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 길재(「오백 년 도읍지를」)",
+      "prompt": "tools/art/prompts/singer/gil-jae.txt",
+      "rawSha256": "9d8582c36b58bcee074595a4b9c9172de9092b1d17610e78ced4ff1d3f2ea0ac",
+      "image": {
+        "format": "webp",
+        "width": 449,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-eojeo-nae-iriyeo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 황진이(「어져 내 일이여」)",
+      "prompt": "tools/art/prompts/singer/hwang-jini.txt",
+      "rawSha256": "294d8de81517199ed99ba6babb567d17b9ce12df5ce14e6c866ed550acd7b687",
+      "image": {
+        "format": "webp",
+        "width": 371,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-ihwa-wolbaek.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이조년(「이화에 월백하고」)",
+      "prompt": "tools/art/prompts/singer/yi-joyeon.txt",
+      "rawSha256": "a69662b20e5b6bf0a92f1814da0599e0897faacc9e64b93f7fc55431bbc417c6",
+      "image": {
+        "format": "webp",
+        "width": 321,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-hanson-makdae.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 우탁(「한 손에 막대 잡고」)",
+      "prompt": "tools/art/prompts/singer/u-tak.txt",
+      "rawSha256": "bbf224c0be53f6a034428e2a9b84e77536e70f1ebb7712c8283f894e820bff12",
+      "image": {
+        "format": "webp",
+        "width": 394,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-sakpung.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 김종서(「삭풍은 나무 끝을 불고」)",
+      "prompt": "tools/art/prompts/singer/kim-jongseo.txt",
+      "rawSha256": "f9480848b290d49d7115778e6ed6a57cdf3e42002eacbc9427a5d547b3257947",
+      "image": {
+        "format": "webp",
+        "width": 401,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-sinheum-sijo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 신흠(「창 밖에 워석버석」)",
+      "prompt": "tools/art/prompts/singer/sin-heum.txt",
+      "rawSha256": "e9fcf94b170ec809483aa07f8f371f73d3a624ec46792fd359d95be2f63866c1",
+      "image": {
+        "format": "webp",
+        "width": 298,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-myeonangjeongga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 송순(「면앙정가」)",
+      "prompt": "tools/art/prompts/singer/song-sun.txt",
+      "rawSha256": "6ee3f39457f6cfdf95c01f294dadc0343a3de168f4582405c61c6fcfb94a0f6f",
+      "image": {
+        "format": "webp",
+        "width": 389,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-gwandong-byeolgok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 정철(「관동별곡」)",
+      "prompt": "tools/art/prompts/singer/jeong-cheol.txt",
+      "rawSha256": "9e4cdfe1f2f5025edfefe1d903b4ae2b317d1efc368d589a635854b007ff75bb",
+      "image": {
+        "format": "webp",
+        "width": 351,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-gyuwonga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 허난설헌(「규원가」)",
+      "prompt": "tools/art/prompts/singer/heo-nanseolheon.txt",
+      "rawSha256": "c77b3e9cd545cc0f6744ae516164313da773aba93043b059fdee16355bb30ec1",
+      "image": {
+        "format": "webp",
+        "width": 339,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-sangchungok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 정극인(「상춘곡」)",
+      "prompt": "tools/art/prompts/singer/jeong-geugin.txt",
+      "rawSha256": "cd398bfd9a839de53615fcaff5510e3f2ef63bf31ebbafd7d15c7135fce4a82f",
+      "image": {
+        "format": "webp",
+        "width": 350,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-samiingok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 정철(「사미인곡」)",
+      "prompt": "tools/art/prompts/singer/jeong-cheol.txt",
+      "rawSha256": "9e4cdfe1f2f5025edfefe1d903b4ae2b317d1efc368d589a635854b007ff75bb",
+      "image": {
+        "format": "webp",
+        "width": 351,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-seonsangtan.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 박인로(「선상탄」)",
+      "prompt": "tools/art/prompts/singer/bak-inro.txt",
+      "rawSha256": "0b4a5cdc03bf411c5864198067e13488387bdcaafa71f3ef8a0ebfd635e04dac",
+      "image": {
+        "format": "webp",
+        "width": 348,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-songmiingok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 정철(「속미인곡」)",
+      "prompt": "tools/art/prompts/singer/jeong-cheol.txt",
+      "rawSha256": "9e4cdfe1f2f5025edfefe1d903b4ae2b317d1efc368d589a635854b007ff75bb",
+      "image": {
+        "format": "webp",
+        "width": 351,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-nuhangsa.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 박인로(「누항사」)",
+      "prompt": "tools/art/prompts/singer/bak-inro.txt",
+      "rawSha256": "0b4a5cdc03bf411c5864198067e13488387bdcaafa71f3ef8a0ebfd635e04dac",
+      "image": {
+        "format": "webp",
+        "width": 348,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-gapminga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 서민(「갑민가」)",
+      "prompt": "tools/art/prompts/singer/anon-commoner.txt",
+      "rawSha256": "9fe331afd9ef116d39678f2a89725e7adac8fac44334bac37eac06714dba453e",
+      "image": {
+        "format": "webp",
+        "width": 355,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-namodo-bahi.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 가객(「나모도 바히 돌도」)",
+      "prompt": "tools/art/prompts/singer/anon-gagaek.txt",
+      "rawSha256": "ae78d0b2285682491ed07633973fcc9c557438bbe85e24a614b79cc7bcf22cc5",
+      "image": {
+        "format": "webp",
+        "width": 461,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-daekdeul-dongnanji.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 서민(「댁들에 동난지이 사오」)",
+      "prompt": "tools/art/prompts/singer/anon-commoner.txt",
+      "rawSha256": "9fe331afd9ef116d39678f2a89725e7adac8fac44334bac37eac06714dba453e",
+      "image": {
+        "format": "webp",
+        "width": 355,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-chang-naegoja.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 가객(「창 내고쟈」)",
+      "prompt": "tools/art/prompts/singer/anon-gagaek.txt",
+      "rawSha256": "ae78d0b2285682491ed07633973fcc9c557438bbe85e24a614b79cc7bcf22cc5",
+      "image": {
+        "format": "webp",
+        "width": 461,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-nimi-oma.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 가객(「님이 오마 하거늘」)",
+      "prompt": "tools/art/prompts/singer/anon-gagaek.txt",
+      "rawSha256": "ae78d0b2285682491ed07633973fcc9c557438bbe85e24a614b79cc7bcf22cc5",
+      "image": {
+        "format": "webp",
+        "width": 461,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-gwitturami.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 가객(「귀뚜라미 저 귀뚜라미」)",
+      "prompt": "tools/art/prompts/singer/anon-gagaek.txt",
+      "rawSha256": "ae78d0b2285682491ed07633973fcc9c557438bbe85e24a614b79cc7bcf22cc5",
+      "image": {
+        "format": "webp",
+        "width": 461,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-nonbat-gara.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 서민(「논밭 갈아 김매고」)",
+      "prompt": "tools/art/prompts/singer/anon-commoner.txt",
+      "rawSha256": "9fe331afd9ef116d39678f2a89725e7adac8fac44334bac37eac06714dba453e",
+      "image": {
+        "format": "webp",
+        "width": 355,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-hansuma.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 가객(「한숨아 세한숨아」)",
+      "prompt": "tools/art/prompts/singer/anon-gagaek.txt",
+      "rawSha256": "ae78d0b2285682491ed07633973fcc9c557438bbe85e24a614b79cc7bcf22cc5",
+      "image": {
+        "format": "webp",
+        "width": 461,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/sprite/singer-suneung-saseol.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_singer",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "가객: 이름 모를 가객(「이 시름 저 시름」)",
+      "prompt": "tools/art/prompts/singer/anon-gagaek.txt",
+      "rawSha256": "ae78d0b2285682491ed07633973fcc9c557438bbe85e24a614b79cc7bcf22cc5",
+      "image": {
+        "format": "webp",
+        "width": 461,
+        "height": 768,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/seodongyo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 서동의 방(「서동요」)",
+      "prompt": "tools/art/prompts/keepsake/seodongyo.txt",
+      "rawSha256": "7238a4476491d1f24f5f5995cd7979030fe3e8bc6d1c3598287e7951b8a3e2d3",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/cheoyongga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 처용의 잠자리(「처용가」)",
+      "prompt": "tools/art/prompts/keepsake/cheoyongga.txt",
+      "rawSha256": "779fb8a802c63979fffad35034182e2d2a1d144674afa980a8dc3e399762f095",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/chan-giparangga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 잣나무 가지(「찬기파랑가」)",
+      "prompt": "tools/art/prompts/keepsake/chan-giparangga.txt",
+      "rawSha256": "e4c576289a2d9d2f6aed5bce2134a8ced782bbcbc8658632d7e9480299e94411",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/jemangmaega.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 떨어질 잎(「제망매가」)",
+      "prompt": "tools/art/prompts/keepsake/jemangmaega.txt",
+      "rawSha256": "f856a4219d30c4b9cc5020285215d151292c7830b4e86cf2c8e861fc875cf3d9",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/heonhwaga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 꺾어 바친 꽃(「헌화가」)",
+      "prompt": "tools/art/prompts/keepsake/heonhwaga.txt",
+      "rawSha256": "5b7937ca316e843cedb2b96c81ee218801d71b0a060ebcac9f80124b4235081a",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/mojukjirangga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 다복쑥 덤불(「모죽지랑가」)",
+      "prompt": "tools/art/prompts/keepsake/mojukjirangga.txt",
+      "rawSha256": "9488d72b7a3123fbfd3579e14aef3286b481063a680d08fb3840cdca1cac250b",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/anminga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 이 땅(「안민가」)",
+      "prompt": "tools/art/prompts/keepsake/anminga.txt",
+      "rawSha256": "f6bb4e4f13cc4d90931c92ab62c9bb8ea979bdec8c61fe2320a26b42ddc6cf9b",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/wonwangsaengga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 서방으로 가는 달(「원왕생가」)",
+      "prompt": "tools/art/prompts/keepsake/wonwangsaengga.txt",
+      "rawSha256": "b74c185b46e3616f9287f1c997a9141188603b8248e3432b39c12a86f40d373c",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/cheongsan-byeolgok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high)",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 해금(「청산별곡」)",
+      "prompt": "tools/art/prompts/keepsake/cheongsan-byeolgok.txt",
+      "rawSha256": "b707bf44eb144b74807cc87e5525943b6af87bad5bf2dfc9d415c8158ab3de7f",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/seogyeong-byeolgok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 사공의 배(「서경별곡」)",
+      "prompt": "tools/art/prompts/keepsake/seogyeong-byeolgok.txt",
+      "rawSha256": "03a7f21b0c5639624a8fae904cd493aba8a62b4cbf0250ef066c69efd1fd0a64",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/gasiri.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "노래 속 마음 상징: 서러운 님(「가시리」)",
+      "prompt": "tools/art/prompts/keepsake/gasiri.txt",
+      "rawSha256": "960ecc93c3264d5c37bde0bad1ecc25543d9a7b51c9c564a9087d596d1936c62",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/jeongseokga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 구운 밤 닷 되(「정석가」)",
+      "prompt": "tools/art/prompts/keepsake/jeongseokga.txt",
+      "rawSha256": "732d3cf2641f60c76e1096736943aa6f79eb357395f1f83d0cee07ea2099580e",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/dongdong.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 이월 보름 등불(「동동」)",
+      "prompt": "tools/art/prompts/keepsake/dongdong.txt",
+      "rawSha256": "92e448358d76b77839691b52bec1a365fac9e4762284a7c50f4ae6853c919080",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/sangjeoga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 듥긔동 방아(「상저가」)",
+      "prompt": "tools/art/prompts/keepsake/sangjeoga.txt",
+      "rawSha256": "8ecb5f1806d3856bc6d052703cd45864884050ae8301e510ad9da76151e513bc",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/jeongeupsa.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 높이 돋은 달(「정읍사」)",
+      "prompt": "tools/art/prompts/keepsake/jeongeupsa.txt",
+      "rawSha256": "b7f19c368b951f1bd1e51687c76ad9b3773fa163a572b2cfb501e492f2b942b9",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/samogok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 호미와 낫(「사모곡」)",
+      "prompt": "tools/art/prompts/keepsake/samogok.txt",
+      "rawSha256": "5c62ef3a63a2cad9d127bdaa37bd849bce813419a0e608f520a573c7a93e5368",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/taesan.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 하늘 아래 뫼(「태산이 높다 하되」)",
+      "prompt": "tools/art/prompts/keepsake/taesan.txt",
+      "rawSha256": "083c1658b04acef070a60c8d643a026225226811b9bf88da1d6646354d1bd913",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/dongjitdal.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 춘풍 이불(「동짓달 기나긴 밤을」)",
+      "prompt": "tools/art/prompts/keepsake/dongjitdal.txt",
+      "rawSha256": "a793d6062d53ab264473a26a46a09faf1848546aafa7b5b5dc4c80f069916a2a",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/ireondeul.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 만수산 드렁칡(「이런들 어떠하며」)",
+      "prompt": "tools/art/prompts/keepsake/ireondeul.txt",
+      "rawSha256": "260fb96e48381778fa7d7bfd83c97d839d20a9f3231615685ea330c96c52be25",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/imomi-jukgo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 한 조각 붉은 마음(「이 몸이 죽고 죽어」)",
+      "prompt": "tools/art/prompts/keepsake/imomi-jukgo.txt",
+      "rawSha256": "75f6d4e621d1034554b8f174d4119c11aa69863af85ae8ee07083f5f6f78a162",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/simnyeon-gyeongyeong.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 초가 세 칸(「십 년을 경영하야」)",
+      "prompt": "tools/art/prompts/keepsake/simnyeon-gyeongyeong.txt",
+      "rawSha256": "d19244f40b4e7926474463e454896428357b2be4722814b6c8530b644e0e9096",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/cheongsanri-byeokgyesu.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 빈 산 가득한 밝은 달(「청산리 벽계수야」)",
+      "prompt": "tools/art/prompts/keepsake/cheongsanri-byeokgyesu.txt",
+      "rawSha256": "5ed8e4246d2ce04b7f4c1414e8736695d4d8e3852f65eced5c40facde16cf102",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/obaengnyeon-doeupji.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 말 한 필(「오백 년 도읍지를」)",
+      "prompt": "tools/art/prompts/keepsake/obaengnyeon-doeupji.txt",
+      "rawSha256": "10451d453eac02298c5351ba3759ff1382054fcb8fd0737d844ce9559198ed63",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/eojeo-nae-iriyeo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "노래 속 마음 상징: 보내고 그리는 정(「어져 내 일이여」)",
+      "prompt": "tools/art/prompts/keepsake/eojeo-nae-iriyeo.txt",
+      "rawSha256": "cf201704e19620ef6f2af6af0223aa5061af7c4b0da2efa88a8cb73c3d4b4dd3",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/ihwa-wolbaek.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 달빛 아래 배꽃(「이화에 월백하고」)",
+      "prompt": "tools/art/prompts/keepsake/ihwa-wolbaek.txt",
+      "rawSha256": "3c71e79071fb3cf17b9d4aef11bf8a125d4daed9329c02b27b7f9cd87f0fefe7",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/hanson-makdae.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 늙음을 막는 막대(「한 손에 막대 잡고」)",
+      "prompt": "tools/art/prompts/keepsake/hanson-makdae.txt",
+      "rawSha256": "14d7e9b639cc52ad777d634fa44118e8a14b7eff1a9c689f5663ebd0d9b3048c",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/sakpung.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 긴 칼 한 자루(「삭풍은 나무 끝을 불고」)",
+      "prompt": "tools/art/prompts/keepsake/sakpung.txt",
+      "rawSha256": "bd0a46efa4e6b3538cfca840bca9a24353f751b570352a02f3776606ca87fb40",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/sinheum-sijo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 난초 길의 낙엽(「창 밖에 워석버석」)",
+      "prompt": "tools/art/prompts/keepsake/sinheum-sijo.txt",
+      "rawSha256": "5a0ee902d9d05266b4fe57de025dfede84e912991a07b8404c62c3e3cb01c1df",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/myeonangjeongga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 정자(「면앙정가」)",
+      "prompt": "tools/art/prompts/keepsake/myeonangjeongga.txt",
+      "rawSha256": "02403a16d5b157ec3da85e7bb67306533b0581bf5c1e5f50335a678f6804de9d",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/gwandong-byeolgok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 옥절(「관동별곡」)",
+      "prompt": "tools/art/prompts/keepsake/gwandong-byeolgok.txt",
+      "rawSha256": "be9d88cd036f0f13ac1ffcfdbabb200c2279500181e684e6f204391ce38828bc",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/gyuwonga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 베틀 북(「규원가」)",
+      "prompt": "tools/art/prompts/keepsake/gyuwonga.txt",
+      "rawSha256": "152a94c351b83f3f5515fa104d16e7b9b769acdc08c75d87eb343d1608a67f42",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/sangchungok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 갈건(「상춘곡」)",
+      "prompt": "tools/art/prompts/keepsake/sangchungok.txt",
+      "rawSha256": "e3ea8db913295e6459b5ca376f726183531003c0dd02e6fad58aed229edc465b",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/samiingok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 연지분(「사미인곡」)",
+      "prompt": "tools/art/prompts/keepsake/samiingok.txt",
+      "rawSha256": "7e35ce34c778d83513d19bcb82f0d538e79b9b63b10c1a2204e9a5bf069e032b",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/seonsangtan.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 일장검(「선상탄」)",
+      "prompt": "tools/art/prompts/keepsake/seonsangtan.txt",
+      "rawSha256": "c176923eaa3cbafc1b67c2e6391951474bbd549ad154bfe3a5435c4df62694db",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/songmiingok.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 죽 그릇(「속미인곡」)",
+      "prompt": "tools/art/prompts/keepsake/songmiingok.txt",
+      "rawSha256": "81d1d1b607693aaf54ddfa3ac09ddc431138fbad794b3816c171930c32b4666b",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/nuhangsa.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 삼해주(「누항사」)",
+      "prompt": "tools/art/prompts/keepsake/nuhangsa.txt",
+      "rawSha256": "4c0aeb278e95b65d71e0feac0f381968d4fc86f98bc3ead1f2ff43b651b979d6",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/gapminga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 베적삼(「갑민가」)",
+      "prompt": "tools/art/prompts/keepsake/gapminga.txt",
+      "rawSha256": "7897decaaac5c0e1af727de64999f4979865d54a71431160efa33687c085055b",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/namodo-bahi.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 천 석 실은 배(「나모도 바히 돌도」)",
+      "prompt": "tools/art/prompts/keepsake/namodo-bahi.txt",
+      "rawSha256": "82d537012109d89bae6e207c14c9d607bcc8ce1b467913da623a9cad7fde1f25",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/daekdeul-dongnanji.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 게젓 한 단지(「댁들에 동난지이 사오」)",
+      "prompt": "tools/art/prompts/keepsake/daekdeul-dongnanji.txt",
+      "rawSha256": "abc9f207c12ab5b9e752836407fbbcbcafb65cc2ec12cb464872a16ea0a700c2",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/chang-naegoja.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 크나큰 장도리(「창 내고쟈」)",
+      "prompt": "tools/art/prompts/keepsake/chang-naegoja.txt",
+      "rawSha256": "a30830f3758389dbc141345387c89bb5a8ac2cd8d0fec43119423b71173389cc",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/nimi-oma.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 품에 품은 버선(「님이 오마 하거늘」)",
+      "prompt": "tools/art/prompts/keepsake/nimi-oma.txt",
+      "rawSha256": "f2a1bd8fc0c8bd514e93d06f2e7eba05d8ffd195785828a2721acd8b31906cab",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/gwitturami.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 비단 창(「귀뚜라미 저 귀뚜라미」)",
+      "prompt": "tools/art/prompts/keepsake/gwitturami.txt",
+      "rawSha256": "3054393b118605aff8f39a1226d484b80d52efadae6b49f60e60387599d1fdad",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/nonbat-gara.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 곰방대(「논밭 갈아 김매고」)",
+      "prompt": "tools/art/prompts/keepsake/nonbat-gara.txt",
+      "rawSha256": "9f8a168f484a4ea2d1b52aa981fca3c756c7f97e9c498a2fafc362971a2f4f46",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/hansuma.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 용 거북 자물쇠(「한숨아 세한숨아」)",
+      "prompt": "tools/art/prompts/keepsake/hansuma.txt",
+      "rawSha256": "456bce186d4a80e7fcadd1c8e67d05493354e57a24f6ba316f30c14cc7a8ef8e",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/keepsake/suneung-saseol.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_keepsake",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "기념품: 시름 적은 방패연(「이 시름 저 시름」)",
+      "prompt": "tools/art/prompts/keepsake/suneung-saseol.txt",
+      "rawSha256": "46ceb24b06e1a4f255890b9fe136fbe5e9f45135827154be79d7daadc902eb94",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/texture/entrance.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high)",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "재질 무늬: entrance",
+      "prompt": "tools/art/prompts/texture/entrance.txt",
+      "rawSha256": "1b65bc3af2b4d1f643ac9a7b1cbb70141693a5da4fe4fd5e425280ffbaddde43",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/texture/corridor.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high)",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "재질 무늬: corridor",
+      "prompt": "tools/art/prompts/texture/corridor.txt",
+      "rawSha256": "bcea574279fd3ae84609437ebadea2b4e92dc18bf1ba6485cd98340eea2045d1",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/texture/hyangga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high)",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "재질 무늬: hyangga",
+      "prompt": "tools/art/prompts/texture/hyangga.txt",
+      "rawSha256": "12e6723a580a244ba99eb06d8bbe9c4a308c997c3ef3fc1aa373db549b91c3e0",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/texture/goryeo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high)",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "재질 무늬: goryeo",
+      "prompt": "tools/art/prompts/texture/goryeo.txt",
+      "rawSha256": "d62fe832b274c5d467f382be47a1b781d646b1adb9212a46ae83a584ea0b04ed",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/texture/sijo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high)",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "재질 무늬: sijo",
+      "prompt": "tools/art/prompts/texture/sijo.txt",
+      "rawSha256": "bb4c252d792bcb02d394b95212676aca404d9a7a73731adac233a60244b7bc0a",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/texture/gasa.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high)",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "재질 무늬: gasa",
+      "prompt": "tools/art/prompts/texture/gasa.txt",
+      "rawSha256": "632837e513f86c4eda591951fdb41fccbc7cc35a56d648c7ffffcd5277d14998",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/texture/saseol.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high)",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "재질 무늬: saseol",
+      "prompt": "tools/art/prompts/texture/saseol.txt",
+      "rawSha256": "cf01b51448afc28c1afe773dafc9bf4cc391ccc79bb7f642060cb69dd9b8188e",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/texture/hanji.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high)",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "재질 무늬: hanji",
+      "prompt": "tools/art/prompts/texture/hanji.txt",
+      "rawSha256": "1174e0dcd552fb3f4d224a46f1d7405e52678852b0b1a32af15d190bf997ae8e",
+      "image": {
+        "format": "webp",
+        "width": 512,
+        "height": 512,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/entrance.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: entrance",
+      "prompt": "tools/art/prompts/board/entrance.txt",
+      "rawSha256": "eb4671141c8a0e1cfadfa8e09bb444470f76074bddf833a1767c3e3ad6f4abc5",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/corridor.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: corridor",
+      "prompt": "tools/art/prompts/board/corridor.txt",
+      "rawSha256": "14a7c99df7638fca7e924b8d84fa3ee346cf6272300d87badae06d5c991222a1",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/hyangga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_texture",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: hyangga — 탑의 칸 수(아래부터 4·8·10, 맨 위층 마지막 두 칸 앞에 문)는 생성 뒤 tools/art/fix_hyangga.py로 맞춤",
+      "prompt": "tools/art/prompts/board/hyangga.txt",
+      "rawSha256": "400d6103d446b5c0568347d8a419c07bd3982e63b4ca1e6d4dde0138151139d0",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/goryeo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: goryeo",
+      "prompt": "tools/art/prompts/board/goryeo.txt",
+      "rawSha256": "3e1ff70a030d3d69add821c9e242fad8a073e91757082346e27abdb3dca00fa3",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/sijo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: sijo",
+      "prompt": "tools/art/prompts/board/sijo.txt",
+      "rawSha256": "53e8a1ecfa47e7416c31c9201ec568b8bef2145240d12601df5ac563273385fa",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/gasa.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: gasa",
+      "prompt": "tools/art/prompts/board/gasa.txt",
+      "rawSha256": "8b412c85a247cf12a20a0099f58256d575a9a8e785996cd18ea4ca25f33b22a4",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/saseol.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: saseol",
+      "prompt": "tools/art/prompts/board/saseol.txt",
+      "rawSha256": "b3bfbe9e89b17aeb528d9b0856bbd7355617276f387db319b4434c90e5776f54",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/room-hyangga.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: room-hyangga",
+      "prompt": "tools/art/prompts/board/room-hyangga.txt",
+      "rawSha256": "b04afa4ee01b2222e14dbc03967ee53893af235e7b34e7055ae76a7dc8b8be1c",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/room-goryeo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: room-goryeo",
+      "prompt": "tools/art/prompts/board/room-goryeo.txt",
+      "rawSha256": "4c2f79438089062b1d7222d412786cf4dd89218ed3a03bf6b6b8fa1d103bea7d",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/room-sijo.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: room-sijo",
+      "prompt": "tools/art/prompts/board/room-sijo.txt",
+      "rawSha256": "85f2f0c41d5ad3ff0cb34f336b001a5b3abb4ad452d38e038fb5c42638d5b31a",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/room-gasa.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: room-gasa",
+      "prompt": "tools/art/prompts/board/room-gasa.txt",
+      "rawSha256": "18a5dfc7b48fa878af7d08d0db3d154e4608a4977471d228c8df82561330527f",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/room-saseol.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: room-saseol",
+      "prompt": "tools/art/prompts/board/room-saseol.txt",
+      "rawSha256": "c7a4dc46ea5038113d6f7608d2750e2c4e56ab4ffa25774f94b50e6a4ea80f4c",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/boss.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: boss",
+      "prompt": "tools/art/prompts/board/boss.txt",
+      "rawSha256": "b6f409addb0806d085b707f148794a9c89469c14c0e3aa0474d07a660a37055c",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/board/ending.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high) · 화풍 참조 style_wing",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "2D 그림 판: ending",
+      "prompt": "tools/art/prompts/board/ending.txt",
+      "rawSha256": "37da85a74f7378758dfc1ba33144c1ec7e5118bd27a8fbb576b63a157c1cfb1c",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": false
+      }
+    },
+    {
+      "path": "assets/img/card/frame.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high)",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "카드 장식: frame",
+      "prompt": "tools/art/prompts/card/frame.txt",
+      "rawSha256": "423232dc8d52b4127cc24322732f1fbebbbb6eda57eff34399ca8f6f7aa774a6",
+      "image": {
+        "format": "webp",
+        "width": 1600,
+        "height": 900,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/img/card/keepsake.webp",
+      "kind": "image",
+      "source": "Codex 이미지 생성(Codex CLI image_gen)",
+      "generator": "tools/art/gen.ps1(gpt-image, 품질 high)",
+      "license": "OpenAI Codex CLI의 이미지 생성(image_gen)으로 이 프로젝트를 위해 만든 그림이다. OpenAI 이용 약관에 따라 생성물의 권리는 만든 사람에게 있고 상업적으로 쓸 수 있다.",
+      "commercialUse": true,
+      "notes": "카드 장식: keepsake",
+      "prompt": "tools/art/prompts/card/keepsake.txt",
+      "rawSha256": "6b57ffba85c2305b831d34fedef73c48784a4bc78b3e4f68cbc380e8b77f3c03",
+      "image": {
+        "format": "webp",
+        "width": 640,
+        "height": 960,
+        "alpha": true
+      }
+    },
+    {
+      "path": "assets/audio/bgm/start.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 대금 풍류 청성곡 악구 w3-190-010, w3-190-020, w3-190-030, w3-190-040, w3-190-050",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "시작 화면. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/entrance.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 거문고 풍류 현악영산회상 「상령산」 악구 S2-111-010, S2-111-020",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "입구와 복도. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/hyangga.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 대금 연례악 수제천 악구 w3-440-010, w3-440-022, w3-440-032, w3-440-042",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "향가관. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/goryeo.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 양금 연례악 보허사(보허자) 악구 S5-420-010, S5-420-012, S5-420-015, S5-420-018, S5-420-020",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "고려가요관. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/sijo.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 거문고 가곡(반주 가락) 남창 「우조 초수대엽」 악구 S2-211-010, S2-211-020, S2-211-030, S2-211-040",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "시조관. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/gasa.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 대금 풍류 관악영산회상 「염불도드리」 악구 w3-147-010, w3-147-020, w3-147-030, w3-147-040, w3-147-050, w3-147-060",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "가사관. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/saseol.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 해금 민간풍류 경기대풍류 「느린굿거리」 악구 S3-717-001, S3-717-002, S3-717-003, S3-717-004, S3-717-005",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "사설시조관. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/boss.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 아쟁 산조 윤윤석류 아쟁산조 「진양조」 악구 S4-001-001, S4-001-002, S4-001-003, S4-001-004, S4-001-005, S4-001-006",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "보스전 「서고의 밤」. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/ending.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 가야금 산조 성금련류 가야금산조 「진양조」 평조 대목 악구 s1-001-005, s1-001-006, s1-001-007, s1-001-008",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "엔딩. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/janggu.mp3",
+      "kind": "sfx",
+      "source": "국립국악원 「국악기 디지털 음원」 반주장구 정악 「시조 초중장 장단」 악구 m1-250-a01",
+      "generator": "tools/bgm/build_sfx.py — 「시조 초중장 장단」 27.51초의 덩(궁편·채편을 함께 친 타) 한 타, 0.7초",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "음보 두드리기 센 타. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/janggu-soft.mp3",
+      "kind": "sfx",
+      "source": "국립국악원 「국악기 디지털 음원」 반주장구 정악 「시조 초중장 장단」 악구 m1-250-a01",
+      "generator": "tools/bgm/build_sfx.py — 「시조 초중장 장단」 18.08초의 채편 잔가락 한 타, 0.26초",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "두드리기 여린 타. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/place.mp3",
+      "kind": "sfx",
+      "source": "국립국악원 「국악기 디지털 음원」 반주장구 정악 「시조 초중장 장단」 악구 m1-250-a01",
+      "generator": "tools/bgm/build_sfx.py — 「시조 초중장 장단」 32.50초의 덕-쿵(채편 뒤 궁편) 0.5초. 책을 칸에 꽂는 '탁'",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "책을 칸에 꽂음·뺌. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/bell.mp3",
+      "kind": "sfx",
+      "source": "직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 작은 종: 도(C6) 기본음과 종의 비조화 배음 6개, 짧은 타격 잡음",
+      "license": "이 게임 제작자가 스크립트로 직접 합성(외부 음원 없음). 상업 이용 제한 없음",
+      "commercialUse": true,
+      "notes": "박자 맞추기 종소리(여덟 번)"
+    },
+    {
+      "path": "assets/audio/sfx/bind.mp3",
+      "kind": "sfx",
+      "source": "직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 띠 잡음 두 번(실이 쓸림) + 짧은 사인 '톡'(매듭)",
+      "license": "이 게임 제작자가 스크립트로 직접 합성(외부 음원 없음). 상업 이용 제한 없음",
+      "commercialUse": true,
+      "notes": "칸 제본(실 묶음)"
+    },
+    {
+      "path": "assets/audio/sfx/gold.mp3",
+      "kind": "sfx",
+      "source": "직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 높은 사인 배음 묶음 네 개가 45~55ms 간격으로 반짝임 + 공기 잡음",
+      "license": "이 게임 제작자가 스크립트로 직접 합성(외부 음원 없음). 상업 이용 제한 없음",
+      "commercialUse": true,
+      "notes": "덤 칸 금박"
+    },
+    {
+      "path": "assets/audio/sfx/basket.mp3",
+      "kind": "sfx",
+      "source": "국립국악원 「국악기 디지털 음원」 반주장구 정악 「시조 초중장 장단」 악구 m1-250-a01 + 직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 「시조 초중장 장단」 15.01초의 궁편 '쿵' 0.6초 + 합성 바스락 6번",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "바구니에 담음. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/fog.mp3",
+      "kind": "sfx",
+      "source": "국립국악원 「국악기 디지털 음원」 징바라(징) 삼도농악가락 「자진삼채」 한 장단에 한 번 악구 i4-601-q01",
+      "generator": "tools/bgm/build_sfx.py — 「자진삼채」 1.60초의 징 한 타를 2.8초로 자르고 길게 줄임, 5kHz 위를 조금 깎음",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "먹안개가 물러남. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/pop.mp3",
+      "kind": "sfx",
+      "source": "직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 음높이가 떨어지는 사인 '뽁' + 작은 되튐",
+      "license": "이 게임 제작자가 스크립트로 직접 합성(외부 음원 없음). 상업 이용 제한 없음",
+      "commercialUse": true,
+      "notes": "판정에서 틀린 노래가 삐져나옴"
+    },
+    {
+      "path": "assets/audio/sfx/page.mp3",
+      "kind": "sfx",
+      "source": "직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 띠 잡음을 거칠게 흔든 바스락 + 낮은 '착'",
+      "license": "이 게임 제작자가 스크립트로 직접 합성(외부 음원 없음). 상업 이용 제한 없음",
+      "commercialUse": true,
+      "notes": "수첩·일지 책장 넘김"
+    }
+  ]
+}

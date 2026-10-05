@@ -19,7 +19,7 @@ $ErrorActionPreference = "Continue"
 $codex = Get-ChildItem "$env:LOCALAPPDATA\OpenAI\Codex\bin" -Recurse -Filter codex.exe -ErrorAction SilentlyContinue |
   Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
 if (-not $codex) { $codex = 'codex' }
-if ($env:YETNORAE_CODEX_BIN) { $codex = $env:GUUN_CODEX_BIN }
+if ($env:YETNORAE_CODEX_BIN) { $codex = $env:YETNORAE_CODEX_BIN }
 # 전역 ~/.codex 설정(플러그인·MCP)을 쓰면 시작이 몇 분씩 멈추므로, 최소 설정만 둔 임시 CODEX_HOME을 쓴다
 $ch = Join-Path $env:TEMP ("codex-img-yetnorae-" + $Name)
 New-Item -ItemType Directory -Force $ch | Out-Null
