@@ -31,6 +31,12 @@ const files = [
   'check-wing-gasa.mjs',
   'check-wing-saseol.mjs',
   'check-wing-contract.mjs',
+  'check-wingflow.mjs',
+  'check-room-hyangga.mjs',
+  'check-room-goryeo.mjs',
+  'check-room-sijo.mjs',
+  'check-room-gasa.mjs',
+  'check-room-saseol.mjs',
 ];
 
 fs.mkdirSync(path.join(here, 'shots'), { recursive: true });

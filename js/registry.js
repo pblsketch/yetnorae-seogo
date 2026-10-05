@@ -6,6 +6,13 @@ import * as goryeoWing from './world/wings/goryeo.js';
 import * as sijoWing from './world/wings/sijo.js';
 import * as gasaWing from './world/wings/gasa.js';
 import * as saseolWing from './world/wings/saseol.js';
+import * as hyanggaRoom from './rooms/hyangga.js';
+import * as goryeoRoom from './rooms/goryeo.js';
+import * as sijoRoom from './rooms/sijo.js';
+import * as gasaRoom from './rooms/gasa.js';
+import * as saseolRoom from './rooms/saseol.js';
+import * as playScreen from './play/play-screen.js';
+import { notebookScreen, journalScreen, collectionScreen } from './play/screens.js';
 
 export const registry = {
   wings: {},    // 관 id → 관 모형 모듈 { create3D, create2D }
@@ -21,3 +28,16 @@ registry.wings.goryeo = normalizeWing(goryeoWing);
 registry.wings.sijo = normalizeWing(sijoWing);
 registry.wings.gasa = normalizeWing(gasaWing);
 registry.wings.saseol = normalizeWing(saseolWing);
+
+// 작품 방
+registry.rooms.hyangga = hyanggaRoom;
+registry.rooms.goryeo = goryeoRoom;
+registry.rooms.sijo = sijoRoom;
+registry.rooms.gasa = gasaRoom;
+registry.rooms.saseol = saseolRoom;
+
+// 화면
+registry.screens.play = playScreen;
+registry.screens.notebook = notebookScreen;
+registry.screens.journal = journalScreen;
+registry.screens.collection = collectionScreen;
