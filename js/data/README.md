@@ -110,7 +110,7 @@
 | 시조 | `dongjitdal` | 동짓달 기나긴 밤을 | |
 | 시조 | `ireondeul` | 이런들 어떠하며 | |
 | 시조 | `imomi-jukgo` | 이 몸이 죽고 죽어 | |
-| 시조 | `simnyeon-gyeongyeong` | 십 년을 경영하여 | |
+| 시조 | `simnyeon-gyeongyeong` | 십 년을 경영하야 | |
 | 시조 | `ihwa-wolbaek` | 이화에 월백하고 | |
 | 시조 | `hanson-makdae` | 한 손에 막대 잡고 | |
 | 시조 | `sakpung` | 삭풍은 나무 끝을 불고 | |
