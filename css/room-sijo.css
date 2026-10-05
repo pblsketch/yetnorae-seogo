@@ -1,0 +1,202 @@
+/* 작품 방 「십 년을 경영하야」(js/rooms/sijo.js). 색은 css/base.css 토큰만 쓴다. 녹청·주홍은 누를 수 있는 것에만. */
+.room-sijo {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--hanji);
+  color: var(--meok);
+  font-family: var(--font-ui);
+  --sj-pad: 8px;
+  --sj-panel: rgba(243, 234, 214, 0.94);
+}
+.room-sijo [hidden] { display: none !important; }
+
+/* ── 장면 ── */
+.sj-viewport { position: absolute; inset: 0; overflow: hidden; container-type: size; }
+.sj-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.sj-stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100cqw, calc(100cqh * 16 / 9));
+  aspect-ratio: 16 / 9;
+  translate: -50% -50%;
+  transform-origin: 50% 50%;
+}
+.sj-board { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; }
+.sj-screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.2s ease 0.8s;
+}
+.sj-stage.is-widening .sj-screen { opacity: 1; }
+.sj-slots, .sj-slot-layer { position: absolute; inset: 0; pointer-events: none; }
+.sj-slot-layer > *, .sj-slots > * { pointer-events: auto; }
+
+/* ── 칸과 집 밖 ── */
+.sj-slot {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1em;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 0.2em;
+  border: 3px dashed var(--nokcheong);
+  border-radius: 10px;
+  background: rgba(243, 234, 214, 0.5);
+  color: var(--meok);
+  overflow: hidden;
+  line-height: 1.15;
+}
+.sj-slot.is-filled { background: rgba(243, 234, 214, 0.86); border-style: solid; }
+.sj-slot.is-target:not(:disabled) { border-style: solid; border-color: var(--juhong); box-shadow: 0 0 0 3px rgba(196, 70, 47, 0.25); }
+.sj-slot:disabled { cursor: default; border-color: var(--meok-soft); }
+.sj-slot-label { font-size: 0.75em; color: var(--meok-soft); white-space: nowrap; }
+.sj-slot-item { font-family: var(--font-body); font-weight: 700; font-size: 1.05em; white-space: nowrap; }
+.sj-room:not(.is-filled) { background: rgba(243, 234, 214, 0.28); }
+.sj-slot.is-refused { animation: sj-refuse 0.45s ease; }
+@keyframes sj-refuse {
+  20% { transform: translateX(-6px); }
+  45% { transform: translateX(6px); }
+  70% { transform: translateX(-3px); }
+}
+
+/* 3D: 칸 안의 물건 모양이 보이도록 칸 단추는 비치게, 이름은 아래쪽 띠에 */
+.room-sijo[data-mode="3d"] .sj-room { justify-content: space-between; background: rgba(243, 234, 214, 0.12); }
+.room-sijo[data-mode="3d"] .sj-room.is-filled { background: rgba(243, 234, 214, 0.2); }
+.sj-room .sj-slot-label,
+.sj-room .sj-slot-item:not(:empty) { padding: 0 0.4em; border-radius: 6px; background: rgba(243, 234, 214, 0.9); }
+
+.sj-outside {
+  right: calc(12px + var(--safe-r));
+  top: calc((var(--sj-band-top, 30%) + 100% - var(--sj-band-bottom, 30%)) / 2);
+  transform: translateY(-50%);
+  width: clamp(7em, 16%, 13em);
+  height: clamp(var(--touch-min), calc((100% - var(--sj-band-top, 30%) - var(--sj-band-bottom, 30%)) * 0.62), 10em);
+  border-radius: 18px;
+  background: rgba(243, 234, 214, 0.78);
+}
+.sj-outside.is-refused { animation: none; }
+
+/* ── 위: 송순의 말과 낭송 ── */
+.sj-panel {
+  background: var(--sj-panel);
+  border: 1px solid var(--hanji-deep);
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(43, 43, 43, 0.18);
+}
+.sj-top {
+  position: absolute;
+  top: var(--sj-pad);
+  left: calc(var(--sj-pad) + var(--safe-l));
+  right: calc(var(--sj-pad) + var(--safe-r));
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6em;
+  padding: 0.35em 0.75em;
+}
+.sj-face { flex: none; height: 3.2em; width: auto; max-width: 3.2em; object-fit: contain; }
+.sj-face-placeholder {
+  display: grid;
+  place-items: center;
+  width: 2.6em;
+  height: 2.6em;
+  border-radius: 50%;
+  background: var(--hanji-deep);
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+.sj-talk { min-width: 0; flex: 1; }
+.sj-name { font-size: 0.75em; font-weight: 700; color: var(--meok-soft); }
+.sj-say { margin: 0; font-family: var(--font-body); font-size: 1em; line-height: 1.35; }
+.sj-hint { margin: 0.1em 0 0; font-size: 0.75em; line-height: 1.3; color: var(--meok-soft); }
+.sj-verse { margin-top: 0.25em; padding-left: 0.6em; border-left: 3px solid var(--gold); }
+.sj-verse[hidden], .sj-hint[hidden] { display: none; }
+.sj-original { margin: 0; font-family: var(--font-body); font-weight: 700; font-size: 1em; line-height: 1.35; }
+.sj-gloss { margin: 0; font-size: 0.75em; line-height: 1.3; color: var(--meok-soft); }
+
+/* ── 아래: 들일 것과 단추 ── */
+.sj-bottom {
+  position: absolute;
+  left: calc(var(--sj-pad) + var(--safe-l));
+  right: calc(var(--sj-pad) + var(--safe-r));
+  bottom: calc(var(--sj-pad) + var(--safe-b));
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.3em 0.5em;
+}
+.sj-tray { display: flex; flex-wrap: wrap; gap: 0.35em; min-width: 0; }
+.sj-tray[hidden] { display: none; }
+.sj-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: max(var(--touch-min), 3.6em);
+  padding: 0.1em 0.45em;
+  border: 2px solid var(--nokcheong);
+  border-radius: 10px;
+  background: var(--hanji);
+  color: var(--meok);
+  line-height: 1.15;
+}
+.sj-item-name { font-family: var(--font-body); font-weight: 700; font-size: 1em; white-space: nowrap; }
+.sj-item-note { font-size: 0.7em; color: var(--meok-soft); white-space: nowrap; }
+.sj-item.is-placed { background: var(--hanji-deep); border-style: dashed; }
+.sj-item.is-selected { background: var(--nokcheong); color: var(--hanji); border-style: solid; }
+.sj-item.is-selected .sj-item-note { color: var(--hanji); }
+.sj-item:disabled { border-color: var(--meok-fog); cursor: default; }
+.sj-actions { display: flex; gap: 0.5em; margin-left: auto; flex: none; }
+.sj-actions button {
+  padding: 0 1em;
+  border: 3px solid var(--juhong);
+  border-radius: 999px;
+  background: var(--meok);
+  color: var(--hanji);
+  white-space: nowrap;
+}
+.sj-actions button[hidden] { display: none; }
+.sj-actions button:disabled { border-color: var(--meok-fog); background: var(--meok-soft); cursor: default; }
+
+/* 들일 것이 없는 단계에서는 단추 줄만 오른쪽에 */
+.sj-bottom:has(> .sj-tray[hidden]) { left: auto; }
+
+/* ── 해석 ── */
+.sj-interp {
+  position: absolute;
+  left: 50%;
+  top: calc((var(--sj-band-top, 30%) + 100% - var(--sj-band-bottom, 30%)) / 2);
+  transform: translate(-50%, -50%);
+  width: min(38em, calc(100% - 2 * var(--sj-pad) - var(--safe-l) - var(--safe-r)));
+  padding: 0.5em 0.9em;
+  border: 2px solid var(--gold);
+}
+.sj-interp[hidden] { display: none; }
+.sj-tag {
+  display: inline-block;
+  padding: 0 0.5em;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  background: var(--hanji-deep);
+  font-size: 0.75em;
+  font-weight: 700;
+}
+.sj-interp-text { margin: 0.25em 0 0; font-family: var(--font-body); font-size: 1em; line-height: 1.4; }
+.sj-interp-layout { margin: 0.3em 0 0; font-size: 0.75em; color: var(--meok-soft); }
+.sj-interp-note { margin: 0.15em 0 0; font-size: 0.7em; color: var(--meok-soft); }
+
+/* 움직임 줄이기 */
+.room-sijo.sj-reduce *, .room-sijo.sj-reduce *::before, .room-sijo.sj-reduce *::after {
+  animation-duration: 0.001ms !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0s !important;
+}
+.sj-outside .sj-slot-item { white-space: normal; text-align: center; }
