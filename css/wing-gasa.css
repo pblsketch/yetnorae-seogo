@@ -1,0 +1,274 @@
+/* 가사관 2D 그림 판(자리표시 그림). 먹빛→단청은 그림 판(.board-art)의 회색 필터가 맡으므로 여기서는 본래 색을 칠한다.
+   색은 css/base.css 토큰만 쓴다. 움직임 줄이기(#app.reduce-motion)에서는 전환과 움직임을 끈다. */
+
+.gasa2d {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  font-family: var(--font-body);
+  color: var(--meok);
+}
+
+/* ── 회랑 ── */
+.gasa2d__corridor { position: absolute; inset: 0; width: 100%; height: 100%; }
+.gasa2d__sky { fill: color-mix(in srgb, var(--hanji) 82%, var(--meok-fog)); }
+.gasa2d__ground { fill: var(--hanji-deep); }
+.gasa2d__deck { fill: color-mix(in srgb, var(--hanji-deep) 70%, var(--gold)); stroke: var(--meok-soft); stroke-width: 0.15; }
+.gasa2d__pillar { fill: color-mix(in srgb, var(--juhong) 80%, var(--meok-soft)); stroke: var(--meok); stroke-width: 0.15; }
+.gasa2d__pillar.is-lit { fill: color-mix(in srgb, var(--gold) 55%, var(--hanji)); stroke: var(--gold); stroke-width: 0.4; }
+.gasa2d__roof { fill: color-mix(in srgb, var(--meok) 70%, var(--meok-soft)); stroke: var(--meok); stroke-width: 0.15; }
+.gasa2d__beam { fill: var(--nokcheong); stroke: var(--meok); stroke-width: 0.1; }
+.gasa2d__band { fill: color-mix(in srgb, var(--nokcheong) 75%, var(--hanji)); }
+.gasa2d__band.is-flash { fill: color-mix(in srgb, var(--gold) 60%, var(--hanji)); }
+.gasa2d__seg.is-ghost polygon,
+.gasa2d__seg.is-ghost rect { fill: none; stroke: var(--meok-fog); stroke-width: 0.25; stroke-dasharray: 0.8 0.6; }
+.gasa2d__mist-in { stop-color: var(--hanji); stop-opacity: 1; }
+.gasa2d__mist-mid { stop-color: var(--hanji); stop-opacity: 0.55; }
+.gasa2d__mist-out { stop-color: var(--hanji); stop-opacity: 0; }
+
+/* ── 이름판 ── */
+.gasa2d__sign {
+  position: absolute;
+  padding: 0.1em 0.6em;
+  background: var(--hanji);
+  border: 2px solid var(--meok);
+  font-weight: 700;
+  white-space: nowrap;
+  font-size: calc(13px * var(--text-scale));
+  line-height: 1.3;
+}
+.gasa2d__sign--gate { left: 50%; top: 2.5%; transform: translateX(-50%); font-size: calc(15px * var(--text-scale)); }
+
+/* ── 먹안개 ── */
+.gasa2d__fog {
+  position: absolute;
+  inset: 38% -5% -5% -5%;
+  transition: opacity 1.6s ease, transform 1.6s ease;
+}
+.gasa2d__fog-cloud {
+  position: absolute;
+  width: 55%;
+  height: 60%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--meok-fog) 70%, transparent), transparent);
+}
+.gasa2d__fog-cloud:nth-child(1) { left: -5%; top: 25%; }
+.gasa2d__fog-cloud:nth-child(2) { left: 50%; top: 30%; }
+.gasa2d__fog-cloud:nth-child(3) { left: 22%; top: 0; width: 60%; }
+.gasa2d__fog.is-receded { opacity: 0; transform: translateY(14%) scale(1.25); }
+
+/* ── 문 ── */
+.gasa2d__door { position: absolute; top: 14%; width: 13%; height: 30%; }
+.gasa2d__door--next { left: 4.5%; }
+.gasa2d__door--room { left: 82.5%; }
+.gasa2d__door-panel {
+  position: absolute;
+  inset: 22% 12% 0 12%;
+  background: var(--meok-soft);
+  border: 0.3em solid var(--nokcheong);   /* 누를 수 있는 문 */
+  border-bottom: 0;
+}
+.gasa2d__door--next .gasa2d__door-panel { inset: 10% 12% 0 12%; }
+.gasa2d__door-roof {
+  position: absolute;
+  left: -12%;
+  right: -12%;
+  top: 0;
+  height: 30%;
+  border-radius: 50% 50% 12% 12%;
+  background: repeating-linear-gradient(100deg, color-mix(in srgb, var(--gold) 45%, var(--hanji-deep)) 0 6%, var(--hanji-deep) 6% 9%);
+  border: 2px solid var(--meok-soft);
+}
+.gasa2d__sign--room { left: 50%; top: 32%; transform: translateX(-50%); }
+
+/* ── 서가(칸·덤 칸) ── */
+.gasa2d__shelf {
+  position: absolute;
+  top: 46%;
+  width: 24%;
+  height: 28%;
+  display: flex;
+  box-sizing: border-box;
+  border: 0.35em solid color-mix(in srgb, var(--gold) 45%, var(--meok-soft));
+  border-top-color: var(--nokcheong);
+  background: color-mix(in srgb, var(--meok-soft) 80%, var(--gold));
+}
+.gasa2d__shelf--main { left: 3.5%; }
+.gasa2d__shelf--bonus { left: 72.5%; }
+.gasa2d__cell { position: relative; flex: 1; border-left: 2px solid color-mix(in srgb, var(--gold) 45%, var(--meok-soft)); }
+.gasa2d__cell:first-child { border-left: 0; }
+.gasa2d__vol {
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 7%;
+  bottom: 5%;
+  box-sizing: border-box;
+}
+/* 빈자리: 제목 없는 빈 책등 */
+.gasa2d__vol[data-state="empty"] { background: color-mix(in srgb, var(--hanji) 85%, var(--meok-fog)); border: 2px dashed var(--meok-fog); }
+.gasa2d__vol[data-state="filled"] {
+  background:
+    linear-gradient(var(--meok) 0 0) 0 30% / 100% 3px no-repeat,
+    linear-gradient(var(--meok) 0 0) 0 72% / 100% 3px no-repeat,
+    var(--hanji-deep);
+  border: 2px solid var(--meok);
+}
+.gasa2d__title { display: none; }
+.gasa2d__shelf.is-bound .gasa2d__vol[data-state="filled"] .gasa2d__title {
+  /* 금박 제목(묶인 뒤에만) */
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: 6%;
+  bottom: 52%;
+  transform: translateX(-50%);
+  writing-mode: vertical-rl;
+  overflow: hidden;
+  padding: 0.1em 0;
+  background: var(--gold);
+  color: var(--meok);
+  font-size: calc(10px * var(--text-scale));
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.gasa2d__thread { display: none; }
+.gasa2d__shelf.is-bound .gasa2d__thread {
+  /* 세 권을 한 권으로 묶는 실 */
+  display: block;
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 40%;
+  height: 3px;
+  background: var(--juhong);
+}
+.gasa2d__shelf.is-bound .gasa2d__thread--low { top: 66%; }
+
+/* ── 삐져나온 노래: 갈래의 모양 차이 ── */
+.gasa2d__vol[data-state="popped"] { background: none; border: 0; }
+.gasa2d__pop { position: absolute; inset: 0; --pop: 1; }
+.gasa2d__pop i {
+  position: absolute;
+  box-sizing: border-box;
+  background: var(--hanji-deep);
+  border: 2px solid var(--meok);
+}
+/* 시조: 짧은 세 장. 높은 칸에 모자라 앞으로 쏟아진다 */
+.gasa2d__pop[data-genre="sijo"] { transform: translate(calc(var(--pop) * 25%), calc(var(--pop) * 32%)) rotate(calc(var(--pop) * -16deg)); }
+.gasa2d__pop[data-genre="sijo"] i { left: 0; right: 0; height: 21%; }
+.gasa2d__pop[data-genre="sijo"] i:nth-child(1) { bottom: 0; }
+.gasa2d__pop[data-genre="sijo"] i:nth-child(2) { bottom: 23%; }
+.gasa2d__pop[data-genre="sijo"] i:nth-child(3) { bottom: 46%; }
+/* 사설시조: 초장·종장은 제자리, 늘어난 중장만 칸 밖으로 길게 */
+.gasa2d__pop[data-genre="saseol"] i:nth-child(1) { left: 0; right: 0; top: 0; height: 22%; }
+.gasa2d__pop[data-genre="saseol"] i:nth-child(3) { left: 0; right: 0; bottom: 0; height: 22%; }
+.gasa2d__pop[data-genre="saseol"] i:nth-child(2) {
+  top: 32%;
+  height: 36%;
+  left: calc(var(--pop) * -140%);
+  width: calc(100% + var(--pop) * 280%);
+  background: var(--hanji);
+}
+/* 향가: 4·4·2로 쌓인 탑이 칸 위로 솟는다 */
+.gasa2d__pop[data-genre="hyangga"] { transform: translateY(calc(var(--pop) * -62%)); }
+.gasa2d__pop[data-genre="hyangga"] i:nth-child(1) { bottom: 0; height: 38%; left: 0; right: 0; }
+.gasa2d__pop[data-genre="hyangga"] i:nth-child(2) { bottom: 39%; height: 38%; left: 10%; right: 10%; }
+.gasa2d__pop[data-genre="hyangga"] i:nth-child(3) { bottom: 78%; height: 19%; left: 22%; right: 22%; }
+/* 고려가요: 똑같은 연이 고리로 이어져 줄줄이 늘어진다 */
+.gasa2d__pop[data-genre="goryeo"] i { left: 0; width: 80%; height: 20%; border-right: 4px dotted var(--juhong); }
+.gasa2d__pop[data-genre="goryeo"] i:nth-child(1) { top: 4%; }
+.gasa2d__pop[data-genre="goryeo"] i:nth-child(2) { top: 28%; transform: translate(calc(var(--pop) * 60%), calc(var(--pop) * 40%)); }
+.gasa2d__pop[data-genre="goryeo"] i:nth-child(3) { top: 52%; transform: translate(calc(var(--pop) * 120%), calc(var(--pop) * 80%)); }
+.gasa2d__pop[data-genre="goryeo"] i:nth-child(4) { top: 76%; transform: translate(calc(var(--pop) * 180%), calc(var(--pop) * 120%)); }
+/* 가사: 이어지는 두루마리. 종이가 바닥까지 풀린다 */
+.gasa2d__pop[data-genre="gasa"] i:nth-child(1) { inset: 0; transform: translateY(calc(var(--pop) * 8%)); }
+.gasa2d__pop[data-genre="gasa"] i:nth-child(2) {
+  left: 12%;
+  right: 12%;
+  top: 100%;
+  height: calc(var(--pop) * 110%);
+  background: repeating-linear-gradient(var(--hanji) 0 14%, var(--meok-fog) 14% 16%);
+}
+.gasa2d__pop[data-genre="unknown"] i { inset: 0; transform: translateX(calc(var(--pop) * 40%)); }
+
+/* ── 바구니 ── */
+.gasa2d__basket {
+  position: absolute;
+  left: 63%;
+  top: 80%;
+  width: 10%;
+  height: 12%;
+  box-sizing: border-box;
+  border-top: 0.3em solid var(--nokcheong);
+  border-radius: 0 0 45% 45%;
+  background: repeating-linear-gradient(60deg, color-mix(in srgb, var(--gold) 45%, var(--hanji-deep)) 0 8%, var(--hanji-deep) 8% 14%);
+}
+.gasa2d__roll {
+  position: absolute;
+  top: -42%;
+  width: 40%;
+  height: 40%;
+  box-sizing: border-box;
+  border-radius: 40%;
+  background: var(--hanji-deep);
+  border: 2px solid var(--meok);
+}
+.gasa2d__roll[data-index="0"] { left: 8%; }
+.gasa2d__roll[data-index="1"] { right: 8%; }
+.gasa2d__roll[data-state="empty"], .gasa2d__roll[data-state="popped"] { display: none; }
+.gasa2d__tag { display: none; }
+.gasa2d__roll.has-tag .gasa2d__tag {
+  /* 행선지 표시 */
+  display: block;
+  position: absolute;
+  right: -12%;
+  top: -40%;
+  width: 30%;
+  height: 70%;
+  background: var(--nokcheong);
+  border: 1px solid var(--meok);
+}
+.gasa2d__basket-pop { position: absolute; top: 72%; width: 4.5%; height: 14%; }
+.gasa2d__basket-pop[data-index="0"] { left: 56%; }
+.gasa2d__basket-pop[data-index="1"] { left: 75%; }
+
+/* ── 돌아온 노래 선반 ── */
+.gasa2d__returned {
+  position: absolute;
+  left: 5%;
+  top: 80%;
+  width: 14%;
+  height: 13%;
+  box-sizing: border-box;
+  border: 0.3em solid color-mix(in srgb, var(--gold) 45%, var(--meok-soft));
+  border-top-color: var(--nokcheong);
+  background: color-mix(in srgb, var(--meok-soft) 80%, var(--gold));
+}
+.gasa2d__sign--returned { left: 50%; bottom: 100%; transform: translate(-50%, -2px); font-size: calc(11px * var(--text-scale)); }
+.gasa2d__returned-books { position: absolute; inset: 15% 6% 8% 6%; display: flex; gap: 6%; align-items: flex-end; }
+.gasa2d__returned-book { flex: 0 0 16%; height: 90%; background: var(--hanji-deep); border: 2px solid var(--meok); box-sizing: border-box; }
+
+/* ── 기다리는 노래 자리(작은 상) ── */
+.gasa2d__waiting { position: absolute; left: 28%; top: 86%; width: 8%; height: 6%; }
+.gasa2d__waiting-top {
+  position: absolute;
+  inset: 0 0 45% 0;
+  background: color-mix(in srgb, var(--gold) 45%, var(--meok-soft));
+  border: 2px solid var(--meok-soft);
+  border-radius: 4px;
+}
+.gasa2d__waiting::after {
+  content: '';
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 55%;
+  bottom: 0;
+  background: var(--meok-soft);
+}
+
+/* 움직임 줄이기: 전환 없이 잘라 바꾼다 */
+.reduce-motion .gasa2d__fog { transition: none; }
