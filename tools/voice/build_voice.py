@@ -1,31 +1,40 @@
 # -*- coding: utf-8 -*-
-"""낭송 조각(음보마다, 향가는 구마다)을 Fish Audio 유료 API로 만든다(spec 15, plan T27·T28).
+"""낭송 조각(음보마다, 향가는 구마다)을 Fish Audio 유료 API로 만든다(spec 15, plan T27·T28, 추가 제안 F5).
 
-    python tools/voice/build_voice.py --dry-run                       # 모든 노래: 조각 수·글자 수·예상 요금(API 부르지 않음)
-    python tools/voice/build_voice.py --sample --voice narrator-a --only dongjitdal,jemangmaega
-                                                                      # 후보 목소리 견본 + 박자 칸에 맞춰 이어 붙인 미리 듣기
-    python tools/voice/build_voice.py [--voice <후보>] [--only id,id]   # 실제 조각(assets/audio/voice/…)과 생성 기록
+    python tools/voice/build_voice.py --dry-run                       # 모든 노래: 줄 수·조각 수·글자 수·예상 요금(API 부르지 않음)
+    python tools/voice/build_voice.py --self-test                     # API 없이 가짜 말소리로 줄 자르기·빠르기·기록·미리 듣기 시험
+    python tools/voice/build_voice.py --tempo-probe --voice narrator-a2,narrator-b2 [--write-tempo]
+                                                                      # 노래마다 가장 긴 음보가 들어 있을 줄만 읽혀 자연 빠르기를 잰다
+    python tools/voice/build_voice.py --sample --voice narrator-a2 --only dongjitdal,jemangmaega --out <폴더> --prefix v2-
+                                                                      # 후보 목소리 견본 + 미리 듣기(박자 칸·딸깍·줄 그대로)
+    python tools/voice/build_voice.py [--only id,id] [--write-tempo]  # 실제 조각(assets/audio/voice/…)과 생성 기록(승인된 목소리)
 
 키: 환경 변수 YETNORAE_FISH_API_KEY로만 받는다. 키를 화면·기록·파일 어디에도 쓰지 않고, 오류 글에서도 지운다.
     예) YETNORAE_FISH_API_KEY="$(cat "$LOCALAPPDATA/yetnorae/fish.key")" python tools/voice/build_voice.py …
 
-흐름
-1. node tools/voice/plan.mjs가 노래 데이터에서 조각 목록(글 = 그 음보의 reading)과 박자 칸(빠르기, 칸 길이)을 낸다.
+흐름(F5부터: 줄 단위로 읽히고 음보 경계에서 자른다)
+1. node tools/voice/plan.mjs가 노래 데이터에서 줄 목록(시조·사설시조 장, 가사 행, 고려가요 줄, 향가 구)과
+   그 줄의 음보 조각(글 = 그 음보의 reading), 박자 칸(빠르기, 칸 길이)을 낸다.
 2. 목소리: voices.json의 후보 설명으로 목소리 설계(voice-design-1)를 한 번 하고, 그 음성을 기준 음성으로 삼는다.
-3. 조각마다 TTS(유료 모델, voices.json의 model). 받은 원본은 tools/voice_cache/(git 제외)에 글·목소리·설정의 해시로 둔다.
-   같은 해시가 있으면 다시 부르지 않는다(이미 만든 조각은 다시 만들지 않는다).
-4. 앞뒤 무음을 바짝 자르고, 칸(60/빠르기 초)의 FILL 비율 안에 들어가게 한다.
-   길면 먼저 말 빠르기(prosody.speed)를 올려 다시 읽히고, 그래도 조금 길면 atempo로 줄인다.
-5. 음량을 TARGET_LUFS에 맞추고(봉우리 한도), 모노 MP3로 쓴다.
-6. 생성 기록: assets/audio/voice/manifest.json(조각마다 글·길이·칸·sha256), 자산 목록 조각 assets/manifest.parts/voice.json.
-   --sample이면 assets/raw/voice-samples/<후보>/ 아래에 쓰고(git 제외) 자산 목록은 건드리지 않는다.
+3. 줄마다 TTS 한 번(유료 모델). 줄의 음보 reading을 띄어 이은 글을 자연스러운 한국어 말투 그대로 읽힌다.
+   받은 원본은 tools/voice_cache/(git 제외)에 글·목소리·설정의 해시로 둔다. 같은 해시가 있으면 다시 부르지 않는다.
+4. 줄 소리를 받아쓰기(Fish ASR, 낱말 시각)로 듣고 음보 경계 시각을 정한다. 받아쓰기가 글과 너무 다르면
+   음절 수 비율로 어림한다. 어느 쪽이든 그 근처에서 소리가 가장 작은 곳을 찾아 자른다(cut: asr·energy, 향가 구는 whole).
+5. 조각마다 앞뒤 무음을 다듬고 아주 짧게 페이드한다. 빠르게 줄이거나(atempo) 빨리 읽히지 않는다.
+   음량은 줄 하나에 같은 이득을 주어 TARGET_LUFS에 맞춘다(줄 안의 자연스러운 셈여림을 지킨다).
+6. 노래마다 자연 빠르기 = 내림(60 × FILL ÷ 가장 긴 음보 조각 초). --write-tempo면 노래 데이터의 tempo에 쓴다.
+   실제 조각은 노래 데이터의 tempo 칸 안에 들어야 하고, 넘치면 멈추고 --write-tempo를 권한다.
+7. 생성 기록: assets/audio/voice/manifest.json, 자산 목록 조각 assets/manifest.parts/voice.json.
+   --sample이면 --out(기본 assets/raw/voice-samples/) 아래에 쓰고(git 제외) 자산 목록·노래 데이터는 건드리지 않는다.
 """
 import argparse
 import base64
 import concurrent.futures as cf
 import difflib
 import hashlib
+import io
 import json
+import math
 import os
 import re
 import shutil
@@ -37,6 +46,7 @@ import time
 import traceback
 import urllib.error
 import urllib.request
+import wave
 
 import numpy as np
 
@@ -47,6 +57,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 CACHE = os.path.join(ROOT, 'tools', 'voice_cache')
 SAMPLES = os.path.join(ROOT, 'assets', 'raw', 'voice-samples')
+SONGS_DIR = os.path.join(ROOT, 'js', 'data', 'songs')
 PART = os.path.join(ROOT, 'assets', 'manifest.parts', 'voice.json')
 CONFIG = os.path.join(HERE, 'voices.json')
 API = 'https://api.fish.audio'
@@ -55,25 +66,36 @@ ENV_KEY = 'YETNORAE_FISH_API_KEY'
 # ── 조정할 수 있는 값 ──
 SR = 44100
 BITRATE = '64k'
-TARGET_LUFS = -18.0          # 조각 음량(배경음 −20 LUFS보다 조금 크게)
+TARGET_LUFS = -18.0          # 줄 음량(배경음 −20 LUFS보다 조금 크게)
 PEAK_MAX_DB = -1.5           # 표본 봉우리 한도
-FILL = 0.92                  # 조각 길이 ≤ 칸 × FILL (다음 박 앞에 숨 쉴 틈)
-RESPEAK_OVER = 1.10          # 자른 길이가 목표의 이 배를 넘으면 말 빠르기를 올려 다시 읽힌다
-MAX_TTS_SPEED = 1.6          # 다시 읽힐 때 말 빠르기 상한
-STRETCH_WARN = 1.15          # 마지막 atempo 배율이 이보다 크면 알린다(노래 tempo를 낮추라는 신호)
-SPEED_WARN = 1.3             # 말 빠르기를 이보다 올려야 했으면 알린다
+FILL = 0.92                  # 가장 긴 조각 ≤ 칸 × FILL (다음 박 앞에 숨 쉴 틈) — 자연 빠르기를 정하는 비율
+MAX_TEMPO = 120              # 자연 빠르기 상한(박/분)
 LEAD_PAD = 0.010             # 소리 시작 앞에 남길 틈(초) — 박에 바로 소리가 나도록 짧게
+LEAD_MAX = 0.050             # 조각 앞에서 큰 소리(봉우리 −30dB)가 나기까지의 한도(초). 줄 가운데에서 자른 조각은
+                             # 앞 음보에서 이어진 숨·여린 첫소리(ㅎ·ㅅ)를 지키려고 줄 전체 기준 문턱으로만 다듬으므로
+                             # 음보마다 따로 읽힐 때(30ms)보다 조금 넉넉하다. 박 판정 창(±150ms)에 견주면 작다
 TAIL_PAD = 0.050             # 소리 끝 뒤에 남길 틈(초)
-FADE_IN = 0.004
-FADE_OUT = 0.025
-GATE_BELOW_PEAK_DB = 38      # 10ms 구간 RMS가 가장 큰 구간보다 이만큼 작으면 무음으로 본다
+FADE_IN = 0.005              # 조각 앞 페이드(초)
+FADE_OUT = 0.020             # 조각 뒤 페이드(초)
+GATE_BELOW_PEAK_DB = 38      # 10ms 구간 RMS가 줄에서 가장 큰 구간보다 이만큼 작으면 무음으로 본다
 GATE_FLOOR_DB = -55
+HOP = 0.010                  # 음량 곡선 간격(초)
+CUT_WINDOW_ASR = 0.06        # 받아쓰기로 정한 경계 둘레에서 가장 조용한 곳을 찾는 폭(±초). 넓히면 낱말 안의
+                             # 닫힘소리(ㅂ·ㄷ·ㄱ)·마찰음(ㅅ)의 짧은 골짜기를 경계로 잘못 고른다
+CUT_WINDOW_SYL = 0.9         # 음절 비율로 어림한 경계는 평균 음절 길이 × 이 값(±)
+CUT_PULL_DB = 12.0           # 어림한 경계에서 창 끝까지 멀어질 때 더하는 벌점(dB)
+MIN_PIECE = 0.12             # 조각 하나의 최소 길이(초)
+ASR_MIN_MATCH = 0.4          # 받아쓰기 글과 줄 글의 글자 맞춤 비율(difflib)
+ASR_COUNT_TOL = 0.15         # 받아쓰기 음절 수와 줄 글 음절 수의 차이 한도(비율)
+                             # 둘 다 넘지 못하면(다른 말로 헛들음) 받아쓰기 시각을 쓰지 않는다. 그때는 한 번 더 듣고,
+                             # 그래도 안 되면 음절 비율로 어림한다
+LINE_GAP = 0.6               # '줄 그대로' 미리 듣기의 줄 사이 쉼(초)
 PRICE_PER_MBYTE = 15.0       # USD / 100만 UTF-8 바이트(s2.1-pro·s2-pro·s1, 2026-10 문서)
 DESIGN_PRICE = 0.01          # USD / 목소리 설계 요청 한 번
-ASR_PRICE_PER_HOUR = 0.36    # USD / 음성 1시간(받아쓰기 점검)
+ASR_PRICE_PER_HOUR = 0.36    # USD / 음성 1시간(받아쓰기)
 ASR_MODEL = 'transcribe-1-pro'
-SEC_PER_SYLLABLE = 0.22      # 미리 계산용: 차분한 낭송의 한 음절 길이(견본으로 잰 값으로 고친다)
-SEC_PER_CLIP = 0.12          # 미리 계산용: 조각마다 더해지는 길이
+SEC_PER_SYLLABLE = 0.22      # 미리 계산용: 자연 낭송의 한 음절 길이
+PROBE_LINES = 2              # --tempo-probe: 노래마다 읽힐 줄 수(가장 긴 음보가 있을 줄)
 
 LICENSE = ('Fish Audio 이용약관(2024-08-18 시행) "Your Use of Services" 조항: 유료 서비스(Paid Services) 이용자는 '
            '서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, '
@@ -81,6 +103,8 @@ LICENSE = ('Fish Audio 이용약관(2024-08-18 시행) "Your Use of Services" �
 
 KEY = os.environ.get(ENV_KEY, '').strip()
 FAKE = False                 # --self-test: API 대신 합성한 가짜 말소리로 나머지 과정을 모두 시험한다
+SPEND = {'ttsBytes': 0, 'design': 0, 'asrSec': 0.0}
+SPEND_LOCK = threading.Lock()
 
 
 def redact(text):
@@ -107,6 +131,16 @@ def write_json(path, value):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'w', encoding='utf-8', newline='\n') as f:
         f.write(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+
+
+def spent(kind, amount):
+    with SPEND_LOCK:
+        SPEND[kind] += amount
+
+
+def spend_usd():
+    return (SPEND['ttsBytes'] / 1e6 * PRICE_PER_MBYTE + SPEND['design'] * DESIGN_PRICE
+            + SPEND['asrSec'] / 3600 * ASR_PRICE_PER_HOUR)
 
 
 # ── ffmpeg ──
@@ -146,19 +180,6 @@ def decode(audio_bytes):
     return np.frombuffer(out, dtype=np.float32).astype(np.float64)
 
 
-def atempo(x, factor):
-    """음높이를 지키고 빠르기만 factor배로(1보다 크면 짧아진다)."""
-    chain = []
-    f = factor
-    while f > 2.0:
-        chain.append('atempo=2.0')
-        f /= 2.0
-    chain.append(f'atempo={f:.5f}')
-    out = ff(['-f', 'f32le', '-ar', str(SR), '-ac', '1', '-i', '-', '-af', ','.join(chain),
-              '-f', 'f32le', '-'], data=x.astype(np.float32).tobytes())
-    return np.frombuffer(out, dtype=np.float32).astype(np.float64)
-
-
 def lufs(x):
     """EBU R128 통합 음량. 400ms보다 짧으면 0.4초가 되도록 같은 소리를 이어 잰다(짧은 조각용)."""
     y = x
@@ -193,43 +214,197 @@ def probe_sec(path):
     return float(p.stdout.strip())
 
 
+def wav_bytes(x):
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SR)
+        w.writeframes((np.clip(x, -1, 1) * 32767).astype('<i2').tobytes())
+    return buf.getvalue()
+
+
 # ── 소리 다듬기 ──
 
-def trim(x):
-    """앞뒤 무음을 바짝 자른다. 10ms 구간 RMS로 소리가 있는 첫·끝 구간을 찾는다."""
-    hop = int(0.010 * SR)
+def frame_db(x):
+    """10ms 간격 RMS(dB). 돌려주는 값: (db 배열, 구간 길이 표본 수)"""
+    hop = int(HOP * SR)
     n = len(x) // hop
     if n == 0:
-        return x, 0.0, 0.0
+        return np.array([-120.0]), hop
     frames = x[:n * hop].reshape(n, hop)
-    db = 20 * np.log10(np.sqrt(np.mean(frames ** 2, axis=1)) + 1e-12)
-    gate = max(db.max() - GATE_BELOW_PEAK_DB, GATE_FLOOR_DB)
+    return 20 * np.log10(np.sqrt(np.mean(frames ** 2, axis=1)) + 1e-12), hop
+
+
+def line_gate(db):
+    return max(db.max() - GATE_BELOW_PEAK_DB, GATE_FLOOR_DB)
+
+
+def speech_span(x, gate=None):
+    """소리가 있는 첫 표본과 끝 표본(끝은 뒤 틈 포함). 무음이면 None."""
+    db, hop = frame_db(x)
+    gate = line_gate(db) if gate is None else gate
     on = np.flatnonzero(db > gate)
     if not len(on):
-        return x, 0.0, 0.0
+        return None
     # 소리 시작: 첫 구간 안에서 표본 단위로 다시 찾는다(박에 정확히 닿게).
     first = on[0] * hop
     seg = np.abs(x[max(0, first - hop):first + hop])
-    thr = 10 ** (gate / 20)
-    hit = np.flatnonzero(seg > thr)
-    start_sample = max(0, first - hop) + (int(hit[0]) if len(hit) else hop)
-    s = max(0, start_sample - int(LEAD_PAD * SR))
-    e = min(len(x), (on[-1] + 1) * hop + int(TAIL_PAD * SR))
-    y = x[s:e].copy()
+    hit = np.flatnonzero(seg > 10 ** (gate / 20))
+    start = max(0, first - hop) + (int(hit[0]) if len(hit) else hop)
+    end = min(len(x), (on[-1] + 1) * hop)
+    return start, end
+
+
+def finish_piece(x, gate):
+    """잘라 낸 조각: 앞뒤 무음을 다듬고(앞 LEAD_PAD, 뒤 TAIL_PAD 남김) 짧게 페이드한다."""
+    span = speech_span(x, gate)
+    if span is None:
+        y = x.copy()
+    else:
+        s = max(0, span[0] - int(LEAD_PAD * SR))
+        e = min(len(x), span[1] + int(TAIL_PAD * SR))
+        y = x[s:e].copy()
     fi, fo = int(FADE_IN * SR), int(FADE_OUT * SR)
     if len(y) > fi + fo:
         y[:fi] *= np.linspace(0, 1, fi)
         y[-fo:] *= np.linspace(1, 0, fo)
-    return y, s / SR, (len(x) - e) / SR
+    return y
 
 
-def level(x):
-    """음량을 TARGET_LUFS로, 봉우리는 PEAK_MAX_DB 아래로."""
-    measured = lufs(x)
-    peak = np.abs(x).max() + 1e-12
+def hangul_only(s):
+    return re.sub(r'[^가-힣]', '', s or '')
+
+
+def syllables(s):
+    return len(hangul_only(s))
+
+
+def similarity(a, b):
+    a, b = hangul_only(a), hangul_only(b)
+    if not a and not b:
+        return 1.0
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def asr_boundaries(words, feet):
+    """받아쓰기 낱말 시각으로 음보 경계 시각(초)과 찾을 폭을 정한다. 돌려주는 값: [(시각, 폭 시작, 폭 끝)]. 줄 글과 받아쓰기 글을 글자(음절) 단위로 맞추어
+    (difflib) 음보 경계 음절이 받아쓰기의 어느 음절 사이에 오는지 찾는다. 받아쓰기가 몇 글자 더하거나 빼도 된다.
+    소리 나는 대로 적은 받아쓰기(물아일체 → 무라일체)는 글자가 달라 맞춤 비율이 낮지만 음절 수는 같으므로,
+    음절 수가 ASR_COUNT_TOL 안이면 음절 순서대로 맞춘다. 둘 다 아니면 None.
+    words: [{text, start, end}], feet: 음보 글 목록"""
+    words = [w for w in (words or []) if syllables(w['text']) > 0 and w['end'] >= w['start']]
+    reading = ''.join(hangul_only(f) or '가' for f in feet)
+    heard = ''.join(hangul_only(w['text']) for w in words)
+    if not words or not reading:
+        return None
+    sm = difflib.SequenceMatcher(None, reading, heard, autojunk=False)
+    if sm.ratio() >= ASR_MIN_MATCH:
+        ops = sm.get_opcodes()
+    elif abs(len(heard) - len(reading)) <= max(1, ASR_COUNT_TOL * len(reading)):
+        ops = [('replace', 0, len(reading), 0, len(heard))]
+    else:
+        return None
+    # 받아쓰기 음절 경계 j(0..len(heard))의 시각: 낱말 안은 고르게 나누고, 낱말 사이는 틈의 가운데.
+    # 찾을 폭: 낱말 안이면 ±CUT_WINDOW_ASR, 낱말 사이면 받아쓰기가 들은 틈 전체(앞뒤로 CUT_WINDOW_ASR 더).
+    times = [words[0]['start']]
+    spans = [(words[0]['start'] - CUT_WINDOW_ASR, words[0]['start'] + CUT_WINDOW_ASR)]
+    for i, w in enumerate(words):
+        n = syllables(w['text'])
+        for k in range(1, n):
+            t = w['start'] + (w['end'] - w['start']) * k / n
+            times.append(t)
+            spans.append((t - CUT_WINDOW_ASR, t + CUT_WINDOW_ASR))
+        if i + 1 < len(words):
+            times.append((w['end'] + words[i + 1]['start']) / 2)
+            spans.append((w['end'] - CUT_WINDOW_ASR, words[i + 1]['start'] + CUT_WINDOW_ASR))
+        else:
+            times.append(w['end'])
+            spans.append((w['end'] - CUT_WINDOW_ASR, w['end'] + CUT_WINDOW_ASR))
+
+    def heard_index(b):
+        for tag, i1, i2, j1, j2 in ops:
+            if i1 <= b <= i2 and (i1 < b < i2 or tag == 'equal' or b == i1):
+                return j1 + (b - i1) * (j2 - j1) / (i2 - i1) if i2 > i1 else j1
+        return len(heard) * b / len(reading)
+
+    out = []
+    acc = 0
+    for f in feet[:-1]:
+        acc += len(hangul_only(f) or '가')
+        j = min(max(heard_index(acc), 0), len(heard))
+        lo = int(math.floor(j))
+        hi = min(lo + 1, len(heard))
+        t = times[lo] + (times[hi] - times[lo]) * (j - lo)
+        near = spans[int(round(j))]
+        out.append((t, min(near[0], t - CUT_WINDOW_ASR), max(near[1], t + CUT_WINDOW_ASR)))
+    if any(b[0] <= a[0] for a, b in zip(out, out[1:])):
+        return None
+    return out
+
+
+def cut_line(x, feet, words=None):
+    """줄 소리 x를 음보 len(feet)개로 자른다(feet: 음보 글 목록).
+    돌려주는 값: (조각 목록, 방법 'asr'|'energy'|'whole', 경계 초 목록)"""
+    counts = [max(1, syllables(f)) for f in feet]
+    db, hop = frame_db(x)
+    gate = line_gate(db)
+    span = speech_span(x, gate)
+    if span is None:
+        raise RuntimeError('줄 소리가 비었다')
+    s0, e0 = span
+    if len(counts) == 1:
+        return [finish_piece(x[max(0, s0 - int(LEAD_PAD * SR)):min(len(x), e0 + int(TAIL_PAD * SR))], gate)], 'whole', []
+    smooth = np.convolve(db, np.ones(3) / 3, mode='same')
+    expected = asr_boundaries(words, feet) if words else None
+    method = 'asr' if expected else 'energy'
+    syl = (e0 - s0) / SR / max(1, sum(counts))
+    if not expected:
+        width = max(0.12, CUT_WINDOW_SYL * syl)
+        acc = 0
+        expected = []
+        for c in counts[:-1]:
+            acc += c
+            t = s0 / SR + (e0 - s0) / SR * acc / sum(counts)
+            expected.append((t, t - width, t + width))
+    cuts = []
+    prev = s0 / SR
+    for k, (t, w_lo, w_hi) in enumerate(expected):
+        nxt = expected[k + 1][0] if k + 1 < len(expected) else e0 / SR
+        width = max(t - w_lo, w_hi - t)
+        lo = max(w_lo, prev + MIN_PIECE)
+        hi = min(w_hi, nxt - MIN_PIECE / 2, e0 / SR - MIN_PIECE)
+        if hi <= lo:
+            best = min(max(t, prev + MIN_PIECE), e0 / SR - MIN_PIECE)
+        else:
+            i0, i1 = int(lo / HOP), int(hi / HOP) + 1
+            idx = np.arange(i0, min(i1, len(smooth)))
+            if not len(idx):
+                best = t
+            else:
+                centers = (idx + 0.5) * HOP
+                cost = smooth[idx] + CUT_PULL_DB * np.abs(centers - t) / width
+                best = float(centers[int(np.argmin(cost))])
+        cuts.append(best)
+        prev = best
+    edges = [max(0, s0 - int(LEAD_PAD * SR))] + [int(c * SR) for c in cuts] + [min(len(x), e0 + int(TAIL_PAD * SR))]
+    pieces = [finish_piece(x[edges[i]:edges[i + 1]], gate) for i in range(len(counts))]
+    return pieces, method, cuts
+
+
+def line_gain(pieces):
+    """줄 하나에 같은 이득: 음량을 TARGET_LUFS로, 봉우리는 PEAK_MAX_DB 아래로."""
+    joined = np.concatenate(pieces)
+    measured = lufs(joined)
+    peak = np.abs(joined).max() + 1e-12
     gain_db = (TARGET_LUFS - measured) if measured is not None else 0.0
     gain_db = min(gain_db, PEAK_MAX_DB - 20 * np.log10(peak))
-    return x * 10 ** (gain_db / 20), measured, gain_db
+    return 10 ** (gain_db / 20), measured, gain_db
+
+
+def natural_tempo(longest_sec):
+    """가장 긴 조각이 칸의 FILL 안에 들어가는 가장 빠른 정수 빠르기(박/분)."""
+    return max(1, min(MAX_TEMPO, int(math.floor(60 * FILL / longest_sec))))
 
 
 # ── Fish Audio ──
@@ -276,7 +451,7 @@ def account_check():
 
 def request(path, payload, model, kind='json', timeout=180):
     if not KEY:
-        raise SystemExit(f'환경 변수 {ENV_KEY}가 없습니다. 키는 환경 변수로만 받습니다(--dry-run은 키 없이 됩니다).')
+        raise SystemExit(f'환경 변수 {ENV_KEY}가 없습니다. 키는 환경 변수로만 받습니다(--dry-run·--self-test는 키 없이 됩니다).')
     account_check()
     import msgpack
     if kind == 'msgpack':
@@ -308,7 +483,7 @@ def request(path, payload, model, kind='json', timeout=180):
 def design_voice(cid, cand, cfg):
     """목소리 설계 한 번(캐시). 돌려주는 값: { audio(bytes), text, sha256, id, durationMs, cacheKey }"""
     if FAKE:
-        audio = fake_speech(12, 1.0)
+        audio, _ = fake_line(['가나다라마', '바사아자', '차카타파하가'], 1.0)
         return {'audio': audio, 'text': cand['referenceText'], 'sha256': hashlib.sha256(audio).hexdigest(),
                 'id': 'self-test', 'durationMs': None, 'cacheKey': 'self-test'}
     spec = {'instruction': cand['instruction'], 'reference_text': cand['referenceText'], 'language': 'ko',
@@ -319,8 +494,9 @@ def design_voice(cid, cand, cfg):
         with open(path, encoding='utf-8') as f:
             got = json.load(f)
     else:
-        say(f'목소리 설계: {cid} (voice-design-1, seed {cand["seed"]})')
+        say(f'목소리 설계: {cid} ({cfg["designModel"]}, seed {cand["seed"]})')
         result = json.loads(request('/v1/voice-design', spec, cfg['designModel']))
+        spent('design', 1)
         got = result['candidates'][0]
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'w', encoding='utf-8') as f:
@@ -330,13 +506,14 @@ def design_voice(cid, cand, cfg):
             'id': got.get('id'), 'durationMs': got.get('duration_ms'), 'cacheKey': key}
 
 
-def tts(text, ref, cid, cand, cfg, speed):
-    """조각 하나의 원본 소리(캐시)."""
+def tts(text, ref, cand, cfg):
+    """줄 하나의 원본 소리(캐시). 말 빠르기는 후보의 speed(기본 1) 그대로 — 빨리 읽히지 않는다."""
     params = dict(cfg['tts'])
+    speed = cand.get('speed', 1)
     full = (cand.get('direction', '') + ' ' + text).strip()
     stamp = digest({'model': cfg['model'], 'text': full, 'ref': ref['sha256'], 'params': params, 'speed': speed})
     if FAKE:
-        return fake_speech(len(hangul_only(text)) or 1, speed), stamp, False
+        return fake_line(text.split(), speed, seed=int(stamp[:6], 16))[0], stamp, False
     path = os.path.join(CACHE, 'raw', stamp[:2], stamp + '.' + params.get('format', 'wav'))
     if os.path.exists(path):
         with open(path, 'rb') as f:
@@ -344,6 +521,7 @@ def tts(text, ref, cid, cand, cfg, speed):
     payload = {'text': full, 'references': [{'audio': ref['audio'], 'text': ref['text']}],
                'prosody': {'speed': speed, 'volume': 0}, 'normalize': True, **params}
     audio = request('/v1/tts', payload, cfg['model'], kind='msgpack')
+    spent('ttsBytes', len(full.encode('utf-8')))
     if len(audio) < 1000:
         raise ApiError(f'소리가 너무 짧게 왔다({len(audio)}바이트): {text}')
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -352,188 +530,268 @@ def tts(text, ref, cid, cand, cfg, speed):
     return audio, stamp, False
 
 
-def asr(mp3_path):
-    sha = sha256_file(mp3_path)
-    path = os.path.join(CACHE, 'asr', sha + '.json')
+def asr(audio_bytes, seconds, timestamps=False, fake_words=None):
+    """받아쓰기(캐시). 돌려주는 값: { text, words: [{text, start, end}] }"""
+    if FAKE:
+        return {'text': ' '.join(w['text'] for w in (fake_words or [])), 'words': fake_words or []}
+    sha = hashlib.sha256(audio_bytes).hexdigest()
+    path = os.path.join(CACHE, 'asr', sha + ('-ts' if timestamps else '') + '.json')
     if os.path.exists(path):
         with open(path, encoding='utf-8') as f:
-            return json.load(f)['text']
-    with open(mp3_path, 'rb') as f:
-        audio = f.read()
-    got = json.loads(request('/v1/asr', {'audio': audio, 'language': 'ko', 'ignore_timestamps': True}, ASR_MODEL, kind='msgpack'))
+            got = json.load(f)
+        return {'text': got.get('text', ''), 'words': got.get('words', [])}
+    got = json.loads(request('/v1/asr', {'audio': audio_bytes, 'language': 'ko', 'ignore_timestamps': not timestamps},
+                             ASR_MODEL, kind='msgpack'))
+    spent('asrSec', seconds)
+    text = re.sub(r'<\|[^|]*\|>', '', got.get('text', '')).strip()
+    words = [{'text': s.get('text', ''), 'start': float(s.get('start', 0)), 'end': float(s.get('end', 0))}
+             for s in (got.get('segments') or [])]
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'w', encoding='utf-8') as f:
-        json.dump({'text': got.get('text', '')}, f, ensure_ascii=False)
-    return got.get('text', '')
+        json.dump({'text': text, 'words': words}, f, ensure_ascii=False)
+    return {'text': text, 'words': words}
 
 
-def hangul_only(s):
-    return re.sub(r'[^가-힣]', '', s or '')
+# ── 가짜 말소리(--self-test) ──
 
-
-def similarity(a, b):
-    a, b = hangul_only(a), hangul_only(b)
-    if not a and not b:
-        return 1.0
-    return difflib.SequenceMatcher(None, a, b).ratio()
-
-
-# ── 자체 시험(--self-test) ──
-
-def fake_speech(syllables, speed):
-    """API 없이 쓰는 가짜 말소리(WAV 바이트): 앞 0.3초·뒤 0.45초 무음 사이에 음절마다 소리 덩어리 하나."""
-    import io
-    import wave
-    rng = np.random.default_rng(syllables)
-    per = 0.22 / speed
-    n = int((0.12 / speed + syllables * per) * SR)
-    t = np.arange(n) / SR
-    env = 0.55 + 0.45 * np.sin(np.pi * ((t / per) % 1.0)) ** 2
-    voice = sum(np.sin(2 * np.pi * f * t) / k for k, f in enumerate((180, 360, 540, 900), 1)) * env * 0.25
-    x = np.concatenate([rng.normal(0, 1e-4, int(0.3 * SR)), voice, rng.normal(0, 1e-4, int(0.45 * SR))])
-    buf = io.BytesIO()
-    with wave.open(buf, 'wb') as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(SR)
-        w.writeframes((np.clip(x, -1, 1) * 32767).astype('<i2').tobytes())
-    return buf.getvalue()
-
-
-def self_test(cfg):
-    """네트워크 없이 자르기·칸 맞추기·음량·MP3·생성 기록·미리 듣기를 확인한다. 실패하면 0이 아닌 값으로 끝낸다."""
-    global FAKE, SAMPLES
-    FAKE = True
-    tmp = tempfile.mkdtemp(prefix='voice-self-test-')
-    SAMPLES = tmp
-    cid = next(iter(cfg['candidates']))
-    plan = load_plan(['dongjitdal', 'jemangmaega', 'nonbat-gara'])
-    plan['only'] = ['dongjitdal', 'jemangmaega', 'nonbat-gara']
-    rows = run_build(plan, cid, cfg, True, 4, False)
-    bad = []
-    with open(os.path.join(tmp, cid, 'assets', 'audio', 'voice', 'manifest.json'), encoding='utf-8') as f:
-        man = json.load(f)
-    if len(man['clips']) != sum(len(s['clips']) for s in plan['songs']):
-        bad.append('생성 기록의 조각 수가 계획과 다르다')
-    for e in man['clips']:
-        path = os.path.join(tmp, cid, e['path'])
-        if sha256_file(path) != e['sha256']:
-            bad.append(e['path'] + ': sha256 불일치')
-        if e['duration'] > e['slotSec']:
-            bad.append(f'{e["path"]}: 칸 넘침 {e["duration"]} > {e["slotSec"]}')
-        x = decode(open(path, 'rb').read())
-        thr = np.abs(x).max() * 10 ** (-30 / 20)
-        lead = np.flatnonzero(np.abs(x) > thr)[0] / SR
-        if lead > 0.03:
-            bad.append(f'{e["path"]}: 앞 무음 {lead * 1000:.0f}ms')
-        loud = lufs(x)
-        if loud is None or abs(loud - TARGET_LUFS) > 1.5:
-            bad.append(f'{e["path"]}: 음량 {loud} LUFS')
-    for name in [f'{cid}-dongjitdal-tempo50.mp3', f'{cid}-dongjitdal-tempo50-beat.mp3', f'{cid}-jemangmaega-gu0.mp3']:
-        if not os.path.exists(os.path.join(tmp, name)):
-            bad.append('미리 듣기 없음: ' + name)
-    pv = probe_sec(os.path.join(tmp, f'{cid}-dongjitdal-tempo50.mp3'))
-    want = 0.5 + plan['songs'][0]['duration'] + 0.8 if plan['songs'][0]['id'] == 'dongjitdal' else None
-    if want and abs(pv - want) > 0.1:
-        bad.append(f'미리 듣기 길이 {pv:.2f}s ≠ 박자 칸 {want:.2f}s')
-    if not any(r['ttsSpeed'] > 1 for r in rows):
-        bad.append('긴 조각을 다시 빠르게 읽히는 길을 지나지 않았다')
-    shutil.rmtree(tmp, ignore_errors=True)
-    if bad:
-        for b in bad[:30]:
-            say('  ✗ ' + b)
-        raise SystemExit(f'자체 시험 실패 {len(bad)}건')
-    say('')
-    say(f'자체 시험 통과: 조각 {len(man["clips"])}개 — 칸 안, 앞 무음 30ms 이하, 음량 {TARGET_LUFS}±1.5 LUFS, sha256, 미리 듣기 길이')
+def fake_line(word_texts, speed, seed=0):
+    """API 없이 쓰는 가짜 줄 소리(WAV 바이트)와 낱말 시각. 음절마다 길이가 조금씩 다른 소리 덩어리,
+    낱말 사이에는 짧게 작아지는 곳(완전한 무음은 아님)을 둔다. 실제 말처럼 낱말 안 둘째 음절 앞에는
+    닫힘소리(ㅂ·ㄷ·ㄱ)의 짧은 완전 무음을 두어, 낱말 사이 쉼보다 더 깊은 골짜기가 낱말 안에 생기게 한다.
+    앞 0.3초·뒤 0.45초 무음."""
+    rng = np.random.default_rng(seed)
+    parts = [rng.normal(0, 1e-4, int(0.3 * SR))]
+    t = 0.3
+    words = []
+    for wi, text in enumerate(word_texts):
+        n = syllables(text)
+        start = t
+        for si in range(max(1, n)):
+            if si == 1:
+                k = int(0.045 * SR)
+                parts.append(rng.normal(0, 1e-5, k))
+                t += k / SR
+            per = rng.uniform(0.17, 0.27) / speed
+            k = int(per * SR)
+            tt = np.arange(k) / SR
+            env = 0.35 + 0.65 * np.sin(np.pi * tt / per) ** 2
+            f0 = rng.uniform(150, 210)
+            parts.append(sum(np.sin(2 * np.pi * f0 * h * tt) / h for h in (1, 2, 3, 5)) * env * 0.25)
+            t += k / SR
+        words.append({'text': text if n else '가', 'start': round(start, 2), 'end': round(t, 2)})
+        if wi + 1 < len(word_texts):
+            k = int(rng.uniform(0.04, 0.09) * SR)
+            parts.append(rng.normal(0, 0.004, k))
+            t += k / SR
+    parts.append(rng.normal(0, 1e-4, int(0.45 * SR)))
+    return wav_bytes(np.concatenate(parts)), words
 
 
 # ── 계획 ──
 
-def load_plan(only, tempo=None):
+def load_plan(only, tempo=None, tempos=None):
     args = ['node', os.path.join(HERE, 'plan.mjs')]
     if only:
         args += ['--only', ','.join(only)]
     if tempo:
         args += ['--tempo', str(tempo)]
+    if tempos:
+        args += ['--tempos', ','.join(f'{k}={v}' for k, v in tempos.items())]
     p = subprocess.run(args, cwd=ROOT, capture_output=True)
     if p.returncode:
         raise SystemExit('계획을 만들지 못함: ' + p.stderr.decode('utf-8', 'replace')[-800:])
     return json.loads(p.stdout.decode('utf-8'))
 
 
-def dry_run(plan, cfg, voices, use_asr):
+def clip_map(song):
+    return {c['path']: c for c in song['clips']}
+
+
+def probe_lines(song, n=PROBE_LINES):
+    """가장 긴 음보가 들어 있을 줄 n개. 음보의 무게 = 음절 수 + 쉼표·말줄임 같은 쉼 하나에 2(쉼이 들어가 길어진다).
+    무게가 큰 줄부터, 같으면 짧은 줄부터 고르고, 가장 무거운 음보보다 1 넘게 가벼운 줄은 고르지 않는다."""
+    cm = clip_map(song)
+
+    def weight(line):
+        return max(cm[p]['syllables'] + 2 * len(re.findall(r'[,.!?…·]', cm[p]['text'])) for p in line['clips'])
+
+    ranked = sorted(song['lines'], key=lambda l: (-weight(l), len(l['text'].encode('utf-8'))))
+    top = weight(ranked[0])
+    return [l for l in ranked if weight(l) >= top - 1][:n]
+
+
+def dry_run(plan, cfg, voices):
     by_genre = {}
-    totals = {'songs': 0, 'clips': 0, 'chars': 0, 'syllables': 0, 'bytes': 0, 'billed': 0, 'cached': 0}
-    risky = []
+    totals = {'songs': 0, 'lines': 0, 'clips': 0, 'syllables': 0, 'bytes': 0, 'billed': 0, 'probe': 0}
     for song in plan['songs']:
-        g = by_genre.setdefault(song['genre'], {'songs': 0, 'clips': 0, 'chars': 0, 'bytes': 0})
+        g = by_genre.setdefault(song['genre'], {'songs': 0, 'lines': 0, 'clips': 0, 'bytes': 0})
         g['songs'] += 1
+        g['lines'] += len(song['lines'])
+        g['clips'] += len(song['clips'])
         totals['songs'] += 1
-        worst = 0
-        for c in song['clips']:
-            text = c['text']
-            g['clips'] += 1
-            g['chars'] += len(text)
-            g['bytes'] += len(text.encode('utf-8'))
-            totals['clips'] += 1
-            totals['chars'] += len(text)
-            totals['syllables'] += c['syllables']
-            totals['bytes'] += len(text.encode('utf-8'))
+        totals['lines'] += len(song['lines'])
+        totals['clips'] += len(song['clips'])
+        totals['syllables'] += sum(c['syllables'] for c in song['clips'])
+        for line in song['lines']:
+            b = len(line['text'].encode('utf-8'))
+            g['bytes'] += b
+            totals['bytes'] += b
             for cid in voices:
-                direction = cfg['candidates'][cid].get('direction', '')
-                totals['billed'] += len((direction + ' ' + text).strip().encode('utf-8'))
-            est = SEC_PER_CLIP + c['syllables'] * SEC_PER_SYLLABLE
-            worst = max(worst, est / (song['slotSec'] * FILL))
-        if worst > STRETCH_WARN:
-            need = max(SEC_PER_CLIP + c['syllables'] * SEC_PER_SYLLABLE for c in song['clips']) / FILL / STRETCH_WARN
-            risky.append((song['id'], song['genre'], song['tempo'], worst, int(60 / need)))
-    say(f'목소리 {", ".join(voices)} · 모델 {cfg["model"]}(유료) · 노래 {totals["songs"]}편')
-    say('\n갈래      노래  조각   글자(공백 포함)  UTF-8 바이트')
+                totals['billed'] += len((cfg['candidates'][cid].get('direction', '') + ' ' + line['text']).strip().encode('utf-8'))
+        totals['probe'] += sum(len(l['text'].encode('utf-8')) for l in probe_lines(song))
+    say(f'목소리 {", ".join(voices)} · 모델 {cfg["model"]}(유료) · 노래 {totals["songs"]}편 · 줄 단위로 읽힘')
+    say('\n갈래      노래   줄  조각  UTF-8 바이트')
     for gid, g in by_genre.items():
-        say(f'{gid:<8}{g["songs"]:>5}{g["clips"]:>6}{g["chars"]:>14}{g["bytes"]:>14}')
-    say(f'{"합계":<7}{totals["songs"]:>5}{totals["clips"]:>6}{totals["chars"]:>14}{totals["bytes"]:>14}  (음절 {totals["syllables"]})')
+        say(f'{gid:<8}{g["songs"]:>5}{g["lines"]:>5}{g["clips"]:>6}{g["bytes"]:>14}')
+    say(f'{"합계":<7}{totals["songs"]:>5}{totals["lines"]:>5}{totals["clips"]:>6}{totals["bytes"]:>14}  (음절 {totals["syllables"]})')
     tts_cost = totals['billed'] / 1e6 * PRICE_PER_MBYTE
-    retry_cost = tts_cost  # 최악: 모든 조각을 한 번 더 읽힘(말 빠르기 올림)
-    design_cost = DESIGN_PRICE * len(voices)
-    est_sec = totals['clips'] * SEC_PER_CLIP + totals['syllables'] * SEC_PER_SYLLABLE
-    asr_cost = est_sec / 3600 * ASR_PRICE_PER_HOUR * len(voices) if use_asr else 0
-    say(f'\n요금 추정(USD, 목소리 {len(voices)}개): 지시 꼬리표 포함 {totals["billed"]} 바이트 × ${PRICE_PER_MBYTE}/100만 바이트 = ${tts_cost:.4f}')
-    say(f'  + 다시 읽힘 최악 ${retry_cost:.4f} + 목소리 설계 ${design_cost:.2f}' + (f' + 받아쓰기 점검 ${asr_cost:.4f}' if use_asr else ''))
-    say(f'  = 최대 약 ${tts_cost + retry_cost + design_cost + asr_cost:.2f} (캐시에 있는 조각은 다시 부르지 않으므로 0)')
-    say(f'  예상 낭송 길이 약 {est_sec / 60:.1f}분(목소리 하나)')
-    if risky:
-        say(f'\n칸 위험(음절 수 추정, 한 음절 {SEC_PER_SYLLABLE}s): 칸 안에 넣으려면 {STRETCH_WARN}배 넘게 줄여야 할 노래')
-        for sid, gid, tempo, worst, rec in risky:
-            say(f'  {sid:<24}{gid:<8} 빠르기 {tempo} → 가장 긴 조각 {worst:.2f}배 · 권장 빠르기 ≤ {rec}')
+    est_sec = totals['syllables'] * SEC_PER_SYLLABLE
+    asr_cost = est_sec / 3600 * ASR_PRICE_PER_HOUR * len(voices)
+    say(f'\n요금 추정(USD, 목소리 {len(voices)}개): 전체 {totals["billed"]} 바이트 × ${PRICE_PER_MBYTE}/100만 바이트 = ${tts_cost:.4f}'
+        f' + 받아쓰기(경계 시각) ${asr_cost:.4f} + 목소리 설계 ${DESIGN_PRICE * len(voices):.2f}')
+    say(f'  빠르기 재기(--tempo-probe, 노래마다 줄 {PROBE_LINES}개): 목소리 하나 {totals["probe"]} 바이트 = ${totals["probe"] / 1e6 * PRICE_PER_MBYTE:.4f}')
+    say(f'  캐시에 있는 줄은 다시 부르지 않으므로 0. 예상 낭송 길이 약 {est_sec / 60:.1f}분(목소리 하나)')
+
+
+# ── 줄 읽히고 자르기 ──
+
+def build_line(line, song, ref, cand, cfg, use_asr=True):
+    """줄 하나를 읽히고 음보 조각으로 자른다. 돌려주는 값: { pieces: {경로: 소리}, method, stamp, cached, natural, asr }"""
+    cm = clip_map(song)
+    paths = line['clips']
+    feet = [cm[p]['text'] for p in paths]
+    audio, stamp, cached = tts(line['text'], ref, cand, cfg)
+    x = decode(audio)
+    heard = None
+    words = None
+    if use_asr == 'multi' and len(paths) == 1:
+        use_asr = False   # 빠르기 재기: 자를 일이 없는 줄(향가 구 등)은 받아쓰기를 부르지 않는다
+    if use_asr:
+        fake_words = None
+        if FAKE:
+            fake_words = fake_line(line['text'].split(), cand.get('speed', 1), seed=int(stamp[:6], 16))[1]
+        heard = asr(audio, len(x) / SR, timestamps=len(paths) > 1, fake_words=fake_words)
+        words = heard['words'] if len(paths) > 1 else None
+        if words is not None and asr_boundaries(words, feet) is None and not FAKE:
+            # 헛들은 받아쓰기(다른 말 등): 앞뒤 무음을 뺀 소리로 한 번 더 듣는다(다른 소리라 캐시도 따로).
+            s0, e0 = speech_span(x)
+            again = asr(wav_bytes(x[s0:e0]), (e0 - s0) / SR, timestamps=True)
+            shifted = [{**w, 'start': w['start'] + s0 / SR, 'end': w['end'] + s0 / SR} for w in again['words']]
+            if asr_boundaries(shifted, feet) is not None:
+                heard, words = {**again, 'words': shifted}, shifted
+    pieces, method, cuts = cut_line(x, feet, words)
+    gain, measured, gain_db = line_gain(pieces)
+    out = {p: piece * gain for p, piece in zip(paths, pieces)}
+    natural_line = speech_span(x)
+    whole = x[max(0, natural_line[0] - int(LEAD_PAD * SR)):natural_line[1] + int(TAIL_PAD * SR)] * gain
+    return {'pieces': out, 'method': method, 'cuts': cuts, 'stamp': stamp, 'cached': cached, 'whole': whole,
+            'asr': heard['text'] if heard else None, 'lufsBefore': measured, 'gainDb': gain_db}
+
+
+def synth_lines(work, ref, cand, cfg, jobs, use_asr=True):
+    """work: [(song, line)] → { (songId, lineKey): build_line 결과 }"""
+    results = {}
+    errors = []
+    with cf.ThreadPoolExecutor(max_workers=jobs) as pool:
+        futures = {pool.submit(build_line, line, song, ref, cand, cfg, use_asr): (song, line) for song, line in work}
+        for i, fut in enumerate(cf.as_completed(futures), 1):
+            song, line = futures[fut]
+            try:
+                results[(song['id'], line['key'])] = fut.result()
+            except Exception as e:  # noqa: BLE001 — 한 줄의 실패를 모아 끝에 알린다
+                errors.append(f'{song["id"]} {line["key"]}: {redact(e)}')
+            if i % 20 == 0 or i == len(work):
+                say(f'  … 줄 {i}/{len(work)}')
+    if errors:
+        for e in errors[:20]:
+            say('  ✗ ' + e)
+        raise SystemExit(f'줄 {len(errors)}개를 만들지 못함(만든 것은 캐시에 남아 다시 돌리면 이어서 만든다).')
+    return results
+
+
+def longest_clip(song, results):
+    best = (0.0, None)
+    for line in song['lines']:
+        r = results.get((song['id'], line['key']))
+        if not r:
+            continue
+        for p, x in r['pieces'].items():
+            if len(x) / SR > best[0]:
+                best = (len(x) / SR, p)
+    return best
+
+
+# ── 노래 데이터에 빠르기 쓰기 ──
+
+def set_tempo_in_source(src, song_id, tempo):
+    """노래 파일 글에서 id가 song_id인 노래 객체에 `tempo: N,`을 쓴다(있으면 바꾸고, 없으면 genre 줄 다음에 넣는다)."""
+    lines = src.split('\n')
+    at = next((i for i, l in enumerate(lines) if re.fullmatch(r"(\s*)id: '" + re.escape(song_id) + r"',", l)), None)
+    if at is None:
+        raise ValueError('노래를 찾지 못함: ' + song_id)
+    indent = re.match(r'\s*', lines[at]).group(0)
+    close = indent[:-2] + '}'
+    end = next(i for i in range(at, len(lines)) if lines[i].startswith(close) and not lines[i].startswith(close + ' '))
+    value = f'{indent}tempo: {tempo},'
+    for i in range(at, end):
+        if re.fullmatch(re.escape(indent) + r'tempo: [\d.]+,', lines[i]):
+            lines[i] = value
+            return '\n'.join(lines)
+    g = next((i for i in range(at, end) if re.fullmatch(re.escape(indent) + r"genre: '[a-z]+',", lines[i])), None)
+    if g is None:
+        raise ValueError('genre 줄을 찾지 못함: ' + song_id)
+    lines.insert(g + 1, value)
+    return '\n'.join(lines)
+
+
+def write_tempos(tempos, songs_dir=None):
+    """{노래 id: 빠르기}를 js/data/songs/<갈래>.js에 쓴다."""
+    songs_dir = songs_dir or SONGS_DIR
+    left = dict(tempos)
+    for name in sorted(os.listdir(songs_dir)):
+        if not name.endswith('.js') or name == 'index.js':
+            continue
+        path = os.path.join(songs_dir, name)
+        with open(path, encoding='utf-8') as f:
+            src = f.read()
+        changed = src
+        for sid in list(left):
+            if re.search(r"\n\s*id: '" + re.escape(sid) + r"',\n", changed):
+                changed = set_tempo_in_source(changed, sid, left.pop(sid))
+        if changed != src:
+            with open(path, 'w', encoding='utf-8', newline='\n') as f:
+                f.write(changed)
+    if left:
+        raise SystemExit('노래 파일에서 찾지 못한 노래: ' + ', '.join(left))
+
+
+# ── 빠르기 재기(--tempo-probe) ──
+
+def tempo_probe(plan, cids, cfg, jobs, write):
+    table = {s['id']: {'song': s, 'by': {}} for s in plan['songs']}
+    for cid in cids:
+        cand = cfg['candidates'][cid]
+        ref = design_voice(cid, cand, cfg)
+        work = [(s, l) for s in plan['songs'] for l in probe_lines(s)]
+        say(f'\n{cid}: 노래 {len(plan["songs"])}편에서 줄 {len(work)}개를 읽혀 가장 긴 음보를 잰다')
+        results = synth_lines(work, ref, cand, cfg, jobs, use_asr='multi')
+        for s in plan['songs']:
+            table[s['id']]['by'][cid] = longest_clip(s, results)
+    say('\n노래                      갈래     전 빠르기  ' + '  '.join(f'{c:>22}' for c in cids) + '  → 자연 빠르기')
+    tempos = {}
+    for sid, row in table.items():
+        s = row['song']
+        longest = max(v[0] for v in row['by'].values())
+        tempos[sid] = natural_tempo(longest)
+        cols = '  '.join(f'{v[0]:>6.2f}s {v[1].rsplit("/", 1)[-1]:>14}' for v in row['by'].values())
+        say(f'{sid:<26}{s["genre"]:<9}{s["tempo"]:>8g}  {cols}  → {tempos[sid]:>3} (칸 {60 / tempos[sid]:.2f}s)')
+    if write:
+        write_tempos(tempos)
+        say(f'\n노래 데이터에 빠르기를 썼다: {len(tempos)}편 (js/data/songs/*.js의 tempo)')
+    return tempos
 
 
 # ── 조각 만들기 ──
-
-def build_clip(clip, song, ref, cid, cand, cfg):
-    target = song['slotSec'] * FILL
-    base = cand.get('speed', 1)
-    audio, stamp, cached = tts(clip['text'], ref, cid, cand, cfg, base)
-    x, lead, tail = trim(decode(audio))
-    natural = len(x) / SR
-    speed = base
-    calls = 0 if cached else 1
-    if natural > target * RESPEAK_OVER:
-        speed = round(min(MAX_TTS_SPEED, base * natural / target * 1.02), 2)
-        audio2, stamp, cached2 = tts(clip['text'], ref, cid, cand, cfg, speed)
-        calls += 0 if cached2 else 1
-        x, lead, tail = trim(decode(audio2))
-    spoken = len(x) / SR
-    stretch = 1.0
-    if spoken > target:
-        stretch = spoken / target
-        x = atempo(x, stretch)
-        if len(x) / SR > target:
-            x = x[:int(target * SR)]
-            x[-int(FADE_OUT * SR):] *= np.linspace(1, 0, int(FADE_OUT * SR))
-    x, measured, gain = level(x)
-    return {'x': x, 'stamp': stamp, 'natural': natural, 'speed': speed, 'stretch': stretch, 'calls': calls,
-            'lufsBefore': measured, 'gainDb': gain}
-
 
 def assemble(song, clips_x, out_path, click=False, lead=0.5, tail=0.8):
     """게임이 놓는 그대로(plan.schedule의 when) 조각을 칸에 놓아 이어 붙인다."""
@@ -553,82 +811,101 @@ def assemble(song, clips_x, out_path, click=False, lead=0.5, tail=0.8):
     encode_mp3(y[:int(total * SR)], out_path)
 
 
-def run_build(plan, cid, cfg, sample, jobs, use_asr):
+def assemble_natural(song, results, out_path, lead=0.4, tail=0.6):
+    """박자 칸 없이 줄 소리를 그대로 이어 붙인다(줄 사이 LINE_GAP 쉼)."""
+    parts = [np.zeros(int(lead * SR))]
+    for i, line in enumerate(song['lines']):
+        parts.append(results[(song['id'], line['key'])]['whole'])
+        parts.append(np.zeros(int((LINE_GAP if i + 1 < len(song['lines']) else tail) * SR)))
+    y = np.concatenate(parts)
+    peak = np.abs(y).max()
+    if peak > 0.95:
+        y *= 0.95 / peak
+    encode_mp3(y, out_path)
+
+
+def run_build(plan, cid, cfg, sample, jobs, write_tempo=False, tempo_override=None, prefix=''):
     cand = cfg['candidates'][cid]
     account = {'packageType': '자체 시험', 'toppedUp': False} if FAKE else account_check()
     ref = design_voice(cid, cand, cfg)
     say(f'기준 음성 준비: {cid} · 설계 id {ref["id"]} · {ref["durationMs"]}ms · sha256 {ref["sha256"][:12]}…')
-    out_root = os.path.join(SAMPLES, cid) if sample else ROOT
+    out_root = os.path.join(SAMPLES, prefix + cid) if sample else ROOT
     if sample:
         os.makedirs(SAMPLES, exist_ok=True)
-        with open(os.path.join(SAMPLES, f'{cid}-reference.wav'), 'wb') as f:
+        with open(os.path.join(SAMPLES, f'{prefix}{cid}-reference.wav'), 'wb') as f:
             f.write(ref['audio'])
+
+    work = [(song, line) for song in plan['songs'] for line in song['lines']]
+    results = synth_lines(work, ref, cand, cfg, jobs)
+
+    # 노래마다 자연 빠르기와 쓸 빠르기
+    natural = {s['id']: natural_tempo(longest_clip(s, results)[0]) for s in plan['songs']}
+    if sample:
+        use = {sid: (tempo_override or t) for sid, t in natural.items()}
+    elif write_tempo:
+        write_tempos(natural)
+        use = natural
+    else:
+        use = {s['id']: s['tempo'] for s in plan['songs']}
+        over = [(s['id'], s['tempo'], natural[s['id']]) for s in plan['songs'] if natural[s['id']] < s['tempo']
+                and longest_clip(s, results)[0] > 60 / s['tempo']]
+        if over:
+            for sid, t, n in over:
+                say(f'  ✗ {sid}: 노래 데이터의 빠르기 {t:g}의 칸에 가장 긴 조각이 들어가지 않는다(자연 빠르기 {n})')
+            raise SystemExit('칸을 넘는 노래가 있다. --write-tempo로 노래 데이터의 빠르기를 자연 빠르기로 고친 뒤 다시 돌리세요.')
+    plan2 = load_plan(plan.get('only'), tempos=use)
+    songs2 = {s['id']: s for s in plan2['songs']}
+
     manifest_path = os.path.join(out_root, 'assets', 'audio', 'voice', 'manifest.json')
     old = {}
     if os.path.exists(manifest_path):
         with open(manifest_path, encoding='utf-8') as f:
             old = {c['path']: c for c in json.load(f).get('clips', [])}
-
-    work = [(song, clip) for song in plan['songs'] for clip in song['clips']]
-    results = {}
-    errors = []
-    with cf.ThreadPoolExecutor(max_workers=jobs) as pool:
-        futures = {pool.submit(build_clip, clip, song, ref, cid, cand, cfg): (song, clip) for song, clip in work}
-        for i, fut in enumerate(cf.as_completed(futures), 1):
-            song, clip = futures[fut]
-            try:
-                results[clip['path']] = fut.result()
-            except Exception as e:  # noqa: BLE001 — 한 조각의 실패를 모아 끝에 알린다
-                errors.append(f'{clip["path"]}: {redact(e)}')
-            if i % 20 == 0 or i == len(work):
-                say(f'  … {i}/{len(work)}')
-    if errors:
-        for e in errors[:20]:
-            say('  ✗ ' + e)
-        raise SystemExit(f'조각 {len(errors)}개를 만들지 못함(만든 것은 캐시에 남아 다시 돌리면 이어서 만든다).')
-
     entries = dict(old)
     rows = []
-    calls = 0
-    for song in plan['songs']:
+    calls = sum(1 for r in results.values() if not r['cached'])
+    for song0 in plan['songs']:
+        song = songs2[song0['id']]
+        cm = clip_map(song)
         song_dir = os.path.join(out_root, 'assets', 'audio', 'voice', song['id'])
         wanted = set()
         clips_x = {}
-        for clip in song['clips']:
-            r = results[clip['path']]
-            calls += r['calls']
-            path = os.path.join(out_root, clip['path'])
-            encode_mp3(r['x'], path)
-            wanted.add(os.path.basename(path))
-            clips_x[clip['path']] = r['x']
-            dur = probe_sec(path)
-            entry = {
-                'path': clip['path'], 'songId': song['id'], 'unit': clip['unit'], 'line': clip['line'], 'foot': clip['foot'],
-                'text': clip['text'], 'duration': round(dur, 4), 'slotSec': round(song['slotSec'], 4), 'tempo': song['tempo'],
-                'naturalSec': round(r['natural'], 3), 'ttsSpeed': r['speed'], 'stretch': round(r['stretch'], 3),
-                'sha256': sha256_file(path), 'generation': r['stamp'],
-            }
-            if use_asr:
-                heard = asr(path)
-                entry['asr'] = heard
-                entry['asrMatch'] = round(similarity(clip['text'], heard), 3)
-            entries[clip['path']] = entry
-            rows.append(entry)
-        # 이 노래 폴더의 남는 조각은 지운다.
+        for line in song['lines']:
+            r = results[(song['id'], line['key'])]
+            for p in line['clips']:
+                clip = cm[p]
+                x = r['pieces'][p]
+                path = os.path.join(out_root, p)
+                encode_mp3(x, path)
+                wanted.add(os.path.basename(path))
+                clips_x[p] = x
+                dur = probe_sec(path)
+                entry = {
+                    'path': p, 'songId': song['id'], 'unit': clip['unit'], 'line': clip['line'], 'foot': clip['foot'],
+                    'text': clip['text'], 'duration': round(dur, 4), 'slotSec': round(song['slotSec'], 4), 'tempo': song['tempo'],
+                    'naturalSec': round(len(x) / SR, 3), 'ttsSpeed': cand.get('speed', 1), 'stretch': 1,
+                    'lineText': line['text'], 'cut': r['method'], 'lineGainDb': round(r['gainDb'], 2),
+                    'sha256': sha256_file(path), 'generation': r['stamp'],
+                }
+                if r['asr'] is not None:
+                    entry['lineAsr'] = r['asr']
+                    entry['lineAsrMatch'] = round(similarity(line['text'], r['asr']), 3)
+                entries[p] = entry
+                rows.append(entry)
         for f in os.listdir(song_dir):
             if f.endswith('.mp3') and f not in wanted:
                 os.remove(os.path.join(song_dir, f))
                 entries.pop('assets/audio/voice/' + song['id'] + '/' + f, None)
                 say('  남는 조각 지움: ' + song['id'] + '/' + f)
         if sample:
-            tag = f'{cid}-{song["id"]}-tempo{song["tempo"]:g}'
+            tag = f'{prefix}{cid}-{song["id"]}-tempo{song["tempo"]:g}'
             assemble(song, clips_x, os.path.join(SAMPLES, tag + '.mp3'))
             assemble(song, clips_x, os.path.join(SAMPLES, tag + '-beat.mp3'), click=True)
+            assemble_natural(song, results, os.path.join(SAMPLES, f'{prefix}{cid}-{song["id"]}-natural.mp3'))
             if song['genre'] == 'hyangga':
                 first = song['clips'][0]['path']
                 one = {**song, 'duration': song['slotSec'], 'schedule': [s for s in song['schedule'] if s['path'] == first]}
-                assemble(one, clips_x, os.path.join(SAMPLES, f'{cid}-{song["id"]}-gu0.mp3'))
-    # 데이터에 없는 노래의 조각(전체를 돌릴 때만)
+                assemble(one, clips_x, os.path.join(SAMPLES, f'{prefix}{cid}-{song["id"]}-gu0.mp3'))
     if not plan.get('only'):
         voice_root = os.path.join(out_root, 'assets', 'audio', 'voice')
         for d in os.listdir(voice_root):
@@ -642,6 +919,7 @@ def run_build(plan, cid, cfg, sample, jobs, use_asr):
         'voice': cid, 'voiceLabel': cand['label'], 'voiceDesignModel': cfg['designModel'], 'voiceDesignSeed': cand['seed'],
         'voiceDesignId': ref['id'], 'referenceSha256': ref['sha256'], 'instruction': cand['instruction'],
         'referenceText': cand['referenceText'], 'direction': cand.get('direction', ''), 'tts': cfg['tts'],
+        'method': '줄 단위 낭송을 받아쓰기 낱말 시각(없으면 음절 비율)과 소리 골짜기로 음보마다 자름 · 늘이거나 줄이지 않음',
         'fill': FILL, 'targetLufs': TARGET_LUFS, 'peakMaxDb': PEAK_MAX_DB, 'bitrate': BITRATE,
     }
     clips_sorted = sorted(entries.values(), key=lambda e: (e['songId'], e['path']))
@@ -656,43 +934,214 @@ def run_build(plan, cid, cfg, sample, jobs, use_asr):
         } for e in clips_sorted]}
         write_json(PART, part)
 
-    report(rows, plan, calls)
-    return rows
+    report(rows, plan2, calls, natural)
+    return rows, natural, results
 
 
-def report(rows, plan, calls):
-    say(f'\n새로 부른 TTS {calls}번(나머지는 캐시).')
-    say('조각                                   글                 칸(s)  자연(s)  말빠르기  줄임   최종(s)' + ('  받아쓰기' if rows and 'asr' in rows[0] else ''))
+def report(rows, plan, calls, natural):
+    say(f'\n새로 부른 TTS(줄) {calls}번(나머지는 캐시).')
+    say('조각                                   글                 칸(s)   길이(s)  자름' + ('  줄 받아쓰기' if rows and 'lineAsr' in rows[0] else ''))
     for e in rows:
-        mark = ''
-        if e['stretch'] > STRETCH_WARN or e['ttsSpeed'] > SPEED_WARN:
-            mark = '  ← 빠름'
-        if e['duration'] > e['slotSec']:
-            mark = '  ← 칸 넘침'
-        asr_txt = f'  {e["asrMatch"]:.2f} "{e["asr"]}"' if 'asr' in e else ''
-        say(f'{e["path"].replace("assets/audio/voice/", ""):<36}{e["text"]:<16}{e["slotSec"]:>7.2f}{e["naturalSec"]:>8.2f}'
-            f'{e["ttsSpeed"]:>9.2f}{e["stretch"]:>7.2f}{e["duration"]:>9.3f}{asr_txt}{mark}')
+        mark = '  ← 칸 넘침' if e['duration'] > e['slotSec'] else ''
+        asr_txt = f'  {e["lineAsrMatch"]:.2f}' if 'lineAsr' in e else ''
+        say(f'{e["path"].replace("assets/audio/voice/", ""):<36}{e["text"]:<16}{e["slotSec"]:>7.2f}{e["duration"]:>9.3f}  {e["cut"]:<6}{asr_txt}{mark}')
     for song in plan['songs']:
         mine = [e for e in rows if e['songId'] == song['id']]
         if not mine:
             continue
-        nat = max(e['naturalSec'] for e in mine)
-        rec = 60 / (nat / FILL / STRETCH_WARN)
+        longest = max(mine, key=lambda e: e['naturalSec'])
         over = sum(1 for e in mine if e['duration'] > e['slotSec'])
-        fast = sum(1 for e in mine if e['stretch'] > STRETCH_WARN or e['ttsSpeed'] > SPEED_WARN)
-        say(f'{song["id"]}: 빠르기 {song["tempo"]:g}(칸 {song["slotSec"]:.2f}s) · 조각 {len(mine)} · 칸 넘침 {over} · 빠르게 읽힌 조각 {fast}'
-            f' · 가장 긴 자연 낭송 {nat:.2f}s → 자연스럽게 들어갈 빠르기 ≤ {rec:.0f}')
+        say(f'{song["id"]}: 빠르기 {song["tempo"]:g}(칸 {song["slotSec"]:.2f}s) · 조각 {len(mine)} · 칸 넘침 {over}'
+            f' · 가장 긴 조각 {longest["naturalSec"]:.2f}s({longest["path"].rsplit("/", 1)[-1]}) → 자연 빠르기 {natural[song["id"]]}')
+
+
+def check_previews(paths, texts, use_asr):
+    """미리 듣기가 무음이 아닌지(ffmpeg volumedetect), 받아쓰기가 글과 비슷한지."""
+    bad = []
+    for path in paths:
+        p = subprocess.run([FFMPEG, '-hide_banner', '-nostats', '-i', path, '-af', 'volumedetect', '-f', 'null', '-'],
+                           capture_output=True)
+        s = p.stderr.decode('utf-8', 'replace')
+        m = re.search(r'mean_volume:\s*(-?[\d.]+) dB', s)
+        mx = re.search(r'max_volume:\s*(-?[\d.]+) dB', s)
+        mean = float(m.group(1)) if m else -999
+        peak = float(mx.group(1)) if mx else -999
+        line = f'{os.path.basename(path)}: 평균 {mean:.1f} dB · 봉우리 {peak:.1f} dB'
+        if mean < -45 or peak < -20:
+            bad.append(line + ' — 너무 조용하다(무음?)')
+        if use_asr and path in texts:
+            with open(path, 'rb') as f:
+                audio = f.read()
+            heard = asr(audio, probe_sec(path))['text']
+            sim = similarity(texts[path], heard)
+            line += f' · 받아쓰기 일치 {sim:.2f} "{heard[:60]}"'
+            # 박자 칸 미리 듣기는 쉼이 길어 받아쓰기가 다른 말(일본어 등)로 헛듣는 일이 있어 알리기만 한다.
+            # 판정은 박자 칸 없이 줄 그대로 이은 미리 듣기(-natural)로 한다.
+            if sim < 0.6 and path.endswith('-natural.mp3'):
+                bad.append(line + ' — 받아쓰기가 글과 많이 다르다')
+            elif sim < 0.6:
+                line += ' (알림: 쉼이 긴 미리 듣기라 받아쓰기가 헛들었을 수 있다)'
+        say('  ' + line)
+    return bad
+
+
+# ── 자체 시험(--self-test) ──
+
+def self_test(cfg):
+    """네트워크 없이 줄 자르기·자연 빠르기·음량·MP3·생성 기록·미리 듣기·빠르기 쓰기를 확인한다. 실패하면 0이 아닌 값으로 끝낸다."""
+    global FAKE, SAMPLES
+    FAKE = True
+    bad = []
+    # 1) 자르기: 가짜 줄(경계를 알고 있음)을 받아쓰기 시각으로, 받아쓰기 없이 음절 비율로 자른다.
+    rng = np.random.default_rng(7)
+    pool = [chr(0xAC00 + int(i)) for i in rng.integers(0, 11172, size=400)]
+    worst = {'asr': 0.0, 'energy': 0.0, 'misheard': 0.0}
+    for trial in range(24):
+        feet = [''.join(rng.choice(pool, size=int(n))) for n in rng.integers(2, 7, size=int(rng.integers(2, 6)))]
+        audio, words = fake_line(feet, 1.0, seed=100 + trial)
+        x = decode(audio)
+        truth = [(words[i]['end'] + words[i + 1]['start']) / 2 for i in range(len(words) - 1)]
+        # 헛들은 받아쓰기: 낱말마다 한 글자를 바꾸고, 첫 낱말에는 한 글자를 더 듣는다(음절 수가 달라짐).
+        misheard = [{**w, 'text': ('아' if i == 0 else '') + w['text'][:-1] + '흐'} for i, w in enumerate(words)]
+        for mode, given in (('asr', words), ('energy', None), ('misheard', misheard)):
+            pieces, method, cuts = cut_line(x, feet, given)
+            if method != ('energy' if mode == 'energy' else 'asr'):
+                bad.append(f'자르기 {trial}: 방법 {method} ({mode})')
+            if len(pieces) != len(feet):
+                bad.append(f'자르기 {trial}: 조각 {len(pieces)}개 ≠ 음보 {len(feet)}개')
+            for c, t in zip(cuts, truth):
+                worst[mode] = max(worst[mode], abs(c - t))
+    if worst['asr'] > 0.05:
+        bad.append(f'받아쓰기 시각으로 자른 경계가 참 경계에서 {worst["asr"] * 1000:.0f}ms 벗어났다(한도 50ms)')
+    if worst['misheard'] > 0.08:
+        bad.append(f'몇 글자 헛들은 받아쓰기로 자른 경계가 참 경계에서 {worst["misheard"] * 1000:.0f}ms 벗어났다(한도 80ms)')
+    # 받아쓰기 없이 음절 비율로만 어림하면 낱말 안의 닫힘소리 골짜기를 고를 수 있어 거칠다(받아쓰기를 못 쓸 때만 쓰고,
+    # 보고에 'energy'로 남겨 들어 보게 한다). 한 음절 남짓(350ms) 안에만 들면 된다.
+    if worst['energy'] > 0.35:
+        bad.append(f'음절 비율로 자른 경계가 참 경계에서 {worst["energy"] * 1000:.0f}ms 벗어났다(한도 350ms)')
+    # 받아쓰기가 글과 크게 다르면(다른 말로 헛들음) 그 시각을 쓰지 않는다
+    if asr_boundaries([{'text': '가가', 'start': 0.1, 'end': 0.5}], ['가가가', '가가가가', '가가가']) is not None:
+        bad.append('받아쓰기가 글과 크게 다른데도 그 시각을 썼다')
+    phon = asr_boundaries([{'text': '무라일체어니', 'start': 0.0, 'end': 1.2}, {'text': '흥이에', 'start': 1.3, 'end': 1.9},
+                           {'text': '달을쏘냐', 'start': 2.0, 'end': 2.8}], ['물아일체어니', '흥이애', '다를소냐'])
+    if not phon or abs(phon[0][0] - 1.25) > 0.01 or abs(phon[1][0] - 1.95) > 0.01:
+        bad.append(f'소리 나는 대로 적은 받아쓰기의 경계를 못 찾았다: {phon}')
+    if asr_boundaries([{'text': '白髪に', 'start': 0.1, 'end': 0.5}, {'text': '妾', 'start': 0.5, 'end': 0.9}], ['백발이', '제 몬져']) is not None:
+        bad.append('한글이 없는 받아쓰기(다른 말)의 시각을 썼다')
+    # 2) 빠르기 쓰기: 노래 데이터 사본(js/data)에 두 번 쓰고(두 번째는 바꾸기) node로 다시 읽는다.
+    tmp = tempfile.mkdtemp(prefix='voice-self-test-')
+    try:
+        data_copy = os.path.join(tmp, 'data')
+        shutil.copytree(os.path.join(ROOT, 'js', 'data'), data_copy)
+        songs_copy = os.path.join(data_copy, 'songs')
+        plan_all = load_plan([])
+        want = {s['id']: 10 + i for i, s in enumerate(plan_all['songs'])}
+        write_tempos(want, songs_copy)
+        write_tempos({k: v + 1 for k, v in want.items()}, songs_copy)
+        n = 0
+        for name in os.listdir(songs_copy):
+            with open(os.path.join(songs_copy, name), encoding='utf-8') as f:
+                n += len(re.findall(r'\n\s*tempo: [\d.]+,\n', f.read()))
+        if n != len(want):
+            bad.append(f'빠르기 쓰기: tempo 줄 {n}개 ≠ 노래 {len(want)}편')
+        url = 'file:///' + os.path.join(songs_copy, 'index.js').replace('\\', '/')
+        probe = f'const m = await import({json.dumps(url)}); console.log(JSON.stringify(Object.fromEntries(m.songs.map((s) => [s.id, s.tempo]))));'
+        p = subprocess.run(['node', '--input-type=module', '-e', probe], capture_output=True)
+        if p.returncode:
+            bad.append('빠르기를 쓴 노래 파일을 node가 읽지 못한다: ' + p.stderr.decode('utf-8', 'replace')[-300:])
+        else:
+            got = json.loads(p.stdout.decode('utf-8'))
+            if any(got.get(k) != v + 1 for k, v in want.items()):
+                bad.append('빠르기를 쓴 노래 파일의 tempo가 쓴 값과 다르다')
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    # 3) 견본 만들기 전체(가짜 말소리)
+    tmp = tempfile.mkdtemp(prefix='voice-self-test-')
+    SAMPLES = tmp
+    cid = next(iter(cfg['candidates']))
+    ids = ['dongjitdal', 'jemangmaega', 'nonbat-gara', 'jeongseokga']
+    plan = load_plan(ids)
+    plan['only'] = ids
+    rows, natural, _ = run_build(plan, cid, cfg, True, 4, prefix='v2-')
+    with open(os.path.join(tmp, 'v2-' + cid, 'assets', 'audio', 'voice', 'manifest.json'), encoding='utf-8') as f:
+        man = json.load(f)
+    if len(man['clips']) != sum(len(s['clips']) for s in plan['songs']):
+        bad.append('생성 기록의 조각 수가 계획과 다르다')
+    for e in man['clips']:
+        path = os.path.join(tmp, 'v2-' + cid, e['path'])
+        if sha256_file(path) != e['sha256']:
+            bad.append(e['path'] + ': sha256 불일치')
+        if e['duration'] > e['slotSec']:
+            bad.append(f'{e["path"]}: 칸 넘침 {e["duration"]} > {e["slotSec"]}')
+        if e['stretch'] != 1 or e['ttsSpeed'] > 1:
+            bad.append(f'{e["path"]}: 자연 빠르기가 아니다')
+        if e['text'] not in e['lineText']:
+            bad.append(f'{e["path"]}: 줄 글에 음보 글이 없다')
+        one = sum(1 for o in man['clips'] if o['songId'] == e['songId'] and o['lineText'] == e['lineText'] and o['unit'] == e['unit'] and o['line'] == e['line']) == 1
+        if e['cut'] != ('whole' if one else 'asr'):
+            bad.append(f'{e["path"]}: 자른 방법 {e["cut"]}')
+        if e['tempo'] != natural[e['songId']]:
+            bad.append(f'{e["path"]}: 빠르기 {e["tempo"]} ≠ 자연 빠르기 {natural[e["songId"]]}')
+        x = decode(open(path, 'rb').read())
+        thr = np.abs(x).max() * 10 ** (-30 / 20)
+        lead = np.flatnonzero(np.abs(x) > thr)[0] / SR
+        if lead > LEAD_MAX:
+            bad.append(f'{e["path"]}: 앞 무음 {lead * 1000:.0f}ms')
+    for sid in ids:
+        mine = [e for e in man['clips'] if e['songId'] == sid]
+        longest = max(e['duration'] for e in mine)
+        t = natural[sid]
+        if not (longest <= 60 / t * FILL + 0.03 and longest > 60 / (t + 1) * FILL - 0.03):
+            bad.append(f'{sid}: 자연 빠르기 {t}가 가장 긴 조각 {longest:.3f}s와 맞지 않는다')
+    for sid in ids:
+        lines = [e for e in man['clips'] if e['songId'] == sid]
+        by_line = {}
+        for e in lines:
+            by_line.setdefault(e['lineText'], set()).add(e['lineGainDb'])
+        if any(len(v) != 1 for v in by_line.values()):
+            bad.append(f'{sid}: 한 줄 안의 조각 음량 이득이 다르다')
+    for sid in ids:
+        for suffix in (f'-tempo{natural[sid]}.mp3', f'-tempo{natural[sid]}-beat.mp3', '-natural.mp3'):
+            if not os.path.exists(os.path.join(tmp, f'v2-{cid}-{sid}{suffix}')):
+                bad.append('미리 듣기 없음: ' + f'v2-{cid}-{sid}{suffix}')
+    if not os.path.exists(os.path.join(tmp, f'v2-{cid}-jemangmaega-gu0.mp3')):
+        bad.append('향가 첫 구 미리 듣기 없음')
+    plan_d = load_plan(['dongjitdal'], tempos={'dongjitdal': natural['dongjitdal']})['songs'][0]
+    pv = probe_sec(os.path.join(tmp, f'v2-{cid}-dongjitdal-tempo{natural["dongjitdal"]}.mp3'))
+    want = 0.5 + plan_d['duration'] + 0.8
+    if abs(pv - want) > 0.1:
+        bad.append(f'미리 듣기 길이 {pv:.2f}s ≠ 박자 칸 {want:.2f}s')
+    bad += check_previews([os.path.join(tmp, f'v2-{cid}-dongjitdal-natural.mp3')], {}, False)
+    # 빠르기 재기: 고른 줄만 읽혀도 같은 자르기를 거치므로, 잰 빠르기는 전체로 잰 자연 빠르기보다 느리지 않다.
+    tp = tempo_probe(plan, [cid], cfg, 4, False)
+    for sid in ids:
+        if not isinstance(tp.get(sid), int) or tp[sid] < natural[sid]:
+            bad.append(f'빠르기 재기 {sid}: {tp.get(sid)} (전체 자연 빠르기 {natural[sid]})')
+    shutil.rmtree(tmp, ignore_errors=True)
+    if bad:
+        for b in bad[:30]:
+            say('  ✗ ' + b)
+        raise SystemExit(f'자체 시험 실패 {len(bad)}건')
+    say('')
+    say(f'자체 시험 통과: 자르기 경계 오차 받아쓰기 {worst["asr"] * 1000:.0f}ms·헛들은 받아쓰기 {worst["misheard"] * 1000:.0f}ms·'
+        f'음절 비율 {worst["energy"] * 1000:.0f}ms, '
+        f'빠르기 쓰기(노래 파일 사본), 조각 {len(man["clips"])}개 — 자연 빠르기 칸 안, 늘이거나 줄이지 않음, 앞 무음 {LEAD_MAX * 1000:.0f}ms 이하, '
+        f'줄마다 같은 음량 이득, sha256, 미리 듣기(박자·딸깍·줄 그대로) 길이와 소리')
 
 
 def main():
-    global FFMPEG, FFPROBE
-    ap = argparse.ArgumentParser(description='낭송 조각 만들기(Fish Audio)')
+    global FFMPEG, FFPROBE, SAMPLES
+    ap = argparse.ArgumentParser(description='낭송 조각 만들기(Fish Audio, 줄 단위로 읽히고 음보마다 자름)')
     ap.add_argument('--only', default='', help='노래 id(쉼표로 여럿)')
-    ap.add_argument('--voice', default=None, help='voices.json의 후보 id(없으면 승인된 목소리)')
-    ap.add_argument('--dry-run', action='store_true', help='조각 수·글자 수·예상 요금만(API를 부르지 않음)')
-    ap.add_argument('--sample', action='store_true', help='후보 견본: assets/raw/voice-samples/에 쓰고 미리 듣기를 이어 붙임')
-    ap.add_argument('--tempo', type=float, default=None, help='견본 미리 듣기용 빠르기(박/분). 실제 조각에는 쓰지 않는다')
-    ap.add_argument('--asr', action='store_true', help='만든 조각을 받아쓰기(transcribe)로 들어 보고 글과 비교')
+    ap.add_argument('--voice', default=None, help='voices.json의 후보 id(없으면 승인된 목소리). --tempo-probe는 쉼표로 여럿')
+    ap.add_argument('--dry-run', action='store_true', help='줄 수·조각 수·글자 수·예상 요금만(API를 부르지 않음)')
+    ap.add_argument('--sample', action='store_true', help='후보 견본: --out에 쓰고 미리 듣기를 이어 붙임(노래 데이터는 그대로)')
+    ap.add_argument('--out', default=None, help='견본을 쓸 폴더(기본 assets/raw/voice-samples)')
+    ap.add_argument('--prefix', default='', help='견본 파일 이름 앞머리(예: v2-)')
+    ap.add_argument('--tempo', type=float, default=None, help='견본 미리 듣기용 빠르기(박/분). 없으면 노래마다 자연 빠르기')
+    ap.add_argument('--tempo-probe', action='store_true', help='노래마다 가장 긴 음보가 있을 줄만 읽혀 자연 빠르기를 잰다')
+    ap.add_argument('--write-tempo', action='store_true', help='잰 자연 빠르기를 노래 데이터(js/data/songs/*.js)의 tempo에 쓴다')
+    ap.add_argument('--asr', action='store_true', help='견본 미리 듣기를 받아쓰기로 들어 보고 글과 비교')
     ap.add_argument('--jobs', type=int, default=4, help='동시에 보낼 요청 수(기본 4)')
     ap.add_argument('--self-test', action='store_true', help='API 없이 가짜 말소리로 나머지 과정을 시험(임시 폴더)')
     a = ap.parse_args()
@@ -708,29 +1157,64 @@ def main():
     only = [s for s in a.only.split(',') if s.strip()]
     if a.tempo and not a.sample:
         raise SystemExit('--tempo는 --sample과 함께만 씁니다(실제 빠르기는 노래 데이터의 tempo로 정한다).')
-    plan = load_plan(only, a.tempo)
+    if a.out:
+        if not a.sample:
+            raise SystemExit('--out은 --sample과 함께만 씁니다.')
+        SAMPLES = os.path.abspath(a.out)
+    plan = load_plan(only)
     plan['only'] = only
 
-    if a.voice:
-        if a.voice not in cfg['candidates']:
-            raise SystemExit('모르는 목소리 후보: ' + a.voice + ' (있는 것: ' + ', '.join(cfg['candidates']) + ')')
-        voices = [a.voice]
+    picked = [v.strip() for v in (a.voice or '').split(',') if v.strip()]
+    for v in picked:
+        if v not in cfg['candidates']:
+            raise SystemExit('모르는 목소리 후보: ' + v + ' (있는 것: ' + ', '.join(cfg['candidates']) + ')')
+    if a.tempo_probe:
+        if not picked:
+            picked = [cfg['approved']] if cfg.get('approved') else []
+        if not picked:
+            raise SystemExit('--tempo-probe에는 --voice <후보,후보>가 필요합니다(승인된 목소리가 없음).')
+        FFMPEG, FFPROBE = tool('ffmpeg'), tool('ffprobe')
+        tempo_probe(plan, picked, cfg, a.jobs, a.write_tempo)
+        say(f'\n이번에 쓴 돈(추정): ${spend_usd():.4f} (TTS {SPEND["ttsBytes"]} 바이트, 설계 {SPEND["design"]}번, 받아쓰기 {SPEND["asrSec"]:.0f}초)')
+        return
+    if picked:
+        voices = picked[:1]
     elif cfg.get('approved'):
         voices = [cfg['approved']]
     elif a.dry_run:
-        voices = [cfg['approved']] if cfg.get('approved') else list(cfg['candidates'])[:1]
+        voices = list(cfg['candidates'])[-1:]
     else:
         raise SystemExit('승인된 목소리가 없습니다. --voice <후보>로 고르거나(견본은 --sample) voices.json의 approved를 채우세요.')
     if not a.dry_run and not a.sample and not cfg.get('approved'):
         raise SystemExit('승인 전에는 실제 조각을 만들지 않습니다. 견본은 --sample로 만드세요.')
     if not a.dry_run and not a.sample and voices[0] != cfg['approved']:
         raise SystemExit('실제 조각은 승인된 목소리(' + cfg['approved'] + ')로만 만듭니다.')
+    if a.sample and a.write_tempo:
+        raise SystemExit('--write-tempo는 견본(--sample)과 함께 쓰지 않습니다(--tempo-probe나 실제 조각에서 씁니다).')
 
     if a.dry_run:
-        dry_run(plan, cfg, voices, a.asr)
+        dry_run(plan, cfg, voices)
         return
     FFMPEG, FFPROBE = tool('ffmpeg'), tool('ffprobe')
-    run_build(plan, voices[0], cfg, a.sample, a.jobs, a.asr)
+    rows, natural, results = run_build(plan, voices[0], cfg, a.sample, a.jobs, a.write_tempo, a.tempo, a.prefix)
+    if a.sample:
+        say('\n미리 듣기 확인(무음 아님' + (', 받아쓰기' if a.asr else '') + ')')
+        texts = {}
+        paths = []
+        for s in plan['songs']:
+            t = a.tempo or natural[s['id']]
+            reading = ' '.join(l['text'] for l in s['lines'])
+            for suffix in (f'-tempo{t:g}.mp3', f'-tempo{t:g}-beat.mp3', '-natural.mp3'):
+                pth = os.path.join(SAMPLES, f'{a.prefix}{voices[0]}-{s["id"]}{suffix}')
+                paths.append(pth)
+                if not suffix.endswith('-beat.mp3'):
+                    texts[pth] = reading
+        bad = check_previews(paths, texts, a.asr)
+        if bad:
+            for b in bad:
+                say('  ✗ ' + b)
+            raise SystemExit('미리 듣기 확인 실패')
+    say(f'\n이번에 쓴 돈(추정): ${spend_usd():.4f} (TTS {SPEND["ttsBytes"]} 바이트, 설계 {SPEND["design"]}번, 받아쓰기 {SPEND["asrSec"]:.0f}초)')
 
 
 if __name__ == '__main__':

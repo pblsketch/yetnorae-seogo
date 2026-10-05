@@ -1,6 +1,9 @@
 // 낭송 조각 점검(spec 15, plan T28, js/data/README.md 10·11).
 // 1) 노래 데이터의 모든 음보(향가는 구, 고려가요는 연-줄-음보)에 조각 파일이 있고, 남는 조각·노래 폴더가 없는지
-// 2) 조각마다 길이가 박자 칸(60 / 빠르기 초) 안에 드는지. 길이는 MP3 프레임 머리를 직접 읽어 잰다(빠르고 ffmpeg가 필요 없다)
+// 0) 노래마다 낭송 빠르기(tempo)가 노래 데이터에 있는지. 빠르기는 갈래 기본값이 아니라 그 노래의 가장 긴 음보가
+//    자연 빠르기로 칸에 들어가도록 노래마다 정한다(js/data/README.md '추가 제안(F5)')
+// 2) 조각마다 길이가 박자 칸(60 / 그 노래의 빠르기 초) 안에 드는지. 길이는 MP3 프레임 머리를 직접 읽어 잰다(빠르고 ffmpeg가 필요 없다)
+//    조각은 줄(장·행·줄·구)을 한 번에 읽힌 소리를 음보 경계에서 자른 것이어야 하고, 빠르게 줄이거나(stretch) 빨리 읽히면 안 된다
 // 3) 생성 기록(assets/audio/voice/manifest.json): 출처 Fish Audio, 유료 모델, 승인된 목소리, 사용권, 조각마다 글·길이·칸·sha256이 실제와 같은지
 // 4) 자산 목록 조각(assets/manifest.parts/voice.json): 조각마다 항목 하나, kind voice, 출처·사용권·상업 이용
 // 조각이 하나도 없으면: VOICE_OPTIONAL=1일 때만 '아직 없음'으로 넘어가고(종료 0), 아니면 실패한다.
@@ -88,6 +91,18 @@ export function mp3Duration(buf) {
   return frames ? samples / rate : null;
 }
 
+// ── 노래마다 빠르기 ──
+// 돌려주는 값: [글] — 빠르기가 없거나 이상한 노래
+export function judgeTempo(songs) {
+  const problems = [];
+  for (const song of songs) {
+    const t = song.tempo;
+    if (t === undefined) problems.push(`${song.id}: 노래 데이터에 낭송 빠르기(tempo)가 없다(갈래 기본값을 쓰지 않는다 — tools/voice/build_voice.py --tempo-probe --write-tempo)`);
+    else if (!(typeof t === 'number' && Number.isFinite(t) && t >= 6 && t <= 160)) problems.push(`${song.id}: 빠르기 ${t}가 이상하다(6~160 박/분)`);
+  }
+  return problems;
+}
+
 // ── 판정(실제 저장소와 음성 사례가 함께 쓴다) ──
 // songs: 노래 데이터, approved: 승인된 목소리 id(없으면 null)
 // 돌려주는 값: { clipCount, expectedCount, problems: [글], rows: [{ path, sec, slot }] }
@@ -165,6 +180,11 @@ export function judgeVoice({ root: base, songs, approved }) {
       if (c.sha256 !== m.hash) problems.push(p + ': sha256이 기록과 다르다');
       if (typeof c.duration !== 'number' || (m.sec !== null && Math.abs(c.duration - m.sec) > RECORD_TOL)) problems.push(`${p}: 기록의 길이(${c.duration})가 잰 길이(${m.sec?.toFixed(3)})와 다르다`);
       if (typeof c.slotSec !== 'number' || Math.abs(c.slotSec - exp.slot) > 1e-3) problems.push(`${p}: 기록의 칸(${c.slotSec})이 지금 빠르기의 칸(${exp.slot.toFixed(3)})과 다르다 — 빠르기를 바꿨으면 다시 만든다`);
+      if (c.tempo !== tempoOf(exp.song)) problems.push(`${p}: 기록의 빠르기(${c.tempo})가 노래 데이터의 빠르기(${tempoOf(exp.song)})와 다르다`);
+      if (typeof c.stretch === 'number' && Math.abs(c.stretch - 1) > 1e-3) problems.push(`${p}: 자연 빠르기가 아니다 — 소리를 ${c.stretch}배로 줄였다`);
+      if (typeof c.ttsSpeed === 'number' && c.ttsSpeed > 1 + 1e-3) problems.push(`${p}: 자연 빠르기가 아니다 — 말 빠르기 ${c.ttsSpeed}로 빨리 읽혔다`);
+      if (!nonEmpty(c.lineText) || !c.lineText.includes(exp.text)) problems.push(`${p}: 줄 단위로 읽힌 기록(lineText)이 없거나 이 음보의 글을 담지 않는다`);
+      if (!['asr', 'energy', 'whole'].includes(c.cut)) problems.push(`${p}: 자른 방법(cut: asr·energy·whole)이 없다`);
     }
   }
 
@@ -219,8 +239,8 @@ function fakeMp3(sec, seed = 0) {
 function makeFixture() {
   const songs = [
     { id: 'gaga-sijo', genre: 'sijo', tempo: 60, units: [{ feet: [{ original: '가', reading: '가나' }, { original: '다', reading: '다라' }] }] },
-    { id: 'gaga-hyangga', genre: 'hyangga', units: [{ reading: '마바사' }, { reading: '아자차' }] },
-    { id: 'gaga-goryeo', genre: 'goryeo', units: [{ lines: [{ feet: [{ original: '카', reading: '카타' }] }] }] },
+    { id: 'gaga-hyangga', genre: 'hyangga', tempo: 18, units: [{ reading: '마바사' }, { reading: '아자차' }] },
+    { id: 'gaga-goryeo', genre: 'goryeo', tempo: 48, units: [{ lines: [{ feet: [{ original: '카', reading: '카타' }] }] }] },
   ];
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-voice-'));
   const clips = [];
@@ -231,7 +251,9 @@ function makeFixture() {
       const buf = fakeMp3(slot * 0.8, i + 1);
       fs.mkdirSync(path.join(dir, path.dirname(c.path)), { recursive: true });
       fs.writeFileSync(path.join(dir, c.path), buf);
-      clips.push({ path: c.path, songId: song.id, text: c.text, duration: mp3Duration(buf), slotSec: slot, sha256: sha256(buf) });
+      const lineText = voiceClips(song).filter((x) => x.unit === c.unit && x.line === c.line).map((x) => x.text).join(' ');
+      clips.push({ path: c.path, songId: song.id, text: c.text, duration: mp3Duration(buf), slotSec: slot, tempo: tempoOf(song),
+        ttsSpeed: 1, stretch: 1, lineText, cut: song.genre === 'hyangga' ? 'whole' : 'asr', sha256: sha256(buf) });
       parts.push({ path: c.path, kind: 'voice', source: 'Fish Audio TTS API', license: '유료 이용 상업 허용', commercialUse: true });
     });
   }
@@ -278,6 +300,18 @@ function selfTest() {
   same((fx) => { fx.rec.clips[0].text = '엉뚱한 글'; fx.write(); check(has(run(fx), '오늘 소리'), '노래 데이터와 다른 글로 만든 조각을 잡는다'); });
   same((fx) => { fx.rec.clips[0].slotSec = 1.2; fx.write(); check(has(run(fx), '지금 빠르기의 칸'), '빠르기가 바뀐 뒤 다시 만들지 않은 조각을 잡는다'); });
   same((fx) => { fx.rec.generator.model = 's2.1-pro-free'; fx.write(); check(has(run(fx), '무료 모델'), '무료 모델로 만든 기록을 잡는다'); });
+  same((fx) => { fx.rec.clips[1].stretch = 1.2; fx.write(); check(has(run(fx), '자연 빠르기가 아니다'), '소리를 줄여(stretch) 칸에 넣은 조각을 잡는다'); });
+  same((fx) => { fx.rec.clips[1].ttsSpeed = 1.3; fx.write(); check(has(run(fx), '빨리 읽혔다'), '말 빠르기를 올려 읽힌 조각을 잡는다'); });
+  same((fx) => { fx.rec.clips[0].tempo = 50; fx.write(); check(has(run(fx), '기록의 빠르기'), '노래 데이터와 다른 빠르기로 만든 조각을 잡는다'); });
+  same((fx) => { delete fx.rec.clips[0].lineText; fx.write(); check(has(run(fx), 'lineText'), '줄 단위로 읽히지 않은(음보 따로) 조각을 잡는다'); });
+  same((fx) => { fx.rec.clips[0].lineText = '다른 줄'; fx.write(); check(has(run(fx), 'lineText'), '다른 줄에서 잘라 온 조각을 잡는다'); });
+  same((fx) => { delete fx.rec.clips[0].cut; fx.write(); check(has(run(fx), '자른 방법'), '자른 방법이 기록되지 않은 조각을 잡는다'); });
+  same((fx) => {
+    check(judgeTempo(fx.songs).length === 0, '노래마다 빠르기가 있으면 통과한다');
+    const noTempo = fx.songs.map((s, i) => (i === 1 ? { ...s, tempo: undefined } : s));
+    check(judgeTempo(noTempo).some((p) => p.includes('gaga-hyangga') && p.includes('없다')), '빠르기가 없는 노래(갈래 기본값)를 잡는다');
+    check(judgeTempo([{ id: 'x', tempo: 0.5 }, { id: 'y', tempo: '50' }]).length === 2, '이상한 빠르기(너무 느림·글)를 잡는다');
+  });
   same((fx) => { check(has(run(fx, null), '승인된 목소리가 없다'), '승인 전 목소리로 만든 조각을 잡는다'); check(has(run(fx, 'narrator-b'), '승인된 목소리'), '승인하지 않은 목소리를 잡는다'); });
   same((fx) => { fx.parts.pop(); fx.write(); check(has(run(fx), '자산 목록에 없는 조각'), '자산 목록에서 빠진 조각을 잡는다'); });
   same((fx) => { fx.parts[0].commercialUse = false; fx.write(); check(has(run(fx), 'commercialUse'), '상업 이용 표시가 없는 항목을 잡는다'); });
@@ -307,6 +341,10 @@ async function main() {
   const { songs } = await import('../js/data/songs/index.js');
   let approved = null;
   try { approved = JSON.parse(fs.readFileSync(path.join(root, 'tools/voice/voices.json'), 'utf8')).approved ?? null; } catch { /* 없으면 승인 없음 */ }
+  const tp = judgeTempo(songs);
+  check(tp.length === 0, `노래 ${songs.length}편 모두 노래마다 낭송 빠르기(tempo)가 있다`);
+  for (const p of tp.slice(0, 12)) console.log('      - ' + p);
+  if (tp.length > 12) console.log('      … 그 밖에 ' + (tp.length - 12) + '개');
   const r = judgeVoice({ root, songs, approved });
   if (r.clipCount === 0) {
     const v = emptyVerdict(process.env);
