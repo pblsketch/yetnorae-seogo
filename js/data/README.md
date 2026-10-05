@@ -1020,3 +1020,44 @@ dispose()
 ### 스타일
 
 - 2D 그림 판 스타일은 `css/wing-hyangga.css`다. 모형이 이 파일의 `<link>`가 없으면 스스로 머리에 붙이지만, 연결 단계가 `index.html`에 링크를 더하는 편이 깜박임이 없다.
+
+## 연결 결정(F2) — 관 모형 손잡이
+
+다섯 관 모형(T7~T11)이 7.1과 '추가 제안(T4)'에 없던 두 가지(떠도는 노래 자리, 재기 초점)를 저마다 다른 이름으로 내놓아서, 연결 단계(F2)가 한 가지 모양으로 정했다. 위의 '추가 제안(T7)·(T8)·(T9)·(T11)'에 적힌 모양은 관 모형이 **안에서** 쓰는 옛 모양으로 남고, 바깥(세계 바탕, 한 판 화면, 재기 화면)은 아래 모양만 본다.
+
+### 맞추는 곳 — `js/world/wings/normalize.js`
+
+- `normalizeWing(모듈)`이 `create3D`·`create2D`를 감싸서, 돌려받은 손잡이를 아래 모양으로 맞춘다. 이미 감싼 모듈은 그대로 돌려준다(`isNormalizedWing(모듈)`로 알 수 있다).
+- `js/registry.js`의 `wings`에는 다섯 관 모형을 모두 `normalizeWing`으로 감싸 등록한다. 세계 바탕은 받은 모듈을 그대로 쓰므로, 점검 페이지처럼 감싸지 않은 모듈을 직접 넘기면 옛 모양이 그대로 보인다.
+
+### 맞춘 손잡이
+
+| 열쇠 | 3D | 2D | 뜻 |
+| --- | --- | --- | --- |
+| `anchors` | 7.1과 같다 | 7.1과 같다 | **누를 자리만** 둔다. 옛 열쇠 `floating`(T7)·`songs`(T8)·`focus`(T8)는 빠진다 |
+| `floatingSpots` | `root` 기준 `THREE.Vector3` 목록(`y`는 떠 있는 높이) | 그림 판 백분율 `{ x, y }` 목록 | 떠도는(아직 잡지 않은) 노래가 머무는 자리. 관마다 **다섯 이상**(칸 노래 셋, 길 잃은 노래 둘). 2D는 상황 버튼 구석(`x > 78`이면서 `y > 78`)을 피한다 |
+| `measureFocus` | `{ target: Vector3, position?: Vector3 }`(`root` 기준) | 그림 판 백분율 `{ x, y }` | 재기 화면 왼쪽 반(디오라마)이 비출 곳. 3D `position`은 카메라 자리이고, 없으면 세계 바탕이 `target` 앞 위(`TUNING.measureOffset`)에서 본다 |
+| `react`·`update`·`dispose` | 7.1과 같다 | 7.1과 같다 | |
+
+- **떠도는 노래 자리는 누를 자리(`anchors`)가 아니다.** 세계 바탕은 이것으로 2D 누를 자리를 만들지 않고, 도착 알림(`onArrive`의 `anchor`)에도 쓰지 않는다. 한 판 화면이 이 자리에 잡을 수 있는 노래를 스스로 그리고 누르게 한다.
+- 옛 열쇠 `focus`·`spots`·`areas`는 맞춘 손잡이에 남기지 않는다(같은 값이 두 이름으로 돌아다니지 않게). 관 모형이 따로 내놓은 그 밖의 열쇠(예: 점검용 `info`)는 그대로 둔다.
+- 관 모형이 이 열쇠를 직접 내놓으면 그것이 먼저다. 없으면 옛 모양에서 옮긴다.
+
+| 관 | 떠도는 노래 자리 ← | 재기 초점 ← |
+| --- | --- | --- |
+| 향가관(T7) | `anchors.floating` | `handle.focus`(점) |
+| 고려가요관(T8) | `anchors.songs` | `anchors.focus` — 3D `{ position, target }`, 2D 백분율 사각형 `{ left, top, width, height }`는 가운데 점 |
+| 시조관(T9) | `areas.floating` | `areas.focus`의 세 점(`stairs`·`pillars`·`pavilion`)의 가운데 |
+| 가사관(T10) | `handle.floatingSpots`(직접) | 3D `anchors.camera.measure`(`{ position, target }`), 2D `handle.measureFocus`(직접) |
+| 사설시조관(T11) | `spots.floatingSongs`(점 하나 또는 목록) | `spots.measureFocus`(점) |
+
+### `diorama:slot-set`의 자리 이름
+
+- `area`는 `shelf` · `bonus` · `basket` · `returned` · `mentor` 다섯이다(`SLOT_AREAS`). '추가 제안(T9)'의 `returned`(`index` 0~3, 돌아온 노래 선반)와 `mentor`(`index` 0, 시조관 '선대 사서의 자리', 보스를 마치면 `songId: 'taesan'`)를 본문으로 받아들인다.
+- **모든 관 모형이 다섯을 모두 받는다.** 해당하는 건축이 없으면 오류 없이 넘긴다(지금 `returned`를 그리는 관은 시조관·가사관, `mentor`를 그리는 관은 시조관뿐이다). 그 밖의 `area`도 조용히 넘긴다.
+
+### 세계 바탕(`js/world/world.js`)
+
+- `getWingHandle()` → 지금 관 모형의 손잡이(등록된 관 모형이면 위의 맞춘 모양). 회랑이거나 만들지 못했으면 `null`.
+- `openSplit(panelEl)`: 지금 관 모형에 `measureFocus`가 있으면 왼쪽 반이 그곳을 비춘다. 3D는 카메라가 `target`을 바라보고(`position`이 있으면 그 자리에서), 2D는 그림 판을 16:9 그대로 왼쪽 칸을 꽉 채우게 키우고 초점이 칸 가운데에 오도록 민다(그림 판 가장자리가 칸 안으로 들어오지 않는 만큼만). `closeSplit()`이면 원래대로 돌아간다. `measureFocus`가 없으면 전과 같다.
+- 2D 누를 자리 이름표(`board2d.js`의 `ANCHOR_LABELS`)는 모든 자리 열쇠에 한국어 이름이 있다. 맞추지 않은 관 모형의 `floating`·`songs`는 '떠도는 노래'이고, 이름표가 없는 열쇠는 '자리'로 보인다(영어 열쇠가 화면에 나오지 않는다).

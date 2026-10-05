@@ -22,6 +22,9 @@ export const ANCHORS_2D = {
   nextDoor: { x: 11, y: 42 },
   entrance: { x: 32, y: 90 },
 };
+// 연결 결정(F2): 떠도는 노래 다섯이 머무는 곳(누를 자리가 아니다)과 재기 화면 왼쪽 반이 비출 곳(회랑 안쪽)
+export const FLOATING_2D = [{ x: 34, y: 72 }, { x: 46, y: 80 }, { x: 56, y: 70 }, { x: 61, y: 77 }, { x: 25, y: 80 }];
+export const MEASURE_FOCUS_2D = { x: 50, y: 42 };
 
 let uid = 0;
 
@@ -291,6 +294,8 @@ export function create2D(ctx) {
 
   return {
     anchors: JSON.parse(JSON.stringify(ANCHORS_2D)),
+    floatingSpots: FLOATING_2D.map((p) => ({ ...p })),
+    measureFocus: { ...MEASURE_FOCUS_2D },
     react,
     update,
     dispose() {

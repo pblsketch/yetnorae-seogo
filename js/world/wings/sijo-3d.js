@@ -474,7 +474,7 @@ export function create3D(ctx) {
   };
   // 약속 밖의 자리(누를 자리로 만들지 않는다): 떠도는 노래가 떠 있을 곳, 재기 화면 왼쪽 반이 비출 곳
   const areas = {
-    floating: [V(-3.6, 1.5, 1.4), V(-1.2, 1.8, 2.4), V(0.9, 1.6, 0.9), V(4.3, 1.7, 3.9)],
+    floating: [V(-3.6, 1.5, 1.4), V(-1.2, 1.8, 2.4), V(0.9, 1.6, 0.9), V(2.6, 1.9, 1.3), V(4.3, 1.7, 3.9)],
     focus: { stairs: stepTop(1).clone(), pillars: V(P.x, F[1] + SH / 2, FRONT_Z), pavilion: V(P.x, F[1], P.z) },
   };
 

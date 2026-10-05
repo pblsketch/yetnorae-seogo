@@ -637,8 +637,11 @@ export function create3D(ctx) {
 
   return {
     anchors,
-    // 추가 제안(T11): 떠도는 노래가 머무는 곳, 재기 화면 왼쪽 반이 바라볼 곳(늘어난 층 한가운데)
-    spots: { floatingSongs: v(0.4, 1.4, 1.6), measureFocus: v(2.6, midAt(2.6).yc, MID.zc) },
+    // 추가 제안(T11): 떠도는 노래가 머무는 곳(다섯, 연결 결정 F2), 재기 화면 왼쪽 반이 바라볼 곳(늘어난 층 한가운데)
+    spots: {
+      floatingSongs: [v(0.4, 1.4, 1.6), v(-2.0, 1.6, 0.6), v(-1.0, 1.8, 2.6), v(1.9, 1.7, 0.5), v(2.6, 1.5, 2.3)],
+      measureFocus: v(2.6, midAt(2.6).yc, MID.zc),
+    },
     react(name, detail) {
       if (!model.apply(name, detail)) return;
       if (reduce()) model.step(0, true);

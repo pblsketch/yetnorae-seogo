@@ -580,7 +580,7 @@ export function create3D(ctx) {
     nextDoor: V(ND.x - 0.4, 1.0, ND.z),
     // 추가 제안(T8): 떠다니는 노래 자리, 재기 화면 왼쪽 반이 비출 곳(연 방 줄과 복도)
     songs: L3.songs.map(([x, z]) => V(x, 1.2, z)),
-    focus: { position: V(-0.4, 4.4, 3.2), target: V(-0.4, 1.0, -3.9) },
+    focus: { position: V(-0.4, 6.0, 6.4), target: V(-0.4, 1.0, -3.9) },
     camera: { position: V(0, 7.4, 9.2), target: V(0, 0.8, -1.6) },
   };
 
