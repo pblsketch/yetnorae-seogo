@@ -873,3 +873,12 @@ dispose()
 
 - 세계 바탕이 내는 사건: `orientation:pause`·`orientation:resume`, 그와 함께 `audio:pause`·`audio:resume`(`reason: 'orientation'`).
 - `settings:reduce-motion`: 설정 화면이 내면 세계 바탕이 기기 설정 값으로 받는다. 세계 바탕도 실제 적용 값(기기 설정 또는 브라우저 선호)이 바뀌면 낸다. 브라우저 선호 때문에 받은 값과 실제 값이 다르면 실제 값을 한 번 더 낸다.
+
+## 추가 제안(T11) — 관 모형의 덧자리
+
+사설시조관 모형(T11)이 정한 것이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않았다.
+
+- 관 모형 `handle`에 선택 열쇠 `spots`를 더한다. `anchors`와 같은 좌표계(3D는 `root` 기준 `THREE.Vector3`, 2D는 백분율 `{ x, y }`)이고, **세계 바탕은 이것으로 누를 자리를 만들지 않는다**(도착 판정에도 쓰지 않는다).
+  - `spots.floatingSongs`: 떠도는 노래가 머무는 곳(한 판 화면이 노래를 띄우는 자리)
+  - `spots.measureFocus`: 재기 화면의 왼쪽 반(디오라마)이 바라볼 곳. 사설시조관은 늘어난 가운데 층 한가운데다.
+- `anchors`의 열쇠는 7.1 그대로다. 위 두 자리를 `anchors`에 넣지 않은 까닭은 2D에서 이름표 없는 누를 자리가 생기기 때문이다.
