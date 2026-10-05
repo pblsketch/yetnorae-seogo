@@ -1207,3 +1207,21 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - **창 숨김**: `visibilitychange`에서 `audio:pause`/`audio:resume`(`reason: 'hidden'`)을 낸다.
 - **저장 실패 알림**: `save:failed`를 처음 받을 때 한 번만 "이 기기에 저장되지 않아요. 이번 창에서만 이어집니다"를 보인다(불러올 때 저장소를 쓸 수 없어도).
 - **회랑**: 회랑에서 열린 관 문 앞에 서면 상황 버튼 '들어가기 — 관 이름'. 입구 문은 다루지 않는다(입구 작업 몫).
+
+## 추가 제안(T16) — 작품 방 「님이 오마 하거늘」
+
+작품 방 작업(T16)이 쓴 것이다. 연결 단계가 확인해 본문(7.3)에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 방 `ctx`에 더해 받는 것(모두 선택)
+
+| 열쇠 | 뜻 |
+| --- | --- |
+| `assets` | 관 모형 `ctx.assets`와 같은 손잡이(`{ image(name), texture(name) }`, `js/world/assets.js`의 `createAssets`). 2D 그림 판 `board/room-saseol`과 학생 종이 인형 `sprite/student-<a\|b>`를 여기서 찾는다. 없으면 자리표시 그림이다 |
+| `manifest` | `assets`가 없을 때 자산 목록 객체를 주면 방이 손잡이를 만든다 |
+| `appearance` | 저장의 `appearance`(`'a'` \| `'b'`). 없으면 `'a'` |
+
+- `rhythm`은 재기 화면과 같은 모양 `{ engine, buildGrid?, createTapSession?, offsetMs? }`을 받는다('추가 제안(T5)'). 엔진을 바로 넘겨도 된다. `reduceMotion`은 함수나 참거짓 값 모두 받는다.
+- 3D(`ctx.three = { THREE, root, camera }`)일 때 방은 `root`에 물체 묶음 하나를 붙이고 카메라를 움직인다. 그리기는 부르는 쪽이 매 프레임 한다. 방이 끝나거나 중단되면 묶음을 떼고 카메라를 처음 자리로 돌린다. 방이 열려 있는 동안 세계 바탕은 카메라를 따로 움직이지 않아야 한다.
+- 방 화면은 `container`를 꽉 채운다(왼쪽 장면, 오른쪽 글 판). 3D에서는 왼쪽 장면 칸이 투명이라 아래 그림판이 보인다.
+- 스타일은 `css/room-saseol.css`. 방이 이 파일의 `<link>`가 없으면 스스로 머리에 붙이지만, 연결 단계가 `index.html`에 링크를 더하는 편이 깜박임이 없다.
+- 방의 흐름: 초장 → 중장 음보 0 ~ `reversal.fromFoot - 1` 달리기 → 예측 → 반전 음보와 중장 전체 풀이 공개 → 종장 → 완료. 박자 방식은 중장을 `RUN_CHUNK_FEET`(6, 조정 가능) 음보씩 낭송하며 두드리고, 놓친 박은 실패가 아니다. 박자 없는 방식(또는 도중에 `rhythm:no-beat`가 참이 되거나 소리 판이 잠겨 있으면)은 누를 때마다 한 음보씩 달린다.
