@@ -12,6 +12,7 @@ import * as sijoRoom from './rooms/sijo.js';
 import * as gasaRoom from './rooms/gasa.js';
 import * as saseolRoom from './rooms/saseol.js';
 import * as playScreen from './play/play-screen.js';
+import * as bossScreen from './boss/boss.js';
 import { notebookScreen, journalScreen, collectionScreen } from './play/screens.js';
 import * as startScreen from './story/start.js';
 
@@ -44,3 +45,4 @@ registry.screens.journal = journalScreen;
 registry.screens.collection = collectionScreen;
 // 시작 화면(앱 흐름의 첫 장면, T18)
 registry.screens.start = startScreen;
+registry.screens.boss = bossScreen;
