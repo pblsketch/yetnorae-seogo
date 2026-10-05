@@ -771,3 +771,38 @@ T2가 정한 처리 방식이다. 위 절의 이름과 모양은 바꾸지 않�
 - 보스 1단계에서 맞게 꽂은 뒤 '누가 불렀을까'를 고르기 전의 상태, 2단계에서 찾은 지점은 저장하지 않는다. 나갔다 오면 그 노래(2단계)를 다시 한다. `firstTryCorrect`는 처음 꽂을 때 정해지고 바뀌지 않는다.
 - 보스 2단계 판정 창 기본값은 지점 앞 500ms, 뒤 1500ms(`REMIX_TAP_WINDOW_MS`, 조정 가능)이고, 탭 시각은 박자 보정값을 뺀 낭송 시각으로 넘긴다.
 - 카드의 날짜는 판 카드가 그 관의 `doneAt`, 마지막 카드가 `ending.completedAt`이다.
+
+## 추가 제안(T3)
+
+소리와 박자 엔진(T3)이 쓰는 이름과 약속이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않는다.
+
+### 사건 더하기
+
+| 사건 | `detail` | 내는 쪽 → 듣는 쪽 |
+| --- | --- | --- |
+| `audio:missing` | `{ path, kind: 'voice' \| 'bgm' \| 'sfx' }` | 소리 엔진 → (알림·점검). 소리 파일을 불러오지 못함. 경로마다 한 번만 낸다. 낭송 조각이 없으면 그 박 자리에 딸깍 소리를 내고 박자 칸은 그대로 간다 |
+
+### 배경음·효과음 파일 이름(T29가 따른다)
+
+| 소리 | 경로 |
+| --- | --- |
+| 배경음 | `assets/audio/bgm/<이름>.mp3` — 관 id(`hyangga` 등), 그 밖의 장면은 `entrance`, `boss` 같은 이름. 반복 재생한다 |
+| 효과음 | `assets/audio/sfx/<이름>.mp3` — `janggu`(장구), `bell`(박자 보정 종), `place`(꽂기), `bind`(제본), `gold`(금박), `basket`(바구니), `fog`(먹안개) |
+
+`janggu`와 `bell` 파일이 없으면 엔진이 합성 소리로 대신한다.
+
+### 박자 칸
+
+- 두드리기·다시 듣기 단위: 향가는 구(박 하나), 고려가요는 줄, 시조·사설시조는 장, 가사는 행.
+- 노래에 `tempo`가 없을 때의 기본 빠르기는 `js/core/rhythm.js`의 `DEFAULT_TEMPO`(갈래마다, 조정 가능)다. 단위 사이 쉼은 `SEGMENT_GAP_SEC`.
+- 리믹스의 바뀌는 지점 `i`의 시각은 조각 `i+1`의 첫 박이 나오는 때다. 그 앞 `REMIX_WINDOW_MS.before`, 뒤 `REMIX_WINDOW_MS.after` 안의 탭이 맞음이고, 어느 지점 근처도 아닌 탭이 '틀림'이다. 이미 맞힌 지점 근처의 탭은 틀림으로 세지 않는다.
+
+### 소리·박자 손잡이(`ctx.rhythm`)
+
+재기·방·보스가 받는 `rhythm`은 `createAudioEngine()`으로 만든 엔진 하나(앱 전체에 하나)와 `js/core/rhythm.js`의 함수다. 쓰는 차례:
+
+1. `grid = buildGrid(song)` → `session = createTapSession(grid, { offsetMs: device.calibrationOffsetMs })`
+2. 단위마다 `await engine.play(grid, [단위], { judge: session }).finished` → `session.close(단위)`. `replay`가 참이면 같은 단위를 다시, `suggestSlash`가 참이면 빗금 모드를 권한다.
+3. 탭은 `session.tap(engine.tap(event.timeStamp))`. 멈춘 동안 `engine.tap`은 `null`을 돌려주고 판정은 무시한다.
+4. 회전 멈춤(`orientation:pause`)과 재개는 엔진이 스스로 듣는다. 재개하면 진행 중이던 단위를 처음부터 다시 내고 `judge.arm`을 다시 부른다.
+5. 첫 조작 전에는 소리 판이 없다. 앱 시작 때 `engine.attachUnlock(document)` 한 번, 저장을 읽은 뒤 `engine.applySettings(device)`.
