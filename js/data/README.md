@@ -891,3 +891,30 @@ dispose()
 - 파일 이름은 `data.fileName`(spec 12 기본값)을 쓰고, 파일 이름에 쓸 수 없는 글자(`\ / : * ? " < > |`)만 `_`로 바꾼다.
 - `layout.items`: 그린 글 `{ type: 'text', role, ref?, text, size, font, box, lines: [{ text, x, y, w, h }] }`과 그림 `{ type: 'image', role: 'student', name, placeholder, x, y, w, h }`. 점검(`tests/check-card.mjs`)이 이것으로 담긴 글·잘림·점수 말을 확인한다.
 - 화면 스타일은 `css/result.css`. 연결 단계가 `index.html`에 붙인다.
+
+## 추가 제안(T26) — 그림 자산
+
+그림 작업(T26)이 정한 것이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 그림 이름(11.2에 더하는 것)
+
+| 그림 | 이름 |
+| --- | --- |
+| 작품 방 그림 판 | `board/room-<관 id>` (예: `board/room-sijo`는 「십 년을 경영하여」 방) |
+| 보스전·엔딩 그림 판 | `board/boss`, `board/ending` |
+| 바탕 한지 무늬 | `texture/hanji` (관 재질 무늬와 따로, 판·종이 바탕용) |
+| 회랑 재질 무늬 | `texture/corridor` (관 id가 아니지만 회랑 벽에 쓴다) |
+| 카드 장식 | `card/frame`(16:9 결과 카드 테두리, 1600×900, 가운데 투명), `card/keepsake`(기념품 카드 세로 테두리, 640×960, 가운데 투명) |
+
+- 확장자는 모두 `webp`다. 종이 인형(`sprite/*`)·기념품(`keepsake/*`)·카드 장식(`card/*`)은 투명 바탕이고, 재질 무늬(`texture/*`, 512×512 바둑판 무늬)와 그림 판(`board/*`, 1600×900)은 불투명하다.
+- 종이 인형은 높이 768px이고, 내용에 맞춰 자르되 둘레에 약 2%의 투명 여백을 두었다(발 밑 여백도 같다). 좀은 512×512, 좀 대왕은 768×768 정사각이다. 기념품은 512×512 정사각이다.
+- 기념품의 `keepsake.kind === 'mind'`(「가시리」, 「어져 내 일이여」)도 같은 이름 `keepsake/<노래 id>`에 글자 없는 상징 그림이 있다.
+- 가객 그림은 11.2대로 노래마다 `sprite/singer-<노래 id>`가 있다. 같은 사람(또는 같은 '이름 모를 ~' 무리)의 노래들은 같은 그림 파일을 이름만 달리해 둔다(git은 같은 내용을 한 번만 저장한다).
+
+### 자산 목록 항목에 더한 열쇠(art.json)
+
+| 열쇠 | 값 |
+| --- | --- |
+| `prompt` | 생성에 쓴 프롬프트 파일(`tools/art/prompts/...txt`) |
+| `rawSha256` | 생성 원본(`assets/raw/art/`, 저장소 밖) PNG의 sha256 |
+| `image` | `{ format, width, height, alpha }` — `tests/check-assets.mjs`가 파일 머리와 맞춰 본다 |
