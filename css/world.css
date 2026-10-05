@@ -1,0 +1,259 @@
+/* 세계 바탕: 3D·2D 공간, 조작, 반반 틀, 회전 안내(js/world/). 색은 base.css 토큰만 쓴다. */
+
+.world {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  container-type: size;
+  background: var(--hanji);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* 세계 영역: 탭·끌기를 받는다. 반반 틀에서는 왼쪽 반이 된다. */
+.world-view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  container-type: size;
+  touch-action: none;
+}
+.world-canvas { display: block; width: 100%; height: 100%; }
+
+/* 반반 틀(spec 5.2): 왼쪽 디오라마, 오른쪽 패널 */
+.world-panel { display: none; }
+.world.is-split .world-view { right: 50%; }
+.world.is-split .world-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: max(env(safe-area-inset-top, 0px), 12px) max(var(--safe-r), 16px) max(var(--safe-b), 12px) 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--hanji);
+  border-left: 2px solid var(--meok-soft);
+}
+.world.is-split .world-panel > * { max-width: 100%; min-width: 0; flex: 1 0 auto; }
+
+/* 조작 겹: 누를 수 있는 것만 손가락을 받는다 */
+.world-hud { position: absolute; inset: 0; pointer-events: none; }
+.world-controls { position: absolute; inset: 0; }
+.world.is-split .world-controls,
+.world.is-split .world-context { display: none; }
+
+/* 16:9 안전 상자(노치를 피한 영역 안 가운데) */
+.world-safe-area {
+  position: absolute;
+  left: var(--safe-l);
+  right: var(--safe-r);
+  top: env(safe-area-inset-top, 0px);
+  bottom: var(--safe-b);
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+.world-safe {
+  position: relative;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  aspect-ratio: 16 / 9;
+}
+
+/* 상황 버튼 하나(오른쪽 아래) */
+.world-context {
+  position: absolute;
+  right: 3%;
+  bottom: 5%;
+  min-width: max(var(--touch-min), 7.5em);
+  min-height: max(var(--touch-min), 3.2em);
+  padding: 0 1.4em;
+  border: 3px solid var(--juhong);
+  border-radius: 999px;
+  background: var(--meok);
+  color: var(--hanji);
+  font-family: var(--font-ui);
+  font-size: calc(18px * var(--text-scale));
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: auto;
+  box-shadow: 0 3px 0 var(--meok-soft);
+  touch-action: manipulation;
+}
+.world-context[hidden] { display: none; }
+.world-context:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--meok-soft); }
+
+/* 떠다니는 조이스틱: 터치에서만, 엄지가 닿은 자리에 생긴다 */
+.world-joystick {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border: 3px solid var(--nokcheong);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--hanji) 45%, transparent);
+  display: none;
+  pointer-events: none;
+}
+.world-joystick.is-active { display: block; }
+.world-joystick__knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border: 3px solid var(--nokcheong);
+  border-radius: 50%;
+  background: var(--meok);
+}
+.world.pointer-fine .world-joystick:not(.is-active) { display: none; }
+
+/* 회전 안내(세로일 때 전체를 덮는다) */
+.rotate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2em;
+  padding: 2em;
+  background: var(--meok);
+  color: var(--hanji);
+  font-family: var(--font-ui);
+  font-size: calc(22px * var(--text-scale));
+  text-align: center;
+}
+.rotate-overlay[hidden] { display: none; }
+.rotate-overlay__text { margin: 0; font-weight: 700; }
+.rotate-overlay__device {
+  width: 56px;
+  height: 96px;
+  border: 4px solid var(--hanji);
+  border-radius: 10px;
+  transform: rotate(-90deg);
+}
+
+/* ── 2D 그림 판 ── */
+.board {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  aspect-ratio: 16 / 9;
+  transform: translate(-50%, -50%);
+  overflow: hidden;
+  background: var(--hanji-deep);
+  --dancheong: 0;
+}
+.board.is-shaking { animation: board-shake var(--shake-time, 0.4s) linear; }
+@keyframes board-shake {
+  25% { transform: translate(calc(-50% - 4px), -50%); }
+  75% { transform: translate(calc(-50% + 4px), -50%); }
+}
+.board-art, .board-hotspots, .board-actors { position: absolute; inset: 0; }
+.board-art { filter: grayscale(calc(1 - var(--dancheong))); }
+.board-actors { pointer-events: none; }
+
+.board-scene {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+}
+.board-scene__wall {
+  position: absolute;
+  inset: 0 0 26% 0;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 11.5%, var(--meok-soft) 11.5% 12.2%),
+    linear-gradient(var(--hanji), var(--hanji-deep));
+  border-bottom: 6px solid var(--meok-soft);
+}
+.board-scene__floor {
+  position: absolute;
+  inset: 74% 0 0 0;
+  background: repeating-linear-gradient(90deg, var(--hanji-deep) 0 6%, var(--hanji) 6% 6.4%);
+}
+.board-scene--wing {
+  background-color: var(--hanji);
+  background-image: radial-gradient(ellipse at 50% 100%, var(--hanji-deep) 0 45%, transparent 46%);
+}
+.board-scene__name {
+  position: absolute;
+  left: 3%;
+  top: 4%;
+  margin: 0;
+  padding: 0.3em 0.8em;
+  background: var(--hanji);
+  border: 2px solid var(--meok);
+  color: var(--meok);
+  font-family: var(--font-body);
+  font-size: calc(18px * var(--text-scale));
+}
+
+/* 관 문(2D 회랑) */
+.board-door {
+  position: absolute;
+  width: 11%;
+  height: 40%;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  transform: translate(-50%, -50%);
+  padding: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  border: 0.35em solid color-mix(in srgb, var(--juhong) calc(var(--dancheong) * 100%), var(--meok-soft));
+  border-top-color: color-mix(in srgb, var(--nokcheong) calc(var(--dancheong) * 100%), var(--meok-soft));
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: var(--meok-soft);
+  color: var(--meok);
+  font-family: var(--font-ui);
+  font-size: calc(14px * var(--text-scale));
+}
+.board-door[data-state="open"], .board-door[data-state="done"] { background: var(--meok); }
+.board-door__name {
+  margin-top: -1.9em;
+  padding: 0.1em 0.5em;
+  white-space: nowrap;
+  background: var(--hanji);
+  border: 2px solid var(--meok);
+  font-weight: 700;
+}
+
+/* 관 모형의 누를 수 있는 자리 */
+.board-hotspot {
+  position: absolute;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  transform: translate(-50%, -50%);
+  padding: 0;
+  border: 3px dashed var(--nokcheong);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--hanji) 25%, transparent);
+}
+
+.board-player {
+  position: absolute;
+  height: 30%;
+  width: auto;
+  transform: translate(-50%, -100%);
+  -webkit-user-drag: none;
+}
+.board-marker {
+  position: absolute;
+  width: 4.5%;
+  aspect-ratio: 2 / 1;
+  transform: translate(-50%, -50%);
+  border: 3px solid var(--nokcheong);
+  border-radius: 50%;
+}
+.board-marker[hidden] { display: none; }

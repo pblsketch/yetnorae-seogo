@@ -830,3 +830,46 @@ T2가 정한 처리 방식이다. 위 절의 이름과 모양은 바꾸지 않�
 - `features`에는 갈래마다 쓸 수 있는 열쇠가 정해져 있어(4.4), 반전 자리는 장 단위 필드로 둔다. 지금 검증기는 장 단위의 다른 열쇠를 막지 않는다.
 - 음보 0~29를 연타로 달리고 멈춘 뒤 예측, 그다음 음보 30~35와 종장을 공개한다.
 - `tests/check-saseol.mjs`가 이 표시를 확인한다: `fromFoot` 앞 음보에는 '주추리'가 없고 뒤에는 있으며, `glossBefore`에 반전이 드러나지 않는다.
+
+## 추가 제안(T4) — 세계 바탕
+
+세계 바탕 작업(T4)이 정한 것이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않았다.
+
+### 세계 바탕 손잡이 — `js/world/world.js`
+
+```js
+mount(container, { wings, manifest, appearance, reduceMotion, onArrive })
+enterWing(관 id) · enterCorridor()
+setContext(label, handler)        // 오른쪽 아래 상황 버튼. label이 없으면 숨김. Enter·Space도 같은 동작
+openSplit(panelEl) · closeSplit() // 반반 틀. 여는 동안 이동 조작·상황 버튼이 숨고 탭 이동이 멈춘다
+setDancheong(관 id, 0~1) · getDancheong(관 id)
+getMode() → '3d' | '2d'
+dispose()
+// 그 밖: reduceMotion(), setDeviceReduceMotion(v), particleScale(), shake(초) → 줄이기면 false,
+//        getAnchors(), getThree() → { THREE, scene, camera, renderer, root } | null, toScreen(p), getStats(), isPaused()
+```
+
+- `wings`를 주지 않으면 `js/registry.js`의 `wings`를 쓴다.
+- `manifest`는 `assets/manifest.json`을 읽은 객체다. 세계 바탕은 목록을 스스로 내려받지 않는다(없는 파일 요청이 콘솔 오류가 되지 않도록). 연결 단계가 넘긴다. 없으면 모든 그림이 자리표시다.
+- `appearance`는 저장의 `appearance`(`'a'` | `'b'`)이고, 학생 종이 인형 `sprite/student-<a|b>`를 고른다.
+- `onArrive({ position, anchor, place })`: 탭·문·자리로 가서 멈추거나 조이스틱·키보드 이동을 멈췄을 때 부른다.
+  - `position`: 3D는 세계 좌표 `{ x, z }`(m), 2D는 그림 판 백분율 `{ x, y }`
+  - `anchor`: 가까운 자리. `{ key: 'door', wing }`(회랑의 관 문) · `{ key: 'slots' | 'bonus', index }` · `{ key: 'basket' | 'returnedShelf' | 'roomDoor' | 'entrance' | 'nextDoor' | 'mentorSeat' }` · `null`
+  - `place`: `'corridor'` 또는 관 id
+- 단청: 마친 관은 부르는 쪽이 `setDancheong(id, 1)`로 알린다. `diorama:dancheong-restore`를 받으면 지금 관의 단청을 0→1로 천천히 올린다(움직임 줄이기면 바로).
+- 관 문: `wing:state`의 `state`가 `'locked'`면 닫히고, 그 밖은 열린다. 처음에는 입구만 열려 있다.
+
+### 그림 이름
+
+- 2D 회랑 그림 판: `board/corridor` (11.2 `board/<장면 이름>`을 따른다)
+
+### 2D 관 모형의 자리
+
+- 2D `anchors`의 자리마다 세계 바탕이 48px 이상의 누를 수 있는 자리를 만들어 준다(관 모형이 따로 만들 필요 없음).
+- 오른쪽 아래 상황 버튼이 그림 판의 대략 `x > 78%`, `y > 78%`를 덮을 수 있으므로 그 구석에는 자리를 두지 않는다.
+- 학생은 그림 판 `y` 40~95% 띠 안에서만 걷는다. 그보다 위의 자리를 누르면 그 아래까지 걸어가서 도착을 알린다.
+
+### 사건
+
+- 세계 바탕이 내는 사건: `orientation:pause`·`orientation:resume`, 그와 함께 `audio:pause`·`audio:resume`(`reason: 'orientation'`).
+- `settings:reduce-motion`: 설정 화면이 내면 세계 바탕이 기기 설정 값으로 받는다. 세계 바탕도 실제 적용 값(기기 설정 또는 브라우저 선호)이 바뀌면 낸다. 브라우저 선호 때문에 받은 값과 실제 값이 다르면 실제 값을 한 번 더 낸다.
