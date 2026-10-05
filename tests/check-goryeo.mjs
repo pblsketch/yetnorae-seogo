@@ -6,6 +6,7 @@
 //  - 출처 종류: 「정석가」는 문학 교과서 자리(pending, 교체 예정 메모), 나머지는 옛 문헌(pending)
 //  - 「정석가」: 6연(1연 3줄, 2~6연 6줄), 불가능한 조건들, 마지막 연이 「서경별곡」 둘째 연과 같은 사설
 //  - 「동동」은 두 달치(정월·이월), 「정읍사」 카드 문구, 「사모곡」 보스 무리
+//  - 「가시리」는 물건이 없어 '노래 속 마음' 카드(keepsake.kind: 'mind', 추가 제안 F1)이고 카드 한 줄(cardNote)이 있다
 //  - 『분류 수첩』 고려가요 쪽이 형식에 맞고 개념 셋을 모두 다룬다
 // 음성 사례: 데이터를 일부러 망가뜨려 이 점검이 실제로 잡는지 확인한다.
 import { validateDataSet, validateNotebookPage } from '../js/core/validate.js';
@@ -123,6 +124,16 @@ function inspect(songs, page) {
     if (jy.cardNote !== CARD_NOTE_JEONGEUP) bad('jeongeupsa: cardNote가 "' + CARD_NOTE_JEONGEUP + '"가 아니다');
     if (!/백제/.test(jy.keepsake?.classLine ?? '')) bad('jeongeupsa: 기념품 향유층 줄에 백제 노래라는 말이 없다');
   }
+  // '노래 속 마음' 카드(추가 제안 F1): 물건이 나오지 않는 「가시리」만
+  for (const s of songs) {
+    if (!s) continue;
+    const mind = s.keepsake?.kind === 'mind';
+    if (s.id === 'gasiri') {
+      if (!mind) bad('gasiri: 물건이 없는 노래라 기념품이 노래 속 마음 카드(kind: mind)여야 한다');
+      if (!String(s.keepsake?.phrase ?? '').includes('셜온 님')) bad('gasiri: 마음 카드 구절에 노래 속 말 "셜온 님"이 없다');
+      if (typeof s.cardNote !== 'string' || !s.cardNote.trim()) bad('gasiri: 마음 카드에 붙일 한 줄(cardNote)이 없다');
+    } else if (mind) bad(s.id + ': 물건이 나오는 노래인데 노래 속 마음 카드로 되어 있다');
+  }
   const sm = get('samogok');
   if (sm) {
     if (!(sm.singerGroups ?? []).includes('court-goryeo')) bad('samogok: singerGroups에 court-goryeo가 없다');
@@ -156,6 +167,10 @@ console.log('\n[고려가요] 음성 사례 (망가뜨린 데이터를 잡아야
     ['사모곡 보스 무리를 바꿈', (songs) => { songs.find((s) => s.id === 'samogok').singerGroups = ['singer-commoner']; }],
     ['노래 한 편을 뺌', (songs) => { songs.splice(songs.findIndex((s) => s.id === 'sangjeoga'), 1); }],
     ['상저가를 verified로 올림', (songs) => { songs.find((s) => s.id === 'sangjeoga').verification = 'verified'; }],
+    ['가시리 마음 카드 표시를 지움', (songs) => { delete songs.find((s) => s.id === 'gasiri').keepsake.kind; }],
+    ['가시리 마음 카드 한 줄을 지움', (songs) => { delete songs.find((s) => s.id === 'gasiri').cardNote; }],
+    ['가시리 마음 카드 낱말을 노래에 없는 말로 바꿈', (songs) => { const k = songs.find((s) => s.id === 'gasiri').keepsake; k.word = '이별'; k.phrase = '셜온 님 이별'; }],
+    ['청산별곡을 마음 카드로 바꿈', (songs) => { songs.find((s) => s.id === 'cheongsan-byeolgok').keepsake.kind = 'mind'; }],
   ];
   for (const [name, mutate] of negatives) {
     const songs = structuredClone(mod.songs);

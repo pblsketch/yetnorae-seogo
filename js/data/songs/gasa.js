@@ -2,6 +2,9 @@
 // 원문·풀이의 출처와 판독 메모는 노래마다 citation·citationNote에 적었다. 교과서 밖 노래는 교사 대조 전이라 pending이다.
 // 음보 나눔과 '오늘 소리'(reading)는 제작진이 붙인 것으로 교사 확인 대상이다.
 
+// 「상춘곡」 교과서 대목 뒤에 이어 붙인 교과서 밖 원문 행의 출처(추가 제안 F1, 화면의 '교과서 밖 원문' 표시 옆에 보인다)
+const SANGCHUNGOK_BEYOND_SOURCE = '위키문헌 「상춘곡」 원문(『불우헌집』 수록). 띄어쓰기·음보 나눔·현대어 풀이는 제작진이 씀';
+
 export const songs = [
   {
     id: 'myeonangjeongga',
@@ -99,8 +102,11 @@ export const songs = [
     singer: { name: '정극인', class: '사대부', traditional: true },
     sourceType: 'textbook-common2',
     citation: '고등학교 공통국어2 교과서 수록본',
-    citationNote: '교과서 수록 범위("홍진에 뭇친 분네"~"곳나모 가지 것거 수 노코 먹으리라") 21행의 원문과 현대어 풀이를 그대로 옮기고 글자 단위로 대조함. 낱말 풀이 표시(●)는 뺌. 지은이는 정극인으로 전하나 이견이 있어 전해지는 귀속으로 표시. 교과서 수록 범위에는 작품 방의 산봉우리 대목과 공명·부귀를 멀리하는 대목이 없음. 9·13·15행은 교과서 띄어쓰기를 지키려고 세 음보로, 12행은 여섯 음보로 나눔. 음보 나눔과 오늘 소리는 제작진(교사 확인 대상).',
-    verification: 'verified',
+    citationNote: '교과서 대목(1~21행): 교과서 수록 범위("홍진에 뭇친 분네"~"곳나모 가지 것거 수 노코 먹으리라") 21행의 원문과 현대어 풀이를 그대로 옮기고 글자 단위로 대조함(대조 완료, 고치지 않음). 낱말 풀이 표시(●)는 뺌. 9·13·15행은 교과서 띄어쓰기를 지키려고 세 음보로, 12행은 여섯 음보로 나눔. '
+      + '교과서 밖 원문(22~39행, 행마다 beyondTextbook 표시): 교과서 수록 범위에 작품 방의 산봉우리 장면과 공명·부귀를 멀리하는 마무리가 없어(spec 9), 교과서 끝 행 바로 다음 행 "화풍(和風)이 건ᄃᆞᆺ 부러"부터 작품 끝 행 "아모타 백년행락(百年行樂)이 이만ᄒᆞᆫᄃᆞᆯ 엇지ᄒᆞ리"까지 18행을 빠짐없이 차례대로 이어 붙임. '
+      + '원문 주소: https://ko.wikisource.org/wiki/상춘곡 (판 번호 383059, 해제: 정극인의 문집 『불우헌집』에 실린 가곡). 위키문헌 본은 띄어쓰기 없이 반 행씩 적고 한자 위에 독음을 달았으므로, 반 행 둘을 한 행으로 묶고 "독음(한자)" 꼴로 바꾸고 띄어쓰기를 넣음. 위키문헌 본은 교과서 본과 표기가 조금 다르다(예: 교과서 "울울리(鬱鬱裏)에"·"되어셔라", 위키문헌 "울울리예"·"되여셔라"). 이어 붙인 부분은 위키문헌 표기를 따랐으므로 교과서가 쓰는 판본의 표기와 다를 수 있다. 31·34행은 붙여 읽는 말을 끊지 않으려고 세 음보로 나눔. 이어 붙인 부분의 띄어쓰기·음보 나눔·오늘 소리·현대어 풀이는 제작진이 씀(학자 풀이를 빌리지 않음). '
+      + '확인 상태: 교과서 대목은 대조를 마쳤으나 이어 붙인 부분이 교사 대조 전이라 노래 전체를 pending으로 둠. 이어 붙인 부분을 교사가 확인하면 verified로 바꾼다. 기념품(갈건)은 교과서 대목에서 골랐다. 지은이는 정극인으로 전하나 이견이 있어 전해지는 귀속으로 표시. 음보 나눔과 오늘 소리는 제작진(교사 확인 대상).',
+    verification: 'pending',
     units: [
       { feet: [{ original: '홍진(紅塵)에', reading: '홍진에' }, { original: '뭇친 분네', reading: '뭇친 분네' }, { original: '이내 생애(生涯)', reading: '이내 생애' }, { original: '엇더ᄒᆞᆫ고', reading: '엇더한고' }], gloss: '속세에 묻힌 분들, 이내 생애 어떠한가.' },
       { feet: [{ original: '녯사ᄅᆞᆷ', reading: '녯사람' }, { original: '풍류(風流)ᄅᆞᆯ', reading: '풍류를' }, { original: '미ᄎᆞᆯ가', reading: '미칠가' }, { original: 'ᄆᆞᆺ 미ᄎᆞᆯ가', reading: '못 미칠가' }], gloss: '옛사람 풍류에 미칠까 못 미칠까.' },
@@ -123,6 +129,25 @@ export const songs = [
       { feet: [{ original: '아ᄎᆞᆷ에', reading: '아침에' }, { original: '채산(採山)ᄒᆞ고', reading: '채산하고' }, { original: '나조ᄒᆡ', reading: '나조해' }, { original: '조수(釣水)ᄒᆞ새', reading: '조수하새' }], gloss: '아침에 나물 캐고 저녁에 낚시하세.' },
       { feet: [{ original: 'ᄀᆞᆺ 괴여', reading: '갓 괴여' }, { original: '닉은 술을', reading: '닉은 술을' }, { original: '갈건(葛巾)으로', reading: '갈건으로' }, { original: '밧타 노코', reading: '밧타 노코' }], gloss: '갓 익은 술을 갈건으로 걸러 놓고' },
       { feet: [{ original: '곳나모', reading: '곳나모' }, { original: '가지 것거', reading: '가지 것거' }, { original: '수 노코', reading: '수 노코' }, { original: '먹으리라', reading: '먹으리라' }], gloss: '꽃나무 가지 꺾어 잔 수 세며 먹으리라.' },
+      // ── 여기부터 교과서 밖 원문(위키문헌 「상춘곡」, 확인 대기). 화면에 '교과서 밖 원문'으로 표시한다. ──
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '화풍(和風)이', reading: '화풍이' }, { original: '건ᄃᆞᆺ 부러', reading: '건듯 부러' }, { original: '녹수(綠水)ᄅᆞᆯ', reading: '녹수를' }, { original: '건너오니', reading: '건너오니' }], gloss: '따뜻한 봄바람이 문득 불어 푸른 시냇물을 건너오니' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '청향(淸香)은', reading: '청향은' }, { original: '잔에 지고', reading: '잔에 지고' }, { original: '낙홍(落紅)은', reading: '낙홍은' }, { original: '옷새 진다', reading: '옷새 진다' }], gloss: '맑은 향기는 술잔에 스며들고 붉은 꽃잎은 옷 위에 떨어진다' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '준중(樽中)이', reading: '준중이' }, { original: '뷔엿거ᄃᆞᆫ', reading: '뷔엿거든' }, { original: '날ᄃᆞ려', reading: '날더러' }, { original: '알외여라', reading: '알외여라' }], gloss: '술동이가 비었거든 나에게 알려라' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '소동(小童)', reading: '소동' }, { original: '아ᄒᆡᄃᆞ려', reading: '아해더러' }, { original: '주가(酒家)에', reading: '주가에' }, { original: '술을 믈어', reading: '술을 믈어' }], gloss: '심부름하는 아이에게 술집에서 술을 사 오게 하여' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '얼운은', reading: '얼운은' }, { original: '막대 집고', reading: '막대 집고' }, { original: '아ᄒᆡᄂᆞᆫ', reading: '아해는' }, { original: '술을 메고', reading: '술을 메고' }], gloss: '어른은 지팡이를 짚고 아이는 술을 메고' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '미음완보(微吟緩步)ᄒᆞ야', reading: '미음완보하야' }, { original: '시냇ᄀᆞ의', reading: '시냇가의' }, { original: '호자', reading: '호자' }, { original: '안자', reading: '안자' }], gloss: '나직이 읊조리며 천천히 걸어 시냇가에 혼자 앉아' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '명사(明沙)', reading: '명사' }, { original: '조ᄒᆞᆫ 믈에', reading: '조한 믈에' }, { original: '잔 시어', reading: '잔 시어' }, { original: '부어 들고', reading: '부어 들고' }], gloss: '고운 모래 위 맑은 물에 잔을 씻어 술을 부어 들고' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '청류(淸流)ᄅᆞᆯ', reading: '청류를' }, { original: '굽어보니', reading: '굽어보니' }, { original: 'ᄯᅥ오ᄂᆞ니', reading: '떠오느니' }, { original: '도화(桃花)ㅣ로다', reading: '도화로다' }], gloss: '맑게 흐르는 물을 굽어보니 떠내려오는 것은 복숭아꽃이로구나' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '무릉(武陵)이', reading: '무릉이' }, { original: '갓갑도다', reading: '갓갑도다' }, { original: '져 ᄆᆡ이', reading: '져 매이' }, { original: '긘 거인고', reading: '긘 거인고' }], gloss: '무릉도원이 가깝구나, 저 들이 바로 그곳인가' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '송간세로(松間細路)에', reading: '송간세로에' }, { original: '두견화(杜鵑花)ᄅᆞᆯ', reading: '두견화를' }, { original: '부치 들고', reading: '부치 들고' }], gloss: '소나무 사이 좁은 길로 진달래꽃을 붙잡아 들고' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '봉두(峰頭)에', reading: '봉두에' }, { original: '급피 올나', reading: '급피 올나' }, { original: '구름 소긔', reading: '구름 소긔' }, { original: '안자 보니', reading: '안자 보니' }], gloss: '산봉우리에 서둘러 올라 구름 속에 앉아 보니' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '천촌만락(千村萬落)이', reading: '천촌만락이' }, { original: '곳곳이', reading: '곳곳이' }, { original: '버려', reading: '버려' }, { original: '잇ᄂᆡ', reading: '잇내' }], gloss: '수많은 마을이 곳곳에 벌여 있네' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '연하일휘(煙霞日輝)ᄂᆞᆫ', reading: '연하일휘는' }, { original: '금수(錦繡)ᄅᆞᆯ', reading: '금수를' }, { original: '재폇ᄂᆞᆫ ᄃᆞᆺ', reading: '재폇는 듯' }], gloss: '안개와 노을, 햇빛은 비단을 겹겹이 펼쳐 놓은 듯하다' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '엇그제', reading: '엇그제' }, { original: '검은 들이', reading: '검은 들이' }, { original: '봄빗도', reading: '봄빗도' }, { original: '유여(有餘)ᄒᆞᆯ샤', reading: '유여할샤' }], gloss: '엊그제까지 거뭇하던 들판에 봄빛이 넘쳐 나는구나' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '공명(功名)도', reading: '공명도' }, { original: '날 ᄭᅴ우고', reading: '날 끠우고' }, { original: '부귀(富貴)도', reading: '부귀도' }, { original: '날 ᄭᅴ우니', reading: '날 끠우니' }], gloss: '공명도 나를 꺼리고 부귀도 나를 꺼리니' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '청풍명월(淸風明月)', reading: '청풍명월' }, { original: '외(外)예', reading: '외예' }, { original: '엇던 벗이', reading: '엇던 벗이' }, { original: '잇ᄉᆞ올고', reading: '잇사올고' }], gloss: '맑은 바람과 밝은 달 말고 어떤 벗이 있겠는가' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '단표누항(簞瓢陋巷)에', reading: '단표누항에' }, { original: '흣튼 혜음', reading: '흣튼 혜음' }, { original: '아니', reading: '아니' }, { original: 'ᄒᆞᄂᆡ', reading: '하내' }], gloss: '가난한 살림 속에서도 허튼 생각은 하지 않네' },
+      { beyondTextbook: true, sourceNote: SANGCHUNGOK_BEYOND_SOURCE, feet: [{ original: '아모타', reading: '아모타' }, { original: '백년행락(百年行樂)이', reading: '백년행락이' }, { original: '이만ᄒᆞᆫᄃᆞᆯ', reading: '이만한들' }, { original: '엇지ᄒᆞ리', reading: '엇지하리' }], gloss: '아무튼 한평생 즐겁게 지내는 일이 이만하면 어떠하리' },
     ],
     features: {},
     evidences: ['gasa-4beat', 'gasa-nolimit'],

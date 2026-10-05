@@ -28,6 +28,9 @@ export const SOURCE_TYPES = ['textbook-common2', 'textbook-literature', 'old-tex
 export const VERIFICATION_VALUES = ['verified', 'pending'];
 export const ROLE_IDS = ['tutorial', 'shelf', 'stray', 'room', 'bonus', 'unseen'];
 export const REFRAIN_KINDS = ['refrain', 'yeoeum'];
+// 기념품 종류(추가 제안 F1). 없으면 'object'. 'mind'는 물건이 나오지 않는 노래의 '노래 속 마음' 카드다.
+export const KEEPSAKE_KINDS = ['object', 'mind'];
+export const TEXTBOOK_SOURCE_TYPES = ['textbook-common2', 'textbook-literature'];
 export const SONG_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const SONG_KEYS = new Set([
@@ -114,6 +117,9 @@ export function validateSong(song, opts = {}) {
       }
     }
   }
+
+  // 교과서 밖 원문 이어 붙이기(추가 제안 F1)
+  validateBeyondTextbook(song, add);
 
   // 기념품
   validateKeepsake(song, add);
@@ -236,13 +242,41 @@ function validateForm(song, f, form) {
   }
 }
 
+// 교과서 노래 끝에 옛 문헌 원문을 이어 붙인 행(단위)은 beyondTextbook: true와 sourceNote(출처)를 가진다.
+// 이어 붙인 행은 노래 끝에 모여 있어야 하고(교과서 대목은 그대로 앞에), 노래는 확인 대기(pending)여야 하며,
+// citationNote에 어디까지가 교과서 대목이고 어디부터가 교과서 밖 원문인지 적는다.
+function validateBeyondTextbook(song, add) {
+  if (!Array.isArray(song.units)) return;
+  let seenBeyond = false;
+  let any = false;
+  song.units.forEach((u, i) => {
+    if (!isObj(u)) return;
+    const n = (i + 1) + '번째 단위';
+    if (u.beyondTextbook !== undefined && u.beyondTextbook !== true) add('FIELD', n + ': beyondTextbook은 이어 붙인 행에만 true로 쓴다');
+    const beyond = u.beyondTextbook === true;
+    if (u.sourceNote !== undefined && (!beyond || !isStr(u.sourceNote))) add('FIELD', n + ': sourceNote는 교과서 밖 원문 행(beyondTextbook: true)에만, 비어 있지 않은 글로 쓴다');
+    if (beyond) {
+      any = true;
+      if (!isStr(u.sourceNote)) add('FIELD', n + ': 교과서 밖 원문 행에는 출처(sourceNote)가 있어야 한다');
+      seenBeyond = true;
+    } else if (seenBeyond) add('FIELD', n + ': 교과서 밖 원문 행 뒤에 교과서 행이 있다(이어 붙인 행은 노래 끝에 모아야 한다)');
+  });
+  if (!any) return;
+  if (!TEXTBOOK_SOURCE_TYPES.includes(song.sourceType)) add('FIELD', '교과서 밖 원문 표시(beyondTextbook)는 교과서 노래(' + TEXTBOOK_SOURCE_TYPES.join('·') + ')에만 쓴다');
+  if (!isStr(song.citationNote)) add('FIELD', '교과서 밖 원문을 이어 붙인 노래는 citationNote에 교과서 대목과 이어 붙인 대목의 출처·확인 범위를 적는다');
+  if (song.verification !== 'pending') add('CITATION', '교과서 밖 원문을 이어 붙인 노래는 그 부분이 확인 대기이므로 verification이 pending이어야 한다');
+}
+
+const KEEPSAKE_KEYS = ['name', 'word', 'phrase', 'classLine', 'kind'];
+
 function validateKeepsake(song, add) {
   const k = song.keepsake;
   if (!isObj(k) || !['name', 'word', 'phrase', 'classLine'].every((x) => isStr(k[x]))) {
     add('KEEPSAKE', 'keepsake { name, word, phrase, classLine }이 모두 있어야 한다'); return;
   }
-  for (const x of Object.keys(k)) if (!['name', 'word', 'phrase', 'classLine'].includes(x)) add('KEEPSAKE', 'keepsake에 약속에 없는 열쇠 ' + x);
-  // 물건 낱말은 원문(향가는 해독문 포함)이나 풀이에 실제로 나와야 한다.
+  for (const x of Object.keys(k)) if (!KEEPSAKE_KEYS.includes(x)) add('KEEPSAKE', 'keepsake에 약속에 없는 열쇠 ' + x);
+  if (k.kind !== undefined && !KEEPSAKE_KINDS.includes(k.kind)) add('KEEPSAKE', 'keepsake.kind는 ' + KEEPSAKE_KINDS.join('·') + ' 가운데 하나여야 한다(없으면 object)');
+  // 물건 낱말(마음 카드는 마음을 담은 말)은 원문(향가는 해독문 포함)이나 풀이에 실제로 나와야 한다. 두 종류 모두 같은 규칙이다.
   const wordHome = [songText(song, 'original'), songText(song, 'gloss')];
   if (song.genre === 'hyangga') wordHome.push(songText(song, 'decipherment'));
   const word = squash(k.word);

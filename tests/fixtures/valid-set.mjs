@@ -190,6 +190,17 @@ export function makeValidSet() {
     saseol('fx-ss-b', '시험 사설시조 나', [{ wing: 'sijo', role: 'stray', to: 'saseol' }, { wing: 'saseol', role: 'shelf' }]),
   ];
 
+  // 추가 제안(F1)의 올바른 모양
+  // - '노래 속 마음' 카드: keepsake.kind 'mind'. 낱말·구절 규칙은 물건 카드와 같다
+  // - 교과서 밖 원문 이어 붙이기: 교과서 노래 끝에 beyondTextbook 행을 붙이고, 노래는 확인 대기(pending)
+  const byId = (id) => songs.find((s) => s.id === id);
+  byId('fx-sijo-c').keepsake.kind = 'mind';
+  byId('fx-sijo-b').keepsake.kind = 'object';
+  const gsB = byId('fx-gs-b');
+  gsB.sourceType = 'textbook-common2';
+  gsB.citationNote = '시험용: 1~4행은 교과서 수록본, 5행은 교과서 밖 원문(확인 대기)';
+  gsB.units.push({ ...unit(['가가가', '나나나', '다다다', '라라라'], '시험 행 5'), beyondTextbook: true, sourceNote: '시험용 옛 문헌 출처' });
+
   const remix = {
     fragments: [
       { genre: 'hyangga', songId: 'fx-hy-4', from: 0, to: 1 },

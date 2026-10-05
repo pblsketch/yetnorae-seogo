@@ -359,7 +359,7 @@ export const songs = [
     singer: { name: '황진이', class: '기녀' },
     sourceType: 'old-text',
     citation: '박효관·안민영 편 『가곡원류』(1876) 우조 초삭대엽, 진이(眞伊) 작 — 위키문헌 전사본(국립국악원 소장본 대본). 오늘 소리와 현대어 풀이는 제작진이 새로 씀',
-    citationNote: "원문: https://ko.wikisource.org/wiki/가곡원류/우조_초삭대엽 (眞伊 다음 '仝人'으로 실림). 진본 『청구영언』 위키문헌 전사본에서는 찾지 못했다. 중장 '제 굿ᄒᆞ여'는 낭송용으로 '제 구태여'라 적었다. 음보 나눔은 제작진(중장을 이시라/ᄒᆞ면/가라마는/제 굿ᄒᆞ여로 나눔).",
+    citationNote: "원문: https://ko.wikisource.org/wiki/가곡원류/우조_초삭대엽 (眞伊 다음 '仝人'으로 실림). 진본 『청구영언』 위키문헌 전사본에서는 찾지 못했다. 중장 '제 굿ᄒᆞ여'는 낭송용으로 '제 구태여'라 적었다. 음보 나눔은 제작진(중장을 이시라/ᄒᆞ면/가라마는/제 굿ᄒᆞ여로 나눔). 기념품: 노래에 물건이 나오지 않아 '노래 속 마음' 카드(keepsake.kind: mind, 사용자 결정)로 만들고, 종장 원문에 그대로 나오는 '글이는 情'을 담았다. 카드 한 줄(cardNote)은 제작진이 씀(교사 확인 대상).",
     verification: 'pending',
     units: [
       {
@@ -393,11 +393,13 @@ export const songs = [
     features: { finalFirstFoot: { syllables: 3 } },
     evidences: [...EVIDENCES],
     keepsake: {
+      kind: 'mind',
       name: '보내고 그리는 정',
-      word: '情',
+      word: '글이는 情',
       phrase: '보ᄂᆡ고 글이는 情은',
       classLine: '시조는 사대부만 부른 노래가 아니어서, 기녀들도 시조를 지어 부르며 마음을 전했다.',
     },
+    cardNote: '가지 말라 붙잡지 않고 스스로 임을 보내 놓고서, 이제야 그리워하는 마음',
     legend: false,
     roles: [{ wing: 'saseol', role: 'stray', to: 'sijo' }],
   },
