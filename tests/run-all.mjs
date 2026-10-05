@@ -10,6 +10,8 @@ const here = fileURLToPath(new URL('./', import.meta.url));
 // ── 점검 목록 (연결 단계가 등록한다) ──
 const files = [
   'check-smoke.mjs',
+  'check-data.mjs',
+  'check-rights.mjs',
 ];
 
 fs.mkdirSync(path.join(here, 'shots'), { recursive: true });
