@@ -737,3 +737,37 @@ export function show(container, ctx = {}) { … return { dispose() }; }
 | `INK` | 반드시 지나는 길만으로 먹이 될 수 없는 개념 |
 | `REMIX` | 리믹스 형식 위반 |
 | `NOTEBOOK` | 수첩 쪽 형식 위반 |
+
+---
+
+## 추가 제안(T2) — 진행과 기록 엔진
+
+T2가 정한 처리 방식이다. 위 절의 이름과 모양은 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 모듈
+
+| 파일 | 내보내는 것 |
+| --- | --- |
+| `js/core/save.js` | `SAVE_KEY`, `SAVE_VERSION`, `NAME_LIMITS`, `MIGRATIONS`, `defaultProgress()`, `normalizeData()`, `validateName()`, `createStore({ storage, emit, now, makeId })` |
+| `js/core/progress.js` | `TUNABLES`, `createProgress({ progress, songs, table, emit, now, save, tunables })`, `openRecord(store, recordId, opts)` |
+| `js/core/judge.js` | `judgeArea`, `routeStray`, `judgeUnseenPlacement`, `judgeSingerGroup`, `judgeRemixTap`, `judgeRemixLine`, `judgeStage3Placement`, `REMIX_TAP_WINDOW_MS` |
+| `js/core/cards.js` | `buildWingCard(record, wingId)`, `buildFinalCard(record)` — 판 카드·마지막 카드 자료(점수 없음), 파일 이름 포함 |
+
+- 브라우저에서는 `createStore({ storage: localStorage })`처럼 저장소를 넣는다. 엔진 파일은 `window`·`localStorage`·주소를 직접 읽지 않는다.
+- 행동은 모두 `{ ok, reason?, … }`을 돌려준다. 막힌 행동(`ok: false`)은 아무것도 바꾸지 않고 저장하지 않는다.
+- 판정 결과의 `returned: [{ index, songId, genre, to? }]`로 화면이 `diorama:pop-out`을 낸다. 디오라마 사건은 엔진이 내지 않는다(엔진은 `wing:state`, `concept:changed`, `help:*`, `save:failed`만 낸다).
+
+### 저장
+
+- 버전이 같으면 읽고, `MIGRATIONS`로 옮길 수 있는 옛 버전은 옮긴다. 읽을 수 없거나 옮길 수 없는 옛 버전은 새로 시작해 다음 저장에서 덮어쓴다. **더 새 버전**은 덮어쓰지 않고 이번 창 메모리로만 진행하며 `save:failed { reason: 'unknown' }`을 낸다.
+- `save:failed`는 저장에 실패할 때마다 낸다(알림을 한 번만 보이는 것은 화면 몫). 저장소를 쓸 수 없으면 불러올 때도 낸다. 지금 상태는 `store.failure`로 물을 수 있다.
+- 불러올 때 바로잡기: 관 상태는 순서와 표시(`shelfBound`·`basketDone`·`roomDone`)에서 다시 계산한다. 앞 관을 마치지 않았으면 잠기고, 세 표시가 다 있으면 `done`이다. 다섯 관을 마치지 않았으면 보스는 `locked`, 다 마쳤으면 적어도 `stage1`이다. 보스를 마치지 않았으면 `ending.completed`는 `false`다. 개념은 저장된 상태와 노래 수에서 나오는 상태 가운데 높은 쪽이다. **점검 도구가 상태를 넣을 때는 이 표시들을 맞춰 넣는다.**
+
+### 진행
+
+- 다섯 관을 다 마치는 순간 `boss.state`가 `stage1`이 된다(보스가 열림).
+- 칸·덤이 묶이면 세 편의 기념품을 `keepsakes`에 더한다. 덤이 묶여도 개념을 확인한다(먹 가능성은 덤 없이도 보장된다).
+- 미리 잰 노래는 칸에 묶여도 `prewaiting`에서 빼지 않는다. 입구에서 기다리는 노래는 `waitingAt(관)`으로 묻는다.
+- 보스 1단계에서 맞게 꽂은 뒤 '누가 불렀을까'를 고르기 전의 상태, 2단계에서 찾은 지점은 저장하지 않는다. 나갔다 오면 그 노래(2단계)를 다시 한다. `firstTryCorrect`는 처음 꽂을 때 정해지고 바뀌지 않는다.
+- 보스 2단계 판정 창 기본값은 지점 앞 500ms, 뒤 1500ms(`REMIX_TAP_WINDOW_MS`, 조정 가능)이고, 탭 시각은 박자 보정값을 뺀 낭송 시각으로 넘긴다.
+- 카드의 날짜는 판 카드가 그 관의 `doneAt`, 마지막 카드가 `ending.completedAt`이다.
