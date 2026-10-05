@@ -873,3 +873,34 @@ dispose()
 
 - 세계 바탕이 내는 사건: `orientation:pause`·`orientation:resume`, 그와 함께 `audio:pause`·`audio:resume`(`reason: 'orientation'`).
 - `settings:reduce-motion`: 설정 화면이 내면 세계 바탕이 기기 설정 값으로 받는다. 세계 바탕도 실제 적용 값(기기 설정 또는 브라우저 선호)이 바뀌면 낸다. 브라우저 선호 때문에 받은 값과 실제 값이 다르면 실제 값을 한 번 더 낸다.
+
+## 추가 제안(T9) — 시조관 모형
+
+시조관 모형(T9)이 쓰는 값이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않았다.
+
+### `diorama:slot-set`의 `area` 값 더하기
+
+| `area` | `index` | 뜻 |
+| --- | --- | --- |
+| `mentor` | `0` | 시조관 '선대 사서의 자리'(spec 10.2 3단계). 보스를 마치면 `{ area: 'mentor', index: 0, songId: 'taesan' }`. 그 전에는 제목 없는 빈 책등이다 |
+| `returned` | `0`~`3` | 돌아온 노래 선반(spec 6.7)의 자리. 꽂히면 제목이 바로 보인다 |
+
+- 관 모형은 진행 기록을 읽지 않는다. 관에 (다시) 들어온 뒤 놓인 상태를 보이려면 부르는 쪽이 `enterWing` 다음에 `diorama:slot-set`(칸·덤·바구니·`mentor`·`returned`)과 `diorama:shelf-bound`를 차례로 다시 낸다. 단청은 `setDancheong`, 먹안개는 `ctx.restored`(마친 관이면 처음부터 없음)로 정해진다.
+- 모르는 `area`는 조용히 넘긴다(다른 관 모형은 `mentor`·`returned`를 무시해도 된다).
+
+### 관 모형 `handle.areas` (누를 자리가 아닌 곳)
+
+`anchors`에 넣으면 세계 바탕이 누를 자리를 만들므로, 누를 자리가 아닌 곳은 `handle.areas`에 둔다(좌표 형식은 `anchors`와 같다).
+
+| 열쇠 | 뜻 |
+| --- | --- |
+| `floating` | 떠도는 노래가 떠 있을 자리 목록 |
+| `focus` | 재기 화면 왼쪽 반이 비출 곳. 시조관은 `{ stairs, pillars, pavilion }` |
+
+### 시조관이 사건을 보이는 방식
+
+- `diorama:stair-step`: 종장으로 오르는 첫 계단(세 칸)을 `step`마다 한 칸씩 밝히고 등불이 올라선다. `step: 1`이 오면 새로 오르는 것으로 보고 앞서 밝힌 칸을 끈다. `step`이 3을 넘으면(`total` 4 이상) 세 칸을 넘는 '맞지 않는 계단'이 하나씩(최대 넷) 드러난다.
+- `diorama:pillar-light`: 장 = 층, 음보 = 앞기둥(층마다 넷). 어느 층의 첫 음보(`foot: 0`)가 오면 그 층 기둥을 끄고 다시 세고, 초장 첫 음보면 모두 끈다. 향가처럼 `foot: null`이면 구 번호로 열두 기둥을 돌아가며 켠다.
+- `diorama:fold`: 그 장(층)의 창방이 잠깐 빛난다.
+- `diorama:pop-out`: `genre`마다 모양이 다르다 — 사설시조는 중장만 서가 밖으로 길게, 가사는 조각이 줄줄이 길게, 향가는 4·4·2 탑 모양으로 위로, 고려가요는 같은 조각이 나란히, 시조는 세 장이 통째로 앞으로. 바구니에서는 책이 들리고 행선지 표시가 지워진다.
+- `diorama:floor-fill`·`aa-door`·`refrain-link`·`walk-step`·`unroll`: 시조관에는 해당 건축이 없어 연출하지 않는다(오류 없이 넘긴다).
