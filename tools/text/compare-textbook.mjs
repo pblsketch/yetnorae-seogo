@@ -51,6 +51,7 @@ export function songSegments(song, { withGloss = false } = {}) {
   const out = [];
   for (const layer of layers) {
     (song.units ?? []).forEach((u, unit) => {
+      if (u?.beyondTextbook === true) return; // 교과서 뒤에 이어 붙인 옛 문헌 원문은 교과서와 대조하지 않는다
       if (song.genre === 'hyangga') {
         out.push({ unit, line: null, layer, label: (unit + 1) + unitName + ' ' + LAYER_NAME[layer], text: u?.[layer] ?? '' });
       } else if (song.genre === 'goryeo') {
