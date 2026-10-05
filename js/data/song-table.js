@@ -30,7 +30,7 @@ export const SONG_CATALOG = {
   'dongjitdal': { title: '동짓달 기나긴 밤을', genre: 'sijo' },
   'ireondeul': { title: '이런들 어떠하며', genre: 'sijo' },
   'imomi-jukgo': { title: '이 몸이 죽고 죽어', genre: 'sijo' },
-  'simnyeon-gyeongyeong': { title: '십 년을 경영하여', genre: 'sijo' },
+  'simnyeon-gyeongyeong': { title: '십 년을 경영하야', genre: 'sijo' }, // 제목은 교과서 표기를 따른다
   'ihwa-wolbaek': { title: '이화에 월백하고', genre: 'sijo' },
   'hanson-makdae': { title: '한 손에 막대 잡고', genre: 'sijo' },
   'sakpung': { title: '삭풍은 나무 끝을 불고', genre: 'sijo' },
