@@ -1,0 +1,317 @@
+/* 보스전 「서고의 밤」(js/boss/): 밤의 서고 장면 위에 겹친 위 띠, 글 카드, 말 한 줄, 다섯 관 자리, 재기 반반 틀, 일지 서랍.
+   색은 base.css 토큰만 쓴다. 단청색(녹청·주홍)은 누를 수 있는 것에만 쓴다. 터치 대상은 48px 이상.
+   글자 크기는 --text-scale을 따르고, 움직임 줄이기(#app.reduce-motion)면 연출을 멈춘다. */
+
+.boss {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  overflow: hidden;
+  pointer-events: auto;
+  background: var(--meok);
+  color: var(--meok);
+  font-family: var(--font-ui);
+  font-size: calc(15px * var(--text-scale));
+  --boss-pad: max(8px, env(safe-area-inset-top, 0px));
+  --boss-card: color-mix(in srgb, var(--hanji) 94%, transparent);
+}
+.boss [hidden] { display: none !important; }
+.boss button {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 0 0.9em;
+  border: 2px solid var(--nokcheong);
+  border-radius: 8px;
+  background: var(--hanji);
+  color: var(--meok);
+  font: inherit;
+  touch-action: manipulation;
+}
+.boss button:disabled { border-color: var(--meok-fog); color: var(--meok-soft); cursor: default; }
+.boss button:not(:disabled):active { transform: translateY(1px); }
+
+/* ── 장면 ── */
+.boss-scene { position: absolute; inset: 0; }
+.boss-canvas { display: block; width: 100%; height: 100%; }
+.boss.is-measuring .boss-scene { right: 50%; }
+
+/* ── 겹(장면 위) ── */
+.boss-ui {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--boss-pad) max(10px, var(--safe-r)) max(8px, var(--safe-b)) max(10px, var(--safe-l));
+  pointer-events: none;
+}
+.boss-ui > * { pointer-events: auto; }
+.boss.is-measuring .boss-ui { display: none; }
+
+.boss-top { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.boss-stage-name {
+  margin: 0;
+  min-width: 0;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--meok) 80%, transparent);
+  color: var(--hanji);
+  font-family: var(--font-body);
+  font-size: calc(17px * var(--text-scale));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.boss-top-btns { display: flex; gap: 6px; flex: 0 0 auto; }
+.boss-journal-btn.is-glow { box-shadow: 0 0 0 3px var(--gold); animation: boss-glow 1.2s ease-in-out 3; }
+@keyframes boss-glow { 50% { box-shadow: 0 0 0 6px var(--gold); } }
+
+.boss-mid { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.boss-card {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(100%, 44em);
+  max-height: 100%;
+  min-height: 0;
+  padding: 10px 14px;
+  border: 2px solid var(--meok-soft);
+  border-radius: 10px;
+  background: var(--boss-card);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--meok) 60%, transparent);
+  overflow: hidden;
+}
+.boss-card-title { margin: 0; flex: 0 0 auto; font-family: var(--font-body); font-size: calc(19px * var(--text-scale)); }
+.boss-card-label { margin: 0; flex: 0 0 auto; color: var(--meok-soft); font-size: calc(14px * var(--text-scale)); }
+.boss-card-lead { margin: 0; flex: 0 0 auto; }
+.boss-card-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.boss-card-actions { flex: 0 0 auto; display: flex; justify-content: flex-end; gap: 8px; }
+.boss-go, .boss-next, .boss-finish, .boss-measure, .boss-remix-listen {
+  background: var(--juhong) !important;
+  border-color: var(--juhong) !important;
+  color: var(--hanji) !important;
+  font-weight: 700;
+}
+
+.boss-line { margin: 0 0 6px; font-family: var(--font-body); font-size: calc(16px * var(--text-scale)); line-height: 1.45; }
+.boss-speaker { display: inline-block; margin-right: 0.5em; padding: 0 0.4em; border-radius: 4px; background: var(--meok); color: var(--hanji); font-family: var(--font-ui); font-size: calc(13px * var(--text-scale)); vertical-align: 0.1em; }
+.boss-note { margin: 6px 0 0; color: var(--meok-soft); }
+
+/* 1단계: 회색 글줄(줄바꿈 없이) */
+.boss-song-text {
+  margin: 0;
+  color: var(--meok-fog);
+  font-family: var(--font-body);
+  font-size: calc(17px * var(--text-scale));
+  line-height: 1.6;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  filter: blur(0.3px);
+}
+.boss-song .boss-card-body { max-height: 8.5em; }
+
+/* 3단계: 좀 대왕이 갉아 먹은 글줄 */
+.boss-swallowed-text { margin: 0; font-family: var(--font-body); font-size: calc(18px * var(--text-scale)); line-height: 1.6; color: var(--meok-soft); }
+.boss-swallowed-text .is-erased { color: transparent; text-shadow: 0 0 6px var(--meok-fog); }
+
+/* 누가 불렀을까 */
+.boss-groups { flex: 0 0 auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.boss-group { padding: 2px 4px !important; line-height: 1.2; word-break: keep-all; }
+.boss-group.is-answer { border-color: var(--gold) !important; box-shadow: 0 0 0 2px var(--gold); }
+.boss-singer-answer { margin: 0; flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px; font-size: calc(16px * var(--text-scale)); }
+.boss-singer-feedback { font-weight: 700; }
+
+/* 말 한 줄 */
+.boss-speech {
+  flex: 0 0 auto;
+  margin: 0;
+  align-self: center;
+  max-width: min(100%, 44em);
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--meok) 82%, transparent);
+  color: var(--hanji);
+  font-size: calc(14px * var(--text-scale));
+  line-height: 1.4;
+}
+.boss-speech .boss-speaker { background: var(--hanji); color: var(--meok); }
+
+/* 다섯 관 자리(보스 서가). 갈래는 이름표와 모양으로도 구분한다 */
+.boss-shelf { flex: 0 0 auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.boss-slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 52px !important;
+  padding: 2px 4px !important;
+  background: color-mix(in srgb, var(--hanji) 92%, transparent) !important;
+  line-height: 1.15;
+}
+.boss-slot-name { font-weight: 700; word-break: keep-all; }
+.boss-slot-book { display: none; }
+.boss-slot.is-filled { border-color: var(--gold) !important; box-shadow: inset 0 -6px 0 var(--gold); }
+.boss-slot.is-wrong { animation: boss-shake 0.4s ease-in-out; }
+.boss-shape { flex: 0 0 auto; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+@keyframes boss-shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+/* 2단계 */
+.boss-remix-card { height: 100%; }
+.boss-remix-box { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.boss-remix { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.boss-remix-hint { margin: 0; flex: 0 0 auto; }
+.boss-remix-points { flex: 0 0 auto; display: flex; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.boss-remix-point { width: 18px; height: 18px; border: 2px solid var(--meok-soft); border-radius: 50%; }
+.boss-remix-point.is-found { background: var(--gold); border-color: var(--gold); }
+.boss-remix-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.boss-remix-now { margin: 0; flex: 1 1 auto; min-height: 2.6em; display: flex; align-items: center; justify-content: center; text-align: center; font-family: var(--font-body); font-size: calc(18px * var(--text-scale)); color: var(--meok-soft); overflow: hidden; }
+.boss-remix-controls { flex: 0 0 auto; display: flex; gap: 10px; justify-content: center; }
+.boss-remix-tap { min-width: 9em !important; min-height: 64px !important; font-weight: 700; font-size: calc(18px * var(--text-scale)); border-width: 3px !important; }
+.boss-remix-tap.is-hit { animation: boss-pop 0.15s ease-out; }
+@keyframes boss-pop { 50% { transform: scale(0.94); } }
+.boss-remix-lines { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
+.boss-remix-row {
+  flex: 0 0 auto;
+  text-align: left;
+  padding: 4px 10px !important;
+  border-width: 1px !important;
+  font-family: var(--font-body);
+  font-size: calc(16px * var(--text-scale));
+  line-height: 1.35;
+  word-break: keep-all;
+}
+.boss-remix-row.is-found { border-color: var(--gold) !important; border-left-width: 6px !important; color: var(--meok) !important; background: color-mix(in srgb, var(--gold) 22%, var(--hanji)) !important; }
+.boss-remix-row.is-wrong { animation: boss-shake 0.4s ease-in-out; }
+
+/* 재기 반반 틀(오른쪽 반) */
+.boss-panel { display: none; }
+.boss.is-measuring .boss-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: max(env(safe-area-inset-top, 0px), 12px) max(var(--safe-r), 16px) max(var(--safe-b), 12px) 16px;
+  overflow: hidden;
+  background: var(--hanji);
+  border-left: 2px solid var(--meok-soft);
+}
+.boss-panel > .measure { flex: 1 1 0; min-height: 0; }
+
+/* 일지 서랍 */
+.boss-journal {
+  position: absolute;
+  top: var(--boss-pad);
+  bottom: max(8px, var(--safe-b));
+  right: max(10px, var(--safe-r));
+  z-index: 5;
+  width: min(26em, calc(100% - 20px));
+  display: flex;
+  flex-direction: column;
+  border: 2px solid var(--meok-soft);
+  border-radius: 10px;
+  background: var(--hanji);
+}
+.boss-journal-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 8px; border-bottom: 2px solid var(--meok-fog); }
+.boss-journal-title { margin: 0; font-size: calc(16px * var(--text-scale)); }
+.boss-journal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 12px; font-size: calc(14px * var(--text-scale)); line-height: 1.45; }
+.boss-journal-genre { margin: 6px 0 2px; font-size: calc(14px * var(--text-scale)); }
+.boss-journal-list { margin: 0; padding: 0; list-style: none; }
+.boss-journal-item { display: flex; gap: 8px; padding: 3px 4px; border-radius: 4px; }
+.boss-journal-item.is-glow { background: color-mix(in srgb, var(--gold) 35%, transparent); animation: boss-item-glow 1.2s ease-in-out 3; }
+@keyframes boss-item-glow { 50% { background: color-mix(in srgb, var(--gold) 60%, transparent); } }
+.boss-journal-mark { flex: 0 0 auto; min-width: 2.5em; color: var(--meok-soft); }
+.boss-journal-item[data-state='ink'] .boss-journal-mark { color: var(--meok); font-weight: 700; }
+
+/* ── 2D 그림 판 ── */
+.boss-board {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background-color: var(--meok);
+  background-size: cover;
+  background-position: center;
+}
+.boss-board.is-placeholder { background-image: linear-gradient(to bottom, var(--meok), var(--meok-soft)); }
+.boss-fog {
+  position: absolute;
+  inset: -10%;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 30% 70%, color-mix(in srgb, var(--meok) 75%, transparent), transparent 55%),
+    radial-gradient(ellipse at 75% 60%, color-mix(in srgb, var(--meok-soft) 70%, transparent), transparent 50%);
+  opacity: 0.45;
+  transition: opacity 0.5s ease;
+  animation: boss-drift 14s ease-in-out infinite alternate;
+}
+.boss-fog-b { animation-duration: 19s; animation-direction: alternate-reverse; opacity: 0.3; }
+.boss[data-fog='thick'] .boss-fog { opacity: 0.92; }
+@keyframes boss-drift { from { transform: translateX(-3%); } to { transform: translateX(3%); } }
+
+.boss-joms { position: absolute; inset: 0; pointer-events: none; }
+.boss-jom {
+  position: absolute;
+  width: 7%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(var(--r));
+  animation: boss-crawl 3s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * -0.6s);
+  transition: transform 1.4s ease-in, opacity 1.4s ease-in;
+}
+.boss-jom.is-placeholder { border-radius: 50%; background: var(--meok); }
+@keyframes boss-crawl { to { margin-left: 1.5%; } }
+.boss[data-king='scattered'] .boss-jom { opacity: 0; transform: translate(-50%, -400%) rotate(var(--r)) scale(0.4); }
+
+.boss-king {
+  position: absolute;
+  left: 30%;
+  top: 6%;
+  height: 62%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 1s ease, transform 1.6s ease;
+  animation: boss-bob 3.2s ease-in-out infinite alternate;
+}
+.boss-king.is-placeholder { border-radius: 50%; background: var(--meok); }
+.boss[data-king='present'] .boss-king { opacity: 1; }
+.boss[data-king='scattered'] .boss-king { opacity: 0; transform: translateX(-50%) scale(1.6); }
+@keyframes boss-bob { to { margin-top: 1%; } }
+
+.boss-mentor {
+  position: absolute;
+  left: 76%;
+  bottom: 14%;
+  height: 46%;
+  opacity: 0.3;
+  filter: grayscale(1) blur(1px);
+  transition: opacity 1.4s ease, filter 1.4s ease, left 1.4s ease;
+}
+.boss-mentor.is-placeholder canvas { height: 100%; width: auto; display: block; }
+.boss[data-mentor='free'] .boss-mentor { opacity: 1; filter: none; left: 70%; }
+
+/* 좁은 화면(휴대폰 가로): 글과 버튼을 조금 줄인다 */
+@media (max-height: 460px) {
+  .boss { font-size: calc(14px * var(--text-scale)); }
+  .boss-card { padding: 6px 10px; gap: 4px; }
+  .boss-card-title { font-size: calc(17px * var(--text-scale)); }
+  .boss-song .boss-card-body { max-height: 5em; }
+  .boss-line { font-size: calc(15px * var(--text-scale)); }
+  .boss-remix-tap { min-height: 52px !important; }
+}
+
+/* 움직임 줄이기 */
+.reduce-motion .boss-fog, .reduce-motion .boss-jom, .reduce-motion .boss-king { animation: none !important; }
+
+/* 3단계와 마침: 좀 대왕(가운데 왼쪽)과 선대 사서(오른쪽)가 보이도록 글 카드를 옆으로 비킨다 */
+.boss[data-stage='stage3'] .boss-mid { justify-content: flex-end; }
+.boss[data-stage='done'] .boss-mid { justify-content: flex-start; }
+.boss[data-stage='stage3'] .boss-card,
+.boss[data-stage='done'] .boss-card { width: min(100%, 30em); }
+
+/* 보스 동안 한 판 화면의 위 띠(『분류 수첩』 단추)는 숨긴다(spec 10.1) */
+.has-boss > .play-hud { visibility: hidden; }

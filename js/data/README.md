@@ -1274,3 +1274,41 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - 곳마다 `words`(모을 시어 `{ id, text, unit }`). `text`는 그 행 원문에 그대로 있다. 마무리를 뺀 네 곳에서 하나 이상 모아야 다음 곳으로 걷는다.
 - `record.words`는 모은 시어의 `text`를 **방 글 차례(작품 차례)**로 담는다. 누른 차례와 상관없다. 그래서 길이는 4 이상 19 이하다.
 - `letGo`(36행 공명·부귀를 떠나보내기)와 `finale`(안빈낙도 마무리 글)도 이 파일에 있다. 해석 고르기는 없다(채점·선택 없음).
+
+## 추가 제안(T17) — 보스전 「서고의 밤」
+
+보스전 작업(T17)이 정한 것이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 모듈
+
+| 파일 | 내보내는 것 |
+| --- | --- |
+| `js/boss/boss.js` | `start(ctx)` → `Promise<{ completed, reason?, already? }>`, 화면 약속(7.4) `show(container, ctx)`, `BOSS_TUNING` |
+| `js/boss/remix-stage.js` | `runRemixStage(ctx)`(2단계), `remixLines(grid, songById)` |
+| `js/boss/scene3d.js` · `scene2d.js` | 보스 장면(3D는 보스 화면 안의 작은 그림판 따로, 2D는 `board/boss` 위 DOM 겹) |
+| `js/boss/dom.js` | 작은 도우미, 관 자리 모양, 사서 일지 서랍 |
+| `js/data/remix.js` · `js/data/boss-text.js` | 리믹스(5절), 보스 글·대사(`BOSS_TEXT`, `BOSS_SPEAKERS`, 교사 확인 대상) |
+
+- 화면 등록 이름 제안: `screens.boss = js/boss/boss.js`. 앱 흐름('추가 제안(T18)')은 `start(ctx)`를 쓴다. `ctx = { session, container, signal, go, params }` 가운데 `session`·`container`·`signal`만 본다. 약속은 마치면 `{ completed: true }`, 닫혀 있거나 나가면 `{ completed: false, reason: 'locked' | 'left' }`로 끝나고, 중단 신호면 `AbortError`로 끝난다. 끝날 때 보스 화면은 스스로 치우고 `progress.leaveBoss()`도 부른다(앱이 다시 불러도 해가 없다).
+- `show(container, ctx)`는 `ctx.session` 또는 `ctx.params.session`을 쓰고(없으면 세션을 만든다) 끝나면 `ctx.go('ending' | 'play', { session })`.
+- 스타일 `css/boss.css`(연결 단계가 `index.html`에 붙인다). 보스 화면은 `container`를 꽉 덮고(`z-index: 28`), 보스 동안 `container`와 `session.root`에 `has-boss`를 붙여 한 판 위 띠(『분류 수첩』 단추)를 숨긴다(spec 10.1).
+- 배경음 이름 `boss`(`assets/audio/bgm/boss.mp3`, 소리 작업 몫). 효과음은 `fog`(틀림), `place`, `gold`.
+
+### 2단계 판정은 한 곳에서(T2·T3 판정 창 맞추기)
+
+- 진행 엔진의 `REMIX_TAP_WINDOW_MS`(앞 500ms·뒤 1500ms)와 박자 엔진의 `REMIX_WINDOW_MS`(앞 700ms·뒤 1500ms)가 따로 있다. 보스는 **박자 엔진의 리믹스 회차(`createRemixSession`, `REMIX_WINDOW_MS`)로만 탭을 판정**하고, 그 결과를 진행 엔진 `bossStage2Tap`의 글줄 방식 입력으로 넘긴다: 맞힌 지점이면 `{ line: 그 지점의 단위 번호, switchLines: grid.switches }`, 틀림이면 `{ line: -1, switchLines }`. 이미 맞힌 지점 근처(`repeat`)는 넘기지 않는다.
+- 박자 없는 방식(소리 끔·빗금 모드·소리 판을 열 수 없음)은 이어 붙은 글줄(단위마다 한 줄, `reading`)을 보여 주고, 누른 줄의 단위 번호를 같은 모양으로 넘긴다.
+- 그래서 진행 엔진의 `tapMs` 입력과 `REMIX_TAP_WINDOW_MS`는 보스에서 쓰이지 않는다. 연결 단계가 둘 중 하나로 정리할 때 엔진 쪽을 지워도 보스는 바뀌지 않는다.
+- 틀림에 실을 관련 개념(`conceptIds`)은 틀린 탭이 난 조각(또는 누른 줄)의 갈래 개념이다.
+- 놓친 지점은 한 바퀴가 끝나면 그 앞뒤 단위(`remixReplaySegments`)를 바로 다시 들려주고, 그래도 남으면 '놓친 곳 다시 듣기' 단추로 다시 듣는다.
+
+### 박자 손잡이(`rhythm`) 더하기
+
+- 재기 화면의 `{ engine, buildGrid?, createTapSession?, offsetMs? }`에 선택 열쇠 `buildRemixGrid(remix, getSong)`·`createRemixSession(grid, opts)`를 더한다. 없으면 `js/core/rhythm.js`의 것. 점검 페이지가 빠른 박자 칸을 끼우는 데 쓴다.
+
+### 단계와 기록
+
+- 1단계: 노래는 진행 엔진의 `currentUnseen()` 차례(노래 표 `unseenOrder`)로 나온다. 재기 전에는 관 자리 다섯이 눌리지 않는다. 재기는 `openMeasure({ mode: 'boss', container: 보스 화면 오른쪽 반, journal, journalGlow })`이고 세계 바탕의 반반 틀은 쓰지 않는다. 맞게 꽂은 뒤 '누가 불렀을까?'에서 고른 무리와 정답 무리(`singerGroups`, 여럿일 수 있음)를 함께 보인다.
+- 3단계 다시 재기도 보스 방식(다섯 도구, 일지)이다. 재기 화면이 도구를 시조 것만으로 줄이는 방법이 없어서 그렇다(계단 오르기는 다섯 가운데 하나로 쓸 수 있다). 시조 자리에 꽂으면 진행 엔진이 `boss.state = 'done'`을 기록하고, 보스 화면이 `diorama:slot-set { area: 'mentor', index: 0, songId: 'taesan' }`을 낸다(시조관이 지금 관이 아니면 받을 모형이 없고, 시조관에 들어갈 때 한 판 화면이 다시 낸다).
+- 이어 하기: 진행 엔진의 `enterBoss()`를 따른다. 1단계 '누가 불렀을까' 전, 2단계, 3단계 도중에 나가면 그 노래·단계를 다시 재기(2단계는 처음)부터 한다.
+- 그림 이름은 11.2의 `sprite/jom`·`sprite/jom-king`·`sprite/mentor`, '추가 제안(T26)'의 `board/boss`를 쓴다.
