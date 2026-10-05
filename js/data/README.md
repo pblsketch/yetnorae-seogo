@@ -873,3 +873,21 @@ dispose()
 
 - 세계 바탕이 내는 사건: `orientation:pause`·`orientation:resume`, 그와 함께 `audio:pause`·`audio:resume`(`reason: 'orientation'`).
 - `settings:reduce-motion`: 설정 화면이 내면 세계 바탕이 기기 설정 값으로 받는다. 세계 바탕도 실제 적용 값(기기 설정 또는 브라우저 선호)이 바뀌면 낸다. 브라우저 선호 때문에 받은 값과 실제 값이 다르면 실제 값을 한 번 더 낸다.
+
+## 추가 제안(T19) — 결과 카드
+
+결과 카드 작업(T19)이 정한 것이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 모듈
+
+| 파일 | 내보내는 것 |
+| --- | --- |
+| `js/result/card.js` | `CARD_SIZE`(1600×900), `renderCard(data, { canvas?, manifest? })` → `{ canvas, layout }`, `cardToBlob(canvas)`, `cardFileName(data)`, `saveBlob(blob, 이름)`, `downloadCard(data, opts)` |
+| `js/result/card-view.js` | `showCard(container, source, { manifest?, onClose? })` → `{ ready, download(), refresh(), layout, canvas, dispose() }` |
+
+- `data`는 `buildWingCard`·`buildFinalCard`(js/core/cards.js)의 결과만 쓴다. `source`에 **함수**(`() => buildWingCard(store.currentRecord(), 관 id)`)를 주면 내려받을 때마다 지금의 기록으로 다시 모아 다시 그린다(spec 12). 자료가 `null`이면 내려받기 버튼 없이 안내만 보인다.
+- 카드 배치는 픽셀로 고정이라 글자 크기 설정과 상관없다. 글꼴은 `css/base.css`의 `--font-body`·`--font-ui`를 읽고 `document.fonts.ready`를 기다린 뒤 그린다.
+- 학생 그림은 기록의 `appearance`로 `sprite/student-<a|b>`를 고른다. `manifest`(자산 목록)를 넘기면 그 그림을, 없으면 자리표시 종이 인형을 쓴다.
+- 파일 이름은 `data.fileName`(spec 12 기본값)을 쓰고, 파일 이름에 쓸 수 없는 글자(`\ / : * ? " < > |`)만 `_`로 바꾼다.
+- `layout.items`: 그린 글 `{ type: 'text', role, ref?, text, size, font, box, lines: [{ text, x, y, w, h }] }`과 그림 `{ type: 'image', role: 'student', name, placeholder, x, y, w, h }`. 점검(`tests/check-card.mjs`)이 이것으로 담긴 글·잘림·점수 말을 확인한다.
+- 화면 스타일은 `css/result.css`. 연결 단계가 `index.html`에 붙인다.
