@@ -359,8 +359,11 @@ export function create2D(ctx) {
 
   return {
     anchors,
-    // 추가 제안(T11): 떠도는 노래가 머무는 곳, 재기 화면 왼쪽 반이 바라볼 곳(늘어난 층 한가운데)
-    spots: { floatingSongs: pct(700, 600), measureFocus: pct(1000, mid(1000).yc) },
+    // 추가 제안(T11): 떠도는 노래가 머무는 곳(다섯, 연결 결정 F2), 재기 화면 왼쪽 반이 바라볼 곳(늘어난 층 한가운데)
+    spots: {
+      floatingSongs: [pct(700, 600), pct(416, 738), pct(576, 666), pct(864, 756), pct(1056, 720)],
+      measureFocus: pct(1000, mid(1000).yc),
+    },
     react(name, detail) {
       if (!model.apply(name, detail)) return;
       if (reduce()) model.step(0, true);

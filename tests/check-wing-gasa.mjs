@@ -226,7 +226,7 @@ async function check3D(page, label) {
     return { threw, same, keys, left: root.children.length };
   });
   assert(!unknown.threw && unknown.same, label + ': (음성) 모르는 사건은 오류 없이 넘기고 아무것도 바꾸지 않는다');
-  assert(JSON.stringify(unknown.keys) === JSON.stringify(['anchors', 'dispose', 'react', 'update']) && unknown.left === 0, label + ': 손잡이가 약속대로이고 dispose가 만든 것을 모두 치운다');
+  assert(JSON.stringify(unknown.keys) === JSON.stringify(['anchors', 'dispose', 'floatingSpots', 'react', 'update']) && unknown.left === 0, label + ': 손잡이가 약속대로이고 dispose가 만든 것을 모두 치운다');
 
   // 음성: 예산을 넘기는 그물을 넣으면 그리기 호출 검사가 잡는다
   await ev(page, () => {

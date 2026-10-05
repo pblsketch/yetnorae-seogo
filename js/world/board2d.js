@@ -6,6 +6,8 @@ import { getDancheong, meanDancheong } from './palette.js';
 import { paperDollCanvas } from './sprites.js';
 import { TUNING } from './tuning.js';
 
+// 누를 자리 이름표. 관 모형이 쓰는 자리 열쇠는 모두 여기에 한국어 이름이 있어야 한다(영어 열쇠가 화면에 보이지 않게).
+// floating·songs는 맞추기 전(normalizeWing을 거치지 않은) 관 모형이 anchors에 넣던 떠도는 노래 자리다.
 const ANCHOR_LABELS = {
   slots: '칸',
   bonus: '덤 칸',
@@ -15,7 +17,10 @@ const ANCHOR_LABELS = {
   entrance: '기다리는 노래 자리',
   nextDoor: '다음 관 문',
   mentorSeat: '선대 사서의 자리',
+  floating: '떠도는 노래',
+  songs: '떠도는 노래',
 };
+const ANCHOR_LABEL_UNKNOWN = '자리';
 
 const ASPECT = 16 / 9;
 // 걸을 수 있는 띠(백분율)
@@ -55,6 +60,7 @@ export function createBoard2D({ view, assets, appearance = 'a', getWingModule, r
   let target = null;        // { x, y, anchor }
   let freeMoving = false;
   let frames = 0;
+  let measureFocusOn = false;
   const player = { x: 8, y: 86 };
   let facing = 1;
 
@@ -82,6 +88,31 @@ export function createBoard2D({ view, assets, appearance = 'a', getWingModule, r
   function setLevel(node, level) {
     node.style.setProperty('--dancheong', String(level));
   }
+
+  // ── 재기 초점(반반 틀) ──
+  // 관 모형의 measureFocus(그림 판 백분율)가 있으면 그림 판을 왼쪽 칸을 꽉 채우도록 키우고, 초점이 칸 가운데에 오도록 민다.
+  // 그림 판 가장자리가 칸 안으로 들어오지 않게 민 거리를 제한한다. 초점이 없거나 반반 틀이 아니면 원래 크기로 둔다.
+  function applyMeasureFocus() {
+    const f = measureFocusOn && place !== 'corridor' ? wingHandle?.measureFocus : null;
+    const vw = view.clientWidth;
+    const vh = view.clientHeight;
+    if (!f || typeof f.x !== 'number' || typeof f.y !== 'number' || !vw || !vh) {
+      board.classList.remove('is-focused');
+      for (const k of ['width', 'left', 'top']) board.style.removeProperty(k);
+      return;
+    }
+    const bw = Math.max(vw, vh * ASPECT);
+    const bh = bw / ASPECT;
+    const left = Math.min(0, Math.max(vw - bw, vw / 2 - (f.x / 100) * bw));
+    const top = Math.min(0, Math.max(vh - bh, vh / 2 - (f.y / 100) * bh));
+    board.classList.add('is-focused');
+    board.style.width = bw + 'px';
+    // .board는 translate(-50%, -50%)로 가운데를 맞추므로 왼쪽 위 대신 가운데 자리를 준다.
+    board.style.left = left + bw / 2 + 'px';
+    board.style.top = top + bh / 2 + 'px';
+  }
+  const focusObserver = new ResizeObserver(() => { if (measureFocusOn) applyMeasureFocus(); });
+  focusObserver.observe(view);
 
   // ── 회랑(그림 판 기본 장면) ──
   function buildCorridor() {
@@ -127,7 +158,7 @@ export function createBoard2D({ view, assets, appearance = 'a', getWingModule, r
         if (Array.isArray(v)) b.dataset.index = String(index);
         b.style.left = p.x + '%';
         b.style.top = p.y + '%';
-        const label = (ANCHOR_LABELS[key] ?? key) + (Array.isArray(v) ? ' ' + (index + 1) : '');
+        const label = (ANCHOR_LABELS[key] ?? ANCHOR_LABEL_UNKNOWN) + (Array.isArray(v) ? ' ' + (index + 1) : '');
         b.setAttribute('aria-label', label);
         b.title = label;
         const anchor = Array.isArray(v) ? { key, index } : { key };
@@ -171,6 +202,7 @@ export function createBoard2D({ view, assets, appearance = 'a', getWingModule, r
       wingArt.append(name);
     }
     buildHotspots(wingHandle?.anchors);
+    applyMeasureFocus();
     setLevel(board, getDancheong(id));
     target = null;
     marker.hidden = true;
@@ -185,6 +217,7 @@ export function createBoard2D({ view, assets, appearance = 'a', getWingModule, r
     unmountWing();
     place = 'corridor';
     buildCorridor();
+    applyMeasureFocus();
     target = null;
     marker.hidden = true;
     freeMoving = false;
@@ -281,8 +314,12 @@ export function createBoard2D({ view, assets, appearance = 'a', getWingModule, r
     enterWing,
     enterCorridor,
     moveTo: (p) => go(p),
-    resize() {},
+    resize() { applyMeasureFocus(); },
     render() {},
+    setMeasureFocus(on) {
+      measureFocusOn = !!on;
+      applyMeasureFocus();
+    },
     forward(name, detail) {
       if (!wingHandle?.react) return;
       try { wingHandle.react(name, detail); } catch (e) { console.error('[world] 관 모형 react 실패', name, e); }
@@ -325,11 +362,13 @@ export function createBoard2D({ view, assets, appearance = 'a', getWingModule, r
       for (const [k, v] of Object.entries(a)) if (k !== 'camera' && v) out[k] = v;
       return out;
     },
+    getWingHandle: () => wingHandle,
     getThree: () => null,
     getStats: () => ({ drawCalls: 0, triangles: 0, frames, pixelRatio: 1, shadows: false }),
     getBoard: () => board,
     toScreen,
     dispose() {
+      focusObserver.disconnect();
       unmountWing();
       board.remove();
     },

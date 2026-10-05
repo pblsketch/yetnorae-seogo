@@ -527,6 +527,11 @@ export function create3D(ctx) {
 
   return {
     anchors,
+    // 연결 결정(F2): 떠도는 노래 다섯이 머무는 곳(회랑 앞마당 위, y는 떠 있는 높이). 누를 자리가 아니다.
+    floatingSpots: [
+      new THREE.Vector3(-1.2, 1.6, 1.6), new THREE.Vector3(1.4, 1.9, 0.6), new THREE.Vector3(0, 1.5, 2.6),
+      new THREE.Vector3(-2.6, 1.8, 2.8), new THREE.Vector3(2.1, 1.7, 2.8),
+    ],
     react,
     update,
     dispose() {

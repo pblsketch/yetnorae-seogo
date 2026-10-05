@@ -14,4 +14,5 @@ export const TUNING = {
   dancheongRestoreSeconds: 1.6,  // 단청이 돌아오는 연출 시간
   arriveAnchorRadius: 1.5,   // 3D: 이 거리 안에 멈추면 그 자리에 도착한 것으로 본다(m)
   arriveAnchorRadius2D: 7,   // 2D: 같은 기준(그림 판 높이의 %)
+  measureOffset: [0, 4.2, 9.5],  // 3D 반반 틀: 관 모형이 카메라 자리를 주지 않을 때 재기 초점에서 카메라까지(x, y, z m)
 };

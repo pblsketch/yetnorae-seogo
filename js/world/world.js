@@ -7,7 +7,9 @@
 //                                { key: 'door', wing } | { key: 'slots'|'bonus', index } | { key: 'basket'|… } | null
 //   enterWing(id) / enterCorridor()      관 안으로 / 회랑으로
 //   setContext(label, handler)            오른쪽 아래 상황 버튼("잡기", "꽂기" 등). label이 없으면 숨긴다
-//   openSplit(panelEl) / closeSplit()     반반 틀(왼쪽 디오라마, 오른쪽 패널). 여는 동안 이동 조작은 숨는다
+//   openSplit(panelEl) / closeSplit()     반반 틀(왼쪽 디오라마, 오른쪽 패널). 여는 동안 이동 조작은 숨는다.
+//                                         지금 관 모형에 measureFocus가 있으면 왼쪽 반이 그곳을 비춘다
+//   getWingHandle()                       지금 관 모형의 손잡이(등록된 관 모형이면 normalizeWing으로 맞춘 모양). 회랑이면 null
 //   setDancheong(id, level)               관마다 먹빛(0)~단청(1)
 //   getMode()                             '3d' | '2d'
 //   dispose()
@@ -162,6 +164,7 @@ export function openSplit(panelEl) {
   w.controls.setEnabled(false);
   w.host.clearTarget();
   w.host.resize();
+  w.host.setMeasureFocus(true);
   return w.panel;
 }
 
@@ -171,6 +174,7 @@ export function closeSplit() {
   w.root.classList.remove('is-split');
   w.panel.replaceChildren();
   w.controls.setEnabled(!isPaused());
+  w.host.setMeasureFocus(false);
   w.host.resize();
 }
 
@@ -196,6 +200,8 @@ export function getCamera() { return w?.host.getCamera() ?? null; }
 export function resetCamera() { w?.host.resetCamera(); }
 // 지금 관 모형의 상호작용 자리. 3D는 세계 좌표 { x, y, z }, 2D는 그림 판 백분율 { x, y }.
 export function getAnchors() { return w?.host.getAnchors() ?? null; }
+// 지금 관 모형의 손잡이. 떠도는 노래 자리(floatingSpots)와 재기 초점(measureFocus)은 README '연결 결정(F2)'을 따른다.
+export function getWingHandle() { return w?.host.getWingHandle() ?? null; }
 // 3D일 때 작품 방 등이 쓸 { THREE, scene, camera, renderer, root }. 2D면 null.
 export function getThree() { return w?.host.getThree() ?? null; }
 export function getStats() { return w?.host.getStats() ?? null; }
@@ -215,5 +221,5 @@ export function dispose() {
 
 const api = {
   mount, enterWing, enterCorridor, setContext, openSplit, closeSplit, setDancheong, getDancheong, getMode, dispose,
-  shake, moveTo, getPlace, getPlayer, getMarker, getCamera, resetCamera, getAnchors, getThree, getStats, toScreen,
+  shake, moveTo, getPlace, getPlayer, getMarker, getCamera, resetCamera, getAnchors, getWingHandle, getThree, getStats, toScreen,
 };

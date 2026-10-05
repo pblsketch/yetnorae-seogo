@@ -205,6 +205,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   let frames = 0;
   let aspect = 1;
   let shakeLeft = 0;
+  let measureFocusOn = false;
 
   const START = new THREE.Vector3(CORRIDOR.x0 + 5, 0, 0.6);
   const player = START.clone();
@@ -265,7 +266,19 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
     onArrive?.({ position: { x: player.x, z: player.z }, anchor: anchorNear(player), place });
   }
 
+  // 반반 틀의 재기 초점: 관 모형의 measureFocus({ target, position? }, root 기준)를 바라본다.
+  // position이 없으면 target 앞 위에서(TUNING.measureOffset) 내려다본다. 끌어 돌린 각도는 쓰지 않는다.
+  function measureView(outPos, outLook) {
+    const f = measureFocusOn && place !== 'corridor' && wingRoot ? wingHandle?.measureFocus : null;
+    if (!f?.target) return false;
+    outLook.copy(wingRoot.localToWorld(new THREE.Vector3().copy(f.target)));
+    if (f.position) outPos.copy(wingRoot.localToWorld(new THREE.Vector3().copy(f.position)));
+    else outPos.copy(outLook).add(new THREE.Vector3(...TUNING.measureOffset));
+    return true;
+  }
+
   function desired(outPos, outLook) {
+    if (measureView(outPos, outLook)) return;
     const head = new THREE.Vector3(player.x, 1, player.z);
     let offset;
     const cam = wingHandle?.anchors?.camera;
@@ -472,6 +485,10 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
     moveTo: (p) => moveTo(p.x, p.z),
     resize,
     render,
+    setMeasureFocus(on) {
+      measureFocusOn = !!on;
+      if (reduceMotion()) snapCamera();
+    },
     forward(name, detail) {
       if (!wingHandle?.react) return;
       try { wingHandle.react(name, detail); } catch (e) { console.error('[world] 관 모형 react 실패', name, e); }
@@ -510,6 +527,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
       };
     },
     getAnchors: worldAnchors,
+    getWingHandle: () => wingHandle,
     getThree: () => ({ THREE, scene, camera, renderer, root: wingRoot }),
     getStats: () => ({
       drawCalls: renderer.info.render.calls,

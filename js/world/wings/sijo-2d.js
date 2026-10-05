@@ -403,7 +403,7 @@ export function create2D(ctx) {
     mentorSeat: { x: 36, y: 26 },
   };
   const areas = {
-    floating: [{ x: 10, y: 70 }, { x: 54, y: 72 }, { x: 70, y: 74 }, { x: 88, y: 72 }],
+    floating: [{ x: 10, y: 70 }, { x: 16, y: 88 }, { x: 54, y: 72 }, { x: 70, y: 74 }, { x: 88, y: 72 }],
     focus: { stairs: { x: 58, y: 38 }, pillars: { x: 35, y: 36 }, pavilion: { x: 35, y: 35 } },
   };
 
