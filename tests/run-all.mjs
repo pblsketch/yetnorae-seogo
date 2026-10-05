@@ -12,6 +12,16 @@ const files = [
   'check-smoke.mjs',
   'check-data.mjs',
   'check-rights.mjs',
+  'check-engine.mjs',
+  'check-rhythm.mjs',
+  'check-world.mjs',
+  'check-hyangga.mjs',
+  'check-goryeo.mjs',
+  'check-sijo.mjs',
+  'check-gasa.mjs',
+  'check-saseol.mjs',
+  'check-compare-textbook.mjs',
+  'check-bgm.mjs',
 ];
 
 fs.mkdirSync(path.join(here, 'shots'), { recursive: true });
