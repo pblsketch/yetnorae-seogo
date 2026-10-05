@@ -2,7 +2,7 @@
 //   시작 화면 → (처음 켜는 기기: 이어폰 안내·박자 맞추기) → 입구(튜토리얼을 마치지 않았으면)
 //   → 회랑과 관(한 판 세션 js/play/session.js) → 다섯 관을 마치면 회랑 안쪽에 보스 문 → 보스(registry.screens.boss)
 //   → 보스를 마치면 엔딩 → 서고 완성(관은 다시 들어갈 수 있고, 보스·엔딩은 다시 하지 않는다. 마지막 카드는 다시 받는다)
-// 다시 열면 시작 화면에서 기록을 골라 있던 자리로 이어 간다(진행 엔진 resumeInfo).
+// 다시 열면 시작 화면에서 기록을 골라 있던 자리로 이어 간다(진행 엔진 resumeInfo). 보스 도중이면 회랑의 열린 보스 문 앞에서 이어 간다.
 // 저장 엔진 하나와 소리 엔진 하나를 앱 전체가 함께 쓰고, 기록을 고를 때마다 그 기록의 한 판 세션을 새로 띄운다.
 // 주소 인자나 점검용 입구는 없다.
 import { createStore } from '../core/save.js';
@@ -135,7 +135,9 @@ export async function startApp(container) {
     if (info.scene === 'wing') { session.resume(); return; }
     session.enterCorridor();
     if (info.scene === 'entrance' && !P.progress.tutorialDone) { playEntrance(); return; }
-    if (info.scene === 'boss') { if (bossModule()) openBoss(); return; }
+    // 보스 도중(다섯 관을 마치면 엔진이 곧바로 stage1로 둔다)이면 보스로 곧장 가지 않고 회랑에서 열린 보스 문을 보인다.
+    // 문으로 들어가면 진행 엔진 enterBoss()가 마친 단계와 노래 기록은 두고 하던 노래부터 잇는다(spec 20).
+    if (info.scene === 'boss') { syncBossDoor('corridor'); return; }
     if (info.scene === 'ending') { playEnding(); return; }
     if (info.scene === 'complete') say(STORY.complete.corridor);
   }
