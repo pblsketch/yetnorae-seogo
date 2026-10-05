@@ -1020,3 +1020,45 @@ dispose()
 ### 스타일
 
 - 2D 그림 판 스타일은 `css/wing-hyangga.css`다. 모형이 이 파일의 `<link>`가 없으면 스스로 머리에 붙이지만, 연결 단계가 `index.html`에 링크를 더하는 편이 깜박임이 없다.
+
+## 추가 제안(T5) — 재기 화면
+
+재기 화면 작업(T5)이 정한 것이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 재기 화면 손잡이 — `js/measure/measure.js`
+
+```js
+openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 AbortError로 끝난다
+```
+
+| `ctx` 열쇠 | 뜻 |
+| --- | --- |
+| `song` | 노래 객체 |
+| `wing` | 지금 관 id. 그 관의 고유 동작을 쓴다. 입구 튜토리얼은 `'entrance'`(`tutorialAction`인 `stairs`) |
+| `mode` | `'wing'`(기본) · `'boss'` — 보스는 다섯 고유 동작을 도구로 골라 쓰고, 수첩 대신 일지를 연다 |
+| `world` | 세계 바탕 손잡이(`openSplit`·`closeSplit`). 없으면 `container`에 붙인다 |
+| `rhythm` | `{ engine, buildGrid?, createTapSession?, offsetMs? }` — 소리 엔진 하나와 박자 함수(없으면 `js/core/rhythm.js`의 것). `offsetMs`는 저장의 `device.calibrationOffsetMs` |
+| `noBeat` | 처음 박자 없는 방식인지(없으면 `engine.noBeat.value`). 그 뒤로는 `rhythm:no-beat`를 따른다 |
+| `setSlashMode(v)` | 빗금 권유를 받아들였을 때 부른다. 설정 저장은 부르는 쪽이 한다(없으면 `engine.setSlashMode`) |
+| `preMeasured` | 미리 잰 노래. 감정서 객체, `{ action: 동작 id }`, 또는 `true`(그 노래의 `stray` 역할 가운데 `to`가 지금 관인 것의 관 동작으로 계산). 감정서가 채워진 채 열린다 |
+| `notebook` · `notebookGlow` | 갈래 id → 수첩 쪽(`js/data/songs/index.js`의 `notebook`), 이미 받은 도움 `[{ wing, genre, conceptIds }]`. 열려 있는 동안 `help:notebook-glow`도 듣는다 |
+| `journal` · `journalGlow` | 보스 일지: `{ concepts }`(저장의 `progress.concepts`), 반짝일 개념 id. `help:journal-glow`·`concept:changed`도 듣는다 |
+| `introSeen` · `onIntroSeen(kind)` | 첫 사용 안내 깃발 `{ common, unique }`(false면 보인다). 본 뒤 `onIntroSeen('common' \| 'unique')`를 부른다. 저장은 부르는 쪽: `unique` ↔ `wings[관].uniqueActionIntroSeen`, `common`은 첫 노래(튜토리얼) 하나뿐이므로 `tutorialDone` 등으로 정한다 |
+| `reduceMotion()` | 움직임 줄이기(없으면 `world.reduceMotion()`·`#app.reduce-motion`) |
+| `signal` | 중단 신호(나가기). 중단되면 반반 틀을 닫는다 |
+
+- 보스 결과에는 `action`(마지막으로 쓴 도구) 말고도 `actions`(쓴 도구의 증거 모두, 쓴 순서)가 더 붙는다. 관에서는 `actions`가 없다.
+- 감정서 글의 단위 이름은 갈래 단위 이름(장·구·연·행)을 쓰고, 보스에서는 갈래가 드러나지 않게 '덩이'라고 쓴다.
+- 화면 글(버튼, 안내, 감정서 문구)은 `js/measure/labels.js`에 모았다. 스타일은 `css/measure.css`이고 `index.html`에 연결해야 한다(연결 단계).
+
+### 고유 동작 `ctx` 더하기(7.2)
+
+재기 화면은 고유 동작에 `{ view, controls, setHint, emit, getNoBeat }`를 더 넘긴다(두루마리 글 보기, 조작 자리, 안내 한 줄, 사건 내기, 지금 박자 없는 방식인지). 이것들이 없으면 동작 모듈이 `container` 안에 스스로 만든다.
+
+### 반응 사건의 세부(8.1)
+
+- `diorama:fold { unit }`의 `unit`은 접힌 경계 **앞** 단위 번호다(초장과 중장 사이 = 0).
+- `diorama:pillar-light`는 두드리기에서 판정 창 안의 박마다, 빗금에서는 음보 끝 빗금마다 낸다. 놓쳐서 다시 듣는 단위는 다시 낸다.
+- `diorama:floor-fill { gu }`는 향가 구 하나를 마칠 때마다 낸다(지금까지 마친 구 수).
+- `diorama:refrain-link`: 한 자리를 누르면 지금 쪽에 보이는 같은 구절 자리가 모두 이어지며, 고리마다 하나씩 낸다. 같은 구절의 첫 고리는 `from`과 `to`가 같다.
+- `diorama:aa-door { present, unit }`의 `unit`은 감탄사가 없으면 `null`이다.
