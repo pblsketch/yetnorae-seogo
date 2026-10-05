@@ -1130,3 +1130,34 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 | `prompt` | 생성에 쓴 프롬프트 파일(`tools/art/prompts/...txt`) |
 | `rawSha256` | 생성 원본(`assets/raw/art/`, 저장소 밖) PNG의 sha256 |
 | `image` | `{ format, width, height, alpha }` — `tests/check-assets.mjs`가 파일 머리와 맞춰 본다 |
+
+## 추가 제안(T6) — 관 한 판 흐름
+
+한 판 흐름 작업(T6)이 정한 것이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 모듈
+
+| 파일 | 내보내는 것 |
+| --- | --- |
+| `js/play/session.js` | `createSession({ container, storage?, rooms?, wings?, manifest?, audioDeps?, songs?, notebook?, clues? })` → `Promise<세션>`, `safeLocalStorage()`, `loadManifest()` |
+| `js/play/wing.js` | `createWingPlay(세션, 관 id)`(세션의 `playWing`이 부른다), `PLAY_TUNING` |
+| `js/play/play-screen.js` | 화면 약속(7.4) `show(container, ctx)` — 이어 하기(`resume`) 또는 `ctx.params.wing` 관으로 연다 |
+| `js/play/screens.js` | `renderNotebook`·`renderJournal`·`renderCollection`·`renderListen`, 화면 약속 모양의 `notebookScreen`·`journalScreen`·`collectionScreen` |
+| `js/play/ceremony.js` · `keepsake.js` · `labels.js` · `dom.js` | 가객·기념품 연출, 기념품 카드 한 장, 화면 글, 작은 도우미 |
+
+- 세션: `{ store, progress, audio, world, manifest, songs, songById(id), notebook, rhythm, playWing(관 id), enterCorridor(), resume(), openNotebook(), openJournal(), openCollection(), dispose() }`. 앱 하나에 세션 하나(저장 엔진·진행 엔진·소리 엔진·세계 바탕 하나씩)를 두고 입구·보스·엔딩 화면이 함께 쓴다.
+- `storage`를 주지 않으면 `safeLocalStorage()`(읽기만 해도 오류가 나면 `null` → 이번 창 메모리로만)를 쓴다. `rooms`·`wings`를 주지 않으면 `js/registry.js`의 것을 쓴다. `audioDeps`는 `createAudioEngine`에 그대로 넘긴다.
+- 화면 등록 이름 제안: `screens.play = play-screen.js`. 스타일은 `css/play.css`(연결 단계가 `index.html`에 붙인다).
+
+### 약속
+
+- **관 문 맞추기**: 세계를 띄울 때 세션이 기록의 관 상태를 `wing:state`로 한 번씩 다시 내고(세계 바탕은 처음에 입구만 열려 있으므로), 마친 관은 `world.setDancheong(관, 1)`로 알린다.
+- **들어올 때 다시 그리기**: `enterWing` 다음에 `diorama:slot-set`(칸·덤·판정 전 바구니, `returned` 0~3, 보스를 마쳤으면 시조관 `mentor`), 묶였으면 `diorama:shelf-bound`와 `diorama:fog-recede`를 차례로 낸다. 바구니에서 이미 보낸(고정된) 노래는 다시 그리지 않는다.
+- **삐져나옴**: 판정에서 돌아온 노래마다 `diorama:pop-out`을 내고, `PLAY_TUNING.popOutMs`(2.4초) 뒤 그 자리가 여전히 비어 있으면 `slot-set { songId: null }`을 낸다. 바구니에서 보낸 노래는 `sentMs`(1.2초) 뒤 `slot-set { area: 'basket', songId: null }`.
+- **첫 사용 안내 깃발**: 재기 화면에 `introSeen: { common: progress.tutorialDone, unique: wings[관].uniqueActionIntroSeen }`을 넘기고, `onIntroSeen('unique')`면 `markUniqueActionIntroSeen(관)`을 부른다. 공통 동작 안내는 입구 튜토리얼 몫이다.
+- **미리 잰 노래**: 입구에서 기다리는 노래(`waitingAt(관)` 가운데 아직 잡지 않은 것)를 잡으면 `preMeasured: true`로 재기 화면을 열고, 마치면 `markMeasured`로 손에 든다. 손에 든 노래 = 그 관의 `measured` 가운데 아직 꽂지 않은 것(판을 마친 관은 덤 노래).
+- **작품 방 ctx 더하기**(7.3): `manifest`(자산 목록)를 더 넘긴다. 3D일 때 `three`는 세계 바탕의 `{ THREE, root(지금 관 모형 root), camera }`이지만, 방은 화면을 덮는 `container` 안에 스스로 장면을 만든다(그 위로 세계는 보이지 않는다). 방이 등록되지 않았으면 자리표시와 '방에서 나가기'만 보이고 마칠 길이 없다.
+- **판의 끝**: `diorama:dancheong-restore` → 판 카드(`showCard`, 자료는 `buildWingCard(store.currentRecord(), 관)`) → 다음 관 문틈 소리(다음 관 배경음을 `leakMs` 동안 틀었다가 되돌린다) → 덤 노래가 떠다닌다.
+- **창 숨김**: `visibilitychange`에서 `audio:pause`/`audio:resume`(`reason: 'hidden'`)을 낸다.
+- **저장 실패 알림**: `save:failed`를 처음 받을 때 한 번만 "이 기기에 저장되지 않아요. 이번 창에서만 이어집니다"를 보인다(불러올 때 저장소를 쓸 수 없어도).
+- **회랑**: 회랑에서 열린 관 문 앞에 서면 상황 버튼 '들어가기 — 관 이름'. 입구 문은 다루지 않는다(입구 작업 몫).
