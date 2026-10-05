@@ -80,7 +80,8 @@ export function start(ctx) {
     root.setAttribute('role', 'region');
     root.setAttribute('aria-label', T.title);
     const sceneEl = el('div', 'rg-scene', root);
-    if (ctx.three && ctx.mode === '3d') sceneEl.classList.add('is-host-3d');
+    // 부르는 쪽의 3D 장면을 빌리면 방 바탕과 장면 칸을 투명하게 두어 그 그림판이 보이게 한다(README '연결 결정(F3)')
+    if (ctx.three && ctx.mode === '3d') { root.classList.add('is-host-3d'); sceneEl.classList.add('is-host-3d'); }
 
     const strip = el('ol', 'rg-stations', sceneEl);
     strip.setAttribute('aria-label', T.stationsLabel);
@@ -170,7 +171,7 @@ export function start(ctx) {
           reduceMotion,
           onCalls: (n) => { root.dataset.drawCalls = String(n); },
         }))
-        .catch(() => { root.dataset.mode = '2d'; sceneEl.classList.remove('is-host-3d'); return make2D(); })
+        .catch(() => { root.dataset.mode = '2d'; root.classList.remove('is-host-3d'); sceneEl.classList.remove('is-host-3d'); return make2D(); })
         .then((sc) => {
           if (closed) { sc.dispose(); return; }
           scene = sc;

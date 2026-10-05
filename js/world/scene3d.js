@@ -206,6 +206,8 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   let aspect = 1;
   let shakeLeft = 0;
   let measureFocusOn = false;
+  // 작품 방 무대(README '연결 결정(F3)'). 열려 있으면 { root, el, hidden, fog, background, cam }
+  let room = null;
 
   const START = new THREE.Vector3(CORRIDOR.x0 + 5, 0, 0.6);
   const player = START.clone();
@@ -316,10 +318,78 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   snapCamera();
 
   function render() {
+    if (room) fitRoomView();
     renderer.render(scene, camera);
   }
 
+  // ───────── 작품 방 무대 ─────────
+  // 방이 열린 동안 세계의 다른 것(회랑·관 모형·학생·빛)은 모두 숨기고, 원점에 빈 무대(root) 하나만 둔다.
+  // 그림은 방 칸(el)의 자리·크기에만 그리고, 카메라 비율도 그 칸에 맞춘다. 카메라는 방이 움직이고 세계는 손대지 않는다.
+  function fitRoomView() {
+    const vr = view.getBoundingClientRect();
+    const r = room.el?.isConnected ? room.el.getBoundingClientRect() : vr;
+    const w = Math.max(1, r.width);
+    const h = Math.max(1, r.height);
+    const x = r.left - vr.left;
+    const y = vr.height - (r.top - vr.top) - h;   // 그리기 판의 세로는 아래에서부터
+    renderer.setViewport(x, y, w, h);
+    renderer.setScissor(x, y, w, h);
+    renderer.setScissorTest(true);
+    if (Math.abs(camera.aspect - w / h) > 1e-6) {
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+  }
+
+  function beginRoom(el) {
+    if (room) endRoom();
+    const hidden = scene.children.filter((o) => o.visible);
+    for (const o of hidden) o.visible = false;
+    const stage = new THREE.Group();
+    stage.name = 'room-stage';
+    scene.add(stage);
+    room = {
+      root: stage,
+      el,
+      hidden,
+      fog: scene.fog,
+      background: scene.background.getHex(),
+      cam: {
+        position: camera.position.clone(), quaternion: camera.quaternion.clone(), up: camera.up.clone(),
+        fov: camera.fov, near: camera.near, far: camera.far, zoom: camera.zoom,
+      },
+    };
+    scene.fog = null;
+    scene.background.set(TOKENS.hanji);
+    target = null;
+    marker.visible = false;
+    freeMoving = false;
+    fitRoomView();
+    return { THREE, root: stage, camera };
+  }
+
+  function endRoom() {
+    if (!room) return;
+    const r = room;
+    room = null;
+    scene.remove(r.root);
+    for (const o of r.hidden) o.visible = true;
+    scene.fog = r.fog;
+    scene.background.setHex(r.background);
+    camera.position.copy(r.cam.position);
+    camera.quaternion.copy(r.cam.quaternion);
+    camera.up.copy(r.cam.up);
+    Object.assign(camera, { fov: r.cam.fov, near: r.cam.near, far: r.cam.far, zoom: r.cam.zoom });
+    camera.clearViewOffset();
+    renderer.setScissorTest(false);
+    resize();
+    updateBackground();
+    snapCamera();
+    render();
+  }
+
   function updateBackground() {
+    if (room) return;   // 작품 방 무대는 한지색 바탕을 그대로 둔다
     const level = place === 'corridor' ? meanDancheong() : getDancheong(place);
     const c = mixHex(INK_BG, TOKENS.hanji, level);
     scene.background.set(c);
@@ -419,6 +489,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
 
   function frame(dt, input) {
     frames++;
+    if (room) { render(); return; }   // 방이 열린 동안은 그리기만 한다(학생·카메라·관 모형을 움직이지 않는다)
     const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
     const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
     let dir = null;
@@ -523,12 +594,21 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
       return {
         yaw,
         position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
-        distanceToDesired: camera.position.distanceTo(wantPos),
+        fov: camera.fov,
+        aspect: camera.aspect,
+        distanceToDesired: room ? 0 : camera.position.distanceTo(wantPos),
       };
     },
     getAnchors: worldAnchors,
     getWingHandle: () => wingHandle,
     getThree: () => ({ THREE, scene, camera, renderer, root: wingRoot }),
+    beginRoom,
+    endRoom,
+    getRoomState: () => ({
+      open: !!room,
+      children: room ? room.root.children.length : 0,
+      wingHidden: room ? !!wingRoot && !wingRoot.visible : false,
+    }),
     getStats: () => ({
       drawCalls: renderer.info.render.calls,
       triangles: renderer.info.render.triangles,
@@ -539,6 +619,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
     toScreen,
     dispose() {
       ro.disconnect();
+      endRoom();
       unmountWing();
       scene.traverse((o) => {
         o.geometry?.dispose?.();

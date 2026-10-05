@@ -47,6 +47,9 @@
 .world-controls { position: absolute; inset: 0; }
 .world.is-split .world-controls,
 .world.is-split .world-context { display: none; }
+/* 작품 방이 열린 동안(README '연결 결정(F3)')에는 이동 조작과 상황 버튼을 숨긴다 */
+.world.is-room .world-controls,
+.world.is-room .world-context { display: none; }
 
 /* 16:9 안전 상자(노치를 피한 영역 안 가운데) */
 .world-safe-area {
