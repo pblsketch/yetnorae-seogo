@@ -1,5 +1,5 @@
 // 앱 하나에 하나뿐인 한 판 세션. 다른 화면(입구, 보스, 엔딩, 기록 화면)도 이것을 함께 쓴다.
-//   createSession({ container, storage?, rooms?, wings?, manifest?, audioDeps?, clues? }) → Promise<세션>
+//   createSession({ container, storage?, rooms?, wings?, manifest?, audioDeps?, clues?, store?, audio?, onCorridorArrive? }) → Promise<세션>
 //   세션: { store, progress, audio, world, manifest, songs, songById, notebook,
 //          playWing(관 id), enterCorridor(), resume(), openNotebook(), openJournal(), openCollection(), dispose() }
 //
@@ -55,6 +55,13 @@ export async function createSession({
   songs = registeredSongs,
   notebook = registeredNotebook,
   clues = () => [],
+  // ── 앱 흐름(T18)이 넘기는 갈고리. 주지 않으면 전과 똑같이 동작한다 ──
+  // store: 이미 읽은 저장 엔진(시작 화면과 같은 것). 주면 다시 읽지 않고, 두 엔진이 서로 덮어쓰지 않는다.
+  // audio: 앱 하나의 소리 엔진. 주면 첫 조작 잠금 풀기와 치우기는 앱이 맡는다(세션은 dispose하지 않는다).
+  // onCorridorArrive(a): 회랑 도착을 먼저 본다. true를 돌려주면 세션은 그 도착을 다루지 않는다(입구 문 등).
+  store: givenStore = null,
+  audio: givenAudio = null,
+  onCorridorArrive = null,
 } = {}) {
   if (!container) throw new Error('한 판 세션: container가 필요하다');
   const offs = [];
@@ -93,15 +100,15 @@ export async function createSession({
   offs.push(bus.on('save:failed', showSaveNotice));
 
   // ── 기록 ──
-  const store = createStore({ storage: storage === undefined ? safeLocalStorage() : storage });
-  store.load();
+  const store = givenStore ?? createStore({ storage: storage === undefined ? safeLocalStorage() : storage });
+  if (!givenStore) store.load();
   const record = store.currentRecord();
   const progress = record ? openRecord(store, record.id) : null;
   const device = store.data.device;
 
   // ── 소리 ──
-  const audio = createAudioEngine(audioDeps);
-  const detachUnlock = audio.attachUnlock(document);
+  const audio = givenAudio ?? createAudioEngine(audioDeps);
+  const detachUnlock = givenAudio ? null : audio.attachUnlock(document);
   audio.applySettings(device);
   const rhythm = { engine: audio, offsetMs: device.calibrationOffsetMs ?? 0 };
   const setSlashMode = (v) => {
@@ -133,7 +140,7 @@ export async function createSession({
     manifest: mf,
     appearance: record?.appearance ?? 'a',
     reduceMotion: device.reduceMotion,
-    onArrive: (a) => (current ? current.onArrive(a) : corridorArrive(a)),
+    onArrive: (a) => (current ? current.onArrive(a) : (onCorridorArrive?.(a) === true ? undefined : corridorArrive(a))),
   });
   container.append(root);
   for (const w of PLAY_WING_IDS) {
@@ -245,7 +252,7 @@ export async function createSession({
     document.removeEventListener('visibilitychange', onVisibility);
     detachUnlock?.();
     world.dispose();
-    audio.dispose();
+    if (!givenAudio) audio.dispose();
     root.remove();
   }
 

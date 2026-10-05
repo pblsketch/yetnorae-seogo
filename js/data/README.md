@@ -1274,3 +1274,54 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - 곳마다 `words`(모을 시어 `{ id, text, unit }`). `text`는 그 행 원문에 그대로 있다. 마무리를 뺀 네 곳에서 하나 이상 모아야 다음 곳으로 걷는다.
 - `record.words`는 모은 시어의 `text`를 **방 글 차례(작품 차례)**로 담는다. 누른 차례와 상관없다. 그래서 길이는 4 이상 19 이하다.
 - `letGo`(36행 공명·부귀를 떠나보내기)와 `finale`(안빈낙도 마무리 글)도 이 파일에 있다. 해석 고르기는 없다(채점·선택 없음).
+
+## 추가 제안(T18) — 시작 화면, 입구, 이야기, 엔딩과 앱 흐름
+
+이야기·앱 흐름 작업(T18)이 정한 것이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 모듈과 등록
+
+| 파일 | 내보내는 것 |
+| --- | --- |
+| `js/story/start.js` | 화면 약속(7.4) `show(container, ctx)`. **`registry.screens.start`로 등록했다.** `js/main.js`가 ctx 없이 열면 앱 흐름을 띄운다 |
+| `js/story/app.js` | `startApp(container)` — 앱 하나의 흐름(시작 화면 → 처음 켜는 기기 → 입구 → 회랑·관 → 보스 문 → 보스 → 엔딩 → 서고 완성), `STORY_TUNING` |
+| `js/story/start-view.js` | `renderStart(container, { store, manifest, onOpen, onSettings, onCredits?, saveNotice? })` |
+| `js/story/settings.js` | `openSettings(host, { store, audio, onRecalibrate, onClose, extras })`, `applyDevice(device, audio)`, `applyTextScale(v)` |
+| `js/story/calibration.js` | `runCalibration(host, { audio, store, step: 'earphone' \| 'calibrate', onOffset })` |
+| `js/story/entrance.js` | `runEntrance({ host, session, manifest, signal, reread? })` |
+| `js/story/ending.js` | `runEnding({ host, session, manifest, signal })`, `processionGroups()`, `checkEnding(choice, concepts)` |
+| `js/data/story.js` | `MISSION`(spec 0 그대로), `STORY`(편지, 목소리, 들어가기 글, 좀, 단서, 엔딩 글, 화면 글 — 교사 확인 대상) |
+
+- 스타일은 `css/story.css`. 앱이 이 파일의 `<link>`가 없으면 스스로 머리에 붙이고 다 읽은 뒤 그린다. 연결 단계가 `index.html`에 더해도 겹치지 않는다.
+- 앱은 저장 엔진 하나와 소리 엔진 하나를 시작 화면부터 끝까지 함께 쓰고, 기록을 고를 때마다 그 기록의 한 판 세션을 새로 띄운다(기록 목록으로 돌아가면 세션을 치운다).
+
+### 한 판 세션 갈고리(`js/play/session.js`, 주지 않으면 전과 같다)
+
+| 열쇠 | 뜻 |
+| --- | --- |
+| `store` | 이미 읽은 저장 엔진. 주면 세션이 다시 읽지 않는다(두 엔진이 같은 저장소를 서로 덮어쓰지 않게) |
+| `audio` | 앱 하나의 소리 엔진. 주면 첫 조작 잠금 풀기와 치우기는 앱이 맡는다 |
+| `onCorridorArrive(a)` | 회랑 도착을 세션보다 먼저 본다. `true`를 돌려주면 세션은 다루지 않는다. 앱은 입구 문(편지 다시 읽기)에 쓴다 |
+
+- 사서 일지의 이야기 단서는 세션의 `clues()` 선택 열쇠로 넘긴다(마친 관마다 `STORY.clues[관 id]` 하나, 관 순서).
+
+### 보스 화면 약속(`registry.screens.boss`, 보스 작업이 만든다)
+
+- 앱은 다섯 관을 모두 마친 기록에서만 회랑에 보스 문(`.story-boss-door`)을 띄우고, 누르면 보스 화면을 연다. 보스 진행 중에 다시 열면 바로 보스 화면을 연다. 보스를 마쳤거나 서고가 완성되면 문은 닫힌 채(`data-state="done"`) 다시 열리지 않는다.
+- 모듈은 둘 가운데 하나를 내놓는다.
+  - `start(ctx)` → 약속. 끝나면(마쳤든 나갔든) 앱이 이어 받는다.
+  - `show(container, ctx)` → `{ dispose() }`. 끝낼 때 `ctx.go(이름)`을 부른다(이름은 보지 않는다).
+- `ctx`: `{ session, container, signal, go(), params: { session } }`. `container`는 화면을 덮는 자리(`.story-boss-host`)다. 세션(진행 엔진·소리·세계)은 앱 하나의 것을 함께 쓴다.
+- 끝나면 앱이 `progress.leaveBoss()`를 부르고 회랑으로 돌아간다. 그때 `progress.boss.state === 'done'`이면 엔딩을 연다. 등록되지 않았으면 문을 눌러도 알림만 보인다.
+
+### 출처 화면(`registry.screens.credits`, 출처 작업이 만든다)
+
+- 등록되어 있을 때만 시작 화면에 '출처' 단추가 보인다. 화면 약속(7.4) `show(container, { go, params: { back: 'start' } })`로 열고, `go()`를 부르면 시작 화면으로 돌아간다.
+
+### 정한 동작
+
+- 처음 켜는 기기(`device.calibrated === false`)는 기록을 고른 뒤 이어폰 안내와 박자 맞추기(종 여덟 번)를 한다. 건너뛰면 `calibrationOffsetMs: 0`. 마치거나 건너뛰면 `calibrated: true`. 설정의 '박자 다시 맞추기'는 같은 화면의 둘째 단계부터 열고, 정한 값을 지금 세션의 `rhythm.offsetMs`에도 넣는다.
+- 설정은 시작 화면과 게임 중(위 띠 '설정') 어디서나 연다. 게임 중 설정에는 '이름 기록 보기'(시작 화면으로)와, 서고 완성 뒤에는 '마지막 카드'(`buildFinalCard`를 지금의 기록으로 다시 그림)가 더 있다.
+- 이어 하기는 진행 엔진 `resumeInfo()`를 따른다: 판 중인 관이 있으면 그 관으로, 튜토리얼 전이면 입구, 보스 중이면 보스, 보스를 마쳤으면 엔딩, 서고 완성이면 회랑.
+- 관에 들어갈 때 그 관이 아직 손대지 않은 상태(재거나 꽂은 노래가 없음)면 들어가기 글(`.story-wing-intro`)을 보인다. 마치지 않은 관과 보스가 열리기 전 회랑에서는 먹안개 속 좀(`sprite/jom`)이 잠깐 보인다(누를 수 없음, 움직임 줄이기면 움직이지 않음).
+- 엔딩 행렬의 무리 i는 관 i(같은 시대 순서)이고, 그 관 칸 노래 셋의 가객 그림(`sprite/singer-<노래 id>`)을 세운다. 근거 개념은 그 관 갈래 개념을 모두 보이되 먹이 아닌 것은 누를 수 없다.
