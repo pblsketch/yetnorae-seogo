@@ -186,7 +186,7 @@ const gasiri = {
   singer: SINGER,
   sourceType: 'old-text',
   citation: '『악장가사』 수록 「가시리」(『시용향악보』에는 「귀호곡」으로 1연만). 원문은 위키문헌 「가시리」 전사본(ko.wikisource.org)을 바탕으로 한국민족문화대백과사전 「가시리」 항목의 『악장가사』 사진과 맞춰 적음. 현대어 풀이는 제작진이 새로 씀',
-  citationNote: '위키문헌 전사본과 다르게 적은 곳: 4연 둘째 줄 \'오셔셔\' → \'오쇼셔\', 2연 첫 줄 \'날러는\' → \'날러ᄂᆞᆫ\'(『악장가사』 사진). 3연 \'선ᄒᆞ면\'은 \'서운하면\'·\'선뜻하면\' 등 풀이가 갈린다. 기념품: 이 노래에는 손에 잡히는 물건이 나오지 않아 \'님\'을 골랐다(사용자 결정 필요)',
+  citationNote: '위키문헌 전사본과 다르게 적은 곳: 4연 둘째 줄 \'오셔셔\' → \'오쇼셔\', 2연 첫 줄 \'날러는\' → \'날러ᄂᆞᆫ\'(『악장가사』 사진). 3연 \'선ᄒᆞ면\'은 \'서운하면\'·\'선뜻하면\' 등 풀이가 갈린다. 기념품: 이 노래에는 손에 잡히는 물건이 나오지 않아 \'노래 속 마음\' 카드(keepsake.kind: mind, 사용자 결정)로 만들고, 4연 원문에 그대로 나오는 \'셜온 님\'을 담았다. 카드 한 줄(cardNote)은 제작진이 씀(교사 확인 대상)',
   verification: 'pending',
   units: [
     { lines: [
@@ -216,7 +216,8 @@ const gasiri = {
     ],
   },
   evidences: ['goryeo-stanza', 'goryeo-refrain', 'goryeo-3beat'],
-  keepsake: { name: '서러운 님', word: '님', phrase: '셜온 님 보내ᄋᆞᆸ노니', classLine: CLASS_LINE },
+  keepsake: { kind: 'mind', name: '서러운 님을 보내는 마음', word: '셜온 님', phrase: '셜온 님 보내ᄋᆞᆸ노니', classLine: CLASS_LINE },
+  cardNote: '붙잡지 못하고 서러운 임을 보내면서도, 가시는 듯 돌아와 주기를 바라는 마음',
   legend: false,
   roles: [
     { wing: 'hyangga', role: 'stray', to: 'goryeo' },

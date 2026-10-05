@@ -1,6 +1,7 @@
 // 시조 노래 글 점검(T22). 단독 실행: node tests/check-sijo.mjs
 // 1) 시조 갈래 파일이 검증기를 오류 없이 통과하고, 노래 표의 시조 열두 편이 모두 있다.
-// 2) 시조에만 해당하는 약속: 교과서 노래의 출처·제목, 교과서 밖 노래의 확인 상태, 보스 낯선 노래, 설화 표시.
+// 2) 시조에만 해당하는 약속: 교과서 노래의 출처·제목, 교과서 밖 노래의 확인 상태, 보스 낯선 노래, 설화 표시,
+//    물건이 없는 「어져 내 일이여」의 '노래 속 마음' 카드(keepsake.kind: 'mind', 추가 제안 F1).
 // 3) 음성 사례: 실제 시조 데이터를 일부러 망가뜨리면 이 점검과 검증기가 잡아낸다.
 import { validateDataSet } from '../js/core/validate.js';
 import { SONG_TABLE } from '../js/data/song-table.js';
@@ -27,6 +28,7 @@ try {
 const SIJO_IDS = Object.entries(SONG_TABLE.catalog).filter(([, e]) => e.genre === 'sijo').map(([id]) => id).sort();
 const TEXTBOOK_TITLE = '십 년을 경영하야';
 const LEGEND_IDS = ['imomi-jukgo', 'ireondeul'];
+const MIND_ID = 'eojeo-nae-iriyeo';   // 노래 속 마음 카드(물건이 나오지 않는 노래)
 
 // 시조에만 해당하는 약속을 보고, 어긋난 까닭 목록을 돌려준다(빈 목록이면 통과).
 function sijoRules(list) {
@@ -52,6 +54,17 @@ function sijoRules(list) {
     if (finalFirstFootSyllables(s) !== 3) out.push(s.id + ': 종장 첫 음보가 세 글자가 아니다');
     const legend = s.legend === true;
     if (legend !== LEGEND_IDS.includes(s.id)) out.push(s.id + ': legend 표시가 맞지 않다(설화 장면은 「이런들 어떠하며」·「이 몸이 죽고 죽어」만)');
+  }
+
+  // '노래 속 마음' 카드: 물건이 나오지 않는 「어져 내 일이여」만
+  for (const s of byId.values()) {
+    if (!s) continue;
+    const mind = s.keepsake?.kind === 'mind';
+    if (s.id === MIND_ID) {
+      if (!mind) out.push(s.id + ': 물건이 없는 노래라 기념품이 노래 속 마음 카드(kind: mind)여야 한다');
+      if (!String(s.keepsake?.phrase ?? '').includes('情')) out.push(s.id + ': 마음 카드 구절에 노래 속 말 "情"이 없다');
+      if (typeof s.cardNote !== 'string' || !s.cardNote.trim()) out.push(s.id + ': 마음 카드에 붙일 한 줄(cardNote)이 없다');
+    } else if (mind) out.push(s.id + ': 물건이 나오는 노래인데 노래 속 마음 카드로 되어 있다');
   }
 
   const boss = byId.get('sinheum-sijo');
@@ -118,6 +131,18 @@ console.log('\n[3] 음성 사례 (망가뜨린 데이터를 잡아내는지)');
 
     const h = mutated((l) => l.splice(l.findIndex((s) => s.id === 'eojeo-nae-iriyeo'), 1));
     check(codesOf(h).includes('MISSING'), '시조 한 편이 빠지면 MISSING');
+
+    const i = mutated((l) => { delete get(l, MIND_ID).keepsake.kind; });
+    check(ruleHits(i, '마음 카드'), '「어져 내 일이여」의 마음 카드 표시를 지우면 잡는다');
+
+    const j = mutated((l) => { get(l, MIND_ID).keepsake.kind = 'feeling'; });
+    check(codesOf(j).includes('KEEPSAKE'), '기념품 종류(kind)가 object·mind 밖이면 KEEPSAKE');
+
+    const k = mutated((l) => { const ks = get(l, MIND_ID).keepsake; ks.word = '그리움'; ks.phrase = '그리움'; });
+    check(codesOf(k).includes('KEEPSAKE'), '마음 카드 낱말도 노래에 없으면 KEEPSAKE');
+
+    const m = mutated((l) => { delete get(l, MIND_ID).cardNote; });
+    check(ruleHits(m, 'cardNote'), '마음 카드 한 줄(cardNote)을 지우면 잡는다');
   }
 }
 
