@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "path": "assets/audio/bgm/start.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 대금 풍류 청성곡 악구 w3-190-010, w3-190-020, w3-190-030, w3-190-040, w3-190-050",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "시작 화면. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/entrance.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 거문고 풍류 현악영산회상 「상령산」 악구 S2-111-010, S2-111-020",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "입구와 복도. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/hyangga.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 대금 연례악 수제천 악구 w3-440-010, w3-440-022, w3-440-032, w3-440-042",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "향가관. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/goryeo.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 양금 연례악 보허사(보허자) 악구 S5-420-010, S5-420-012, S5-420-015, S5-420-018, S5-420-020",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "고려가요관. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/sijo.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 거문고 가곡(반주 가락) 남창 「우조 초수대엽」 악구 S2-211-010, S2-211-020, S2-211-030, S2-211-040",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "시조관. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/gasa.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 대금 풍류 관악영산회상 「염불도드리」 악구 w3-147-010, w3-147-020, w3-147-030, w3-147-040, w3-147-050, w3-147-060",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "가사관. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/saseol.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 해금 민간풍류 경기대풍류 「느린굿거리」 악구 S3-717-001, S3-717-002, S3-717-003, S3-717-004, S3-717-005",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "사설시조관. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/boss.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 아쟁 산조 윤윤석류 아쟁산조 「진양조」 악구 S4-001-001, S4-001-002, S4-001-003, S4-001-004, S4-001-005, S4-001-006",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "보스전 「서고의 밤」. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/bgm/ending.mp3",
+      "kind": "bgm",
+      "source": "국립국악원 「국악기 디지털 음원」 가야금 산조 성금련류 가야금산조 「진양조」 평조 대목 악구 s1-001-005, s1-001-006, s1-001-007, s1-001-008",
+      "generator": "tools/bgm/build_bgm.py (악구 잇기, 되풀이 이음매, −20 LUFS, 모노 MP3 64kbps)",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "엔딩. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/janggu.mp3",
+      "kind": "sfx",
+      "source": "국립국악원 「국악기 디지털 음원」 반주장구 정악 「시조 초중장 장단」 악구 m1-250-a01",
+      "generator": "tools/bgm/build_sfx.py — 「시조 초중장 장단」 27.51초의 덩(궁편·채편을 함께 친 타) 한 타, 0.7초",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "음보 두드리기 센 타. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/janggu-soft.mp3",
+      "kind": "sfx",
+      "source": "국립국악원 「국악기 디지털 음원」 반주장구 정악 「시조 초중장 장단」 악구 m1-250-a01",
+      "generator": "tools/bgm/build_sfx.py — 「시조 초중장 장단」 18.08초의 채편 잔가락 한 타, 0.26초",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "두드리기 여린 타. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/place.mp3",
+      "kind": "sfx",
+      "source": "국립국악원 「국악기 디지털 음원」 반주장구 정악 「시조 초중장 장단」 악구 m1-250-a01",
+      "generator": "tools/bgm/build_sfx.py — 「시조 초중장 장단」 32.50초의 덕-쿵(채편 뒤 궁편) 0.5초. 책을 칸에 꽂는 '탁'",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "책을 칸에 꽂음·뺌. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/bell.mp3",
+      "kind": "sfx",
+      "source": "직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 작은 종: 도(C6) 기본음과 종의 비조화 배음 6개, 짧은 타격 잡음",
+      "license": "이 게임 제작자가 스크립트로 직접 합성(외부 음원 없음). 상업 이용 제한 없음",
+      "commercialUse": true,
+      "notes": "박자 맞추기 종소리(여덟 번)"
+    },
+    {
+      "path": "assets/audio/sfx/bind.mp3",
+      "kind": "sfx",
+      "source": "직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 띠 잡음 두 번(실이 쓸림) + 짧은 사인 '톡'(매듭)",
+      "license": "이 게임 제작자가 스크립트로 직접 합성(외부 음원 없음). 상업 이용 제한 없음",
+      "commercialUse": true,
+      "notes": "칸 제본(실 묶음)"
+    },
+    {
+      "path": "assets/audio/sfx/gold.mp3",
+      "kind": "sfx",
+      "source": "직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 높은 사인 배음 묶음 네 개가 45~55ms 간격으로 반짝임 + 공기 잡음",
+      "license": "이 게임 제작자가 스크립트로 직접 합성(외부 음원 없음). 상업 이용 제한 없음",
+      "commercialUse": true,
+      "notes": "덤 칸 금박"
+    },
+    {
+      "path": "assets/audio/sfx/basket.mp3",
+      "kind": "sfx",
+      "source": "국립국악원 「국악기 디지털 음원」 반주장구 정악 「시조 초중장 장단」 악구 m1-250-a01 + 직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 「시조 초중장 장단」 15.01초의 궁편 '쿵' 0.6초 + 합성 바스락 6번",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "바구니에 담음. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/fog.mp3",
+      "kind": "sfx",
+      "source": "국립국악원 「국악기 디지털 음원」 징바라(징) 삼도농악가락 「자진삼채」 한 장단에 한 번 악구 i4-601-q01",
+      "generator": "tools/bgm/build_sfx.py — 「자진삼채」 1.60초의 징 한 타를 2.8초로 자르고 길게 줄임, 5kHz 위를 조금 깎음",
+      "license": "본 저작물은 '국립국악원'에서 공공누리 제1유형으로 개방한 '국악기 디지털 음원(작성자: 국립국악원)'을 이용하였으며, 해당 저작물은 '국립국악원, https://www.gugak.go.kr/digitaleum'에서 무료로 다운받으실 수 있습니다.",
+      "commercialUse": true,
+      "notes": "먹안개가 물러남. 내려받은 날 2026-10-05"
+    },
+    {
+      "path": "assets/audio/sfx/pop.mp3",
+      "kind": "sfx",
+      "source": "직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 음높이가 떨어지는 사인 '뽁' + 작은 되튐",
+      "license": "이 게임 제작자가 스크립트로 직접 합성(외부 음원 없음). 상업 이용 제한 없음",
+      "commercialUse": true,
+      "notes": "판정에서 틀린 노래가 삐져나옴"
+    },
+    {
+      "path": "assets/audio/sfx/page.mp3",
+      "kind": "sfx",
+      "source": "직접 합성",
+      "generator": "tools/bgm/build_sfx.py — 띠 잡음을 거칠게 흔든 바스락 + 낮은 '착'",
+      "license": "이 게임 제작자가 스크립트로 직접 합성(외부 음원 없음). 상업 이용 제한 없음",
+      "commercialUse": true,
+      "notes": "수첩·일지 책장 넘김"
+    }
+  ]
+}
