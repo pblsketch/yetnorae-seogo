@@ -1130,3 +1130,31 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 | `prompt` | 생성에 쓴 프롬프트 파일(`tools/art/prompts/...txt`) |
 | `rawSha256` | 생성 원본(`assets/raw/art/`, 저장소 밖) PNG의 sha256 |
 | `image` | `{ format, width, height, alpha }` — `tests/check-assets.mjs`가 파일 머리와 맞춰 본다 |
+
+## 추가 제안(T12) — 작품 방 「제망매가」
+
+작품 방 「제망매가」(T12)가 정한 것이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의(7.3의 `ctx`와 `record`)는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 방 `ctx` 더하기(선택)
+
+| 열쇠 | 뜻 |
+| --- | --- |
+| `assets` | 관 모형 `ctx.assets`와 같은 손잡이(`image(name)`). 2D 그림 판 `board/room-hyangga`를 찾는다 |
+| `manifest` | `assets`가 없을 때 자산 목록 객체. 방이 `js/world/assets.js`의 `createAssets`로 그림을 찾는다 |
+
+- 둘 다 없으면 2D는 자리표시 풍경(그림 없음)으로 그린다. 방은 자산 목록을 스스로 내려받지 않는다.
+- `reduceMotion`은 함수(`() => boolean`)든 값이든 받는다.
+
+### 3D에서 방이 기대는 것
+
+- `ctx.container`는 3D 캔버스와 **같은 자리, 같은 크기**로 겹쳐 있어야 한다. 누를 자리(잎·무더기)는 DOM 단추이고, 장면의 점을 `ctx.three.camera`로 투영해 `container` 위에 놓는다.
+- 방은 `ctx.three.root`에 모형 묶음 하나를 붙이고, 끝나거나 중단되면 떼어 내고 치운다. `camera`는 방 동안 빌려 쓰고 끝나면 처음 자리(위치·방향·시야각)로 되돌린다. 그리기는 부르는 쪽(세계 바탕)이 프레임마다 한다.
+- 재질은 빛 계산이 없는 것만 써서 장면의 빛과 상관없이 보인다. 그리기 호출은 방 모형만 약 28회다.
+
+### 기록의 해석 id(`interpretationId`)
+
+`js/data/rooms-hyangga.js`의 `interpretations`: `overcome`(슬픔을 이겨 냄), `endure`(견디겠다는 다짐), `both`(둘 다). 글은 고쳐도 id는 바꾸지 않는다(저장된 기록과 맞추기 위해). 자유 서술 답은 두지 않았다(7.3의 `interpretationText`가 데이터 파일의 글이어야 하므로).
+
+### 스타일
+
+- `css/room-hyangga.css`. 방이 이 파일의 `<link>`가 없으면 스스로 머리에 붙이지만, 연결 단계가 `index.html`에 링크를 더하는 편이 깜박임이 없다.
