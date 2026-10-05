@@ -1,0 +1,26 @@
+/* 공통 바탕: 색 토큰, 글꼴, 화면 틀. 화면별 스타일은 각 모듈의 css 파일에 둔다. */
+:root {
+  --hanji: #f3ead6;      /* 한지 미색 바탕 */
+  --hanji-deep: #e6d9bb;
+  --meok: #2b2b2b;       /* 먹 */
+  --meok-soft: #5a5650;
+  --meok-fog: #8d8a85;   /* 먹안개 */
+  --nokcheong: #2f7d6d;  /* 단청 녹청: 상호작용 요소 */
+  --juhong: #c4462f;     /* 단청 주홍: 상호작용 요소 강조 */
+  --gold: #b88a2a;       /* 금박 */
+  --font-body: 'YetnoraeText', 'Noto Serif KR', 'Nanum Myeongjo', serif;
+  --font-ui: 'YetnoraeUI', 'Pretendard', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  --text-scale: 1;       /* 글자 크기 3단계: 1, 1.15, 1.3 */
+  --touch-min: 48px;
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--meok); color: var(--meok); overflow: hidden; }
+body { font-family: var(--font-ui); font-size: calc(16px * var(--text-scale)); -webkit-text-size-adjust: 100%; touch-action: manipulation; }
+#app { position: fixed; inset: 0; height: 100dvh; background: var(--hanji); }
+button { font: inherit; min-width: var(--touch-min); min-height: var(--touch-min); cursor: pointer; }
+:focus-visible { outline: 3px solid var(--juhong); outline-offset: 2px; }
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+@media (prefers-reduced-motion: reduce) { :root { --prefers-reduced-motion: 1; } }
