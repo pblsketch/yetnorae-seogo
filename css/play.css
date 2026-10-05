@@ -471,6 +471,12 @@
 .play-room-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: max(6px, env(safe-area-inset-top, 0px)) max(10px, var(--safe-r)) 6px max(10px, var(--safe-l)); border-bottom: 2px solid var(--meok-soft); }
 .play-room-title { margin: 0; font-family: var(--font-body); font-size: calc(18px * var(--text-scale)); }
 .play-room-body { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+/* 3D에서 방이 세계 장면을 빌리면(README '연결 결정(F3)') 방 칸은 투명해 아래 세계 그림판의 방 무대가 보인다 */
+.play-room.is-world-stage { background: transparent; }
+.play-room.is-world-stage .play-room-head { background: var(--hanji); }
+/* 방이 열린 동안에는 한 판 화면의 위 띠·떠도는 노래·서가 띠를 숨긴다(투명한 방 칸 너머로 비치지 않게) */
+.play.is-in-room .play-layer,
+.play.is-in-room .play-hud { display: none; }
 .play-room-placeholder { margin: 2em auto; max-width: 30em; padding: 0 1em; text-align: center; font-family: var(--font-body); font-size: calc(17px * var(--text-scale)); line-height: 1.6; }
 
 /* 좁은 화면(휴대폰 가로) */

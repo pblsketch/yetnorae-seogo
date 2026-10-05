@@ -1363,3 +1363,62 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - 3단계 다시 재기도 보스 방식(다섯 도구, 일지)이다. 재기 화면이 도구를 시조 것만으로 줄이는 방법이 없어서 그렇다(계단 오르기는 다섯 가운데 하나로 쓸 수 있다). 시조 자리에 꽂으면 진행 엔진이 `boss.state = 'done'`을 기록하고, 보스 화면이 `diorama:slot-set { area: 'mentor', index: 0, songId: 'taesan' }`을 낸다(시조관이 지금 관이 아니면 받을 모형이 없고, 시조관에 들어갈 때 한 판 화면이 다시 낸다).
 - 이어 하기: 진행 엔진의 `enterBoss()`를 따른다. 1단계 '누가 불렀을까' 전, 2단계, 3단계 도중에 나가면 그 노래·단계를 다시 재기(2단계는 처음)부터 한다.
 - 그림 이름은 11.2의 `sprite/jom`·`sprite/jom-king`·`sprite/mentor`, '추가 제안(T26)'의 `board/boss`를 쓴다.
+
+## 연결 결정(F3) — 작품 방 손잡이
+
+다섯 작품 방(T12~T16)과 한 판 흐름(T6)이 방 `ctx`와 3D 장면을 서로 다르게 짐작해서(T6은 '방이 화면을 덮고 스스로 장면을 만든다', T12·T13·T15·T16은 '부르는 쪽 장면을 빌리고 부르는 쪽이 그린다', T14는 '방 안에 자기 그림판을 만든다'), 연결 단계(F3)가 부르는 쪽 약속을 하나로 정했다. 위 '추가 제안(T6)'의 '작품 방 ctx 더하기'에서 '방이 스스로 장면을 만든다(세계는 보이지 않는다)'는 이 절로 바뀐다. 방마다의 '추가 제안'에 적힌 선택 열쇠는 그대로 받는다.
+
+### 한 판 흐름이 넘기는 `ctx`(7.3에 더함) — `js/play/wing.js`
+
+| 열쇠 | 값 |
+| --- | --- |
+| `song` | 그 관의 방 노래(`SONG_TABLE.wings[관].room`) |
+| `container` | 방 칸 `.play-room-body`. 방 이름과 '방에서 나가기'가 있는 위 띠 아래의 화면 전체다 |
+| `mode` | `world.getMode()` — `'3d'` \| `'2d'` |
+| `three` | 3D일 때만 `world.openRoom(container)`가 내준 `{ THREE, root, camera }`(아래 '방 무대'). 2D면 없다 |
+| `noBeat` | 열 때의 `engine.noBeat.value`. 그 뒤로는 방이 `rhythm:no-beat`를 따른다 |
+| `reduceMotion` | 함수 `() => world.reduceMotion()` |
+| `rhythm` | `{ engine, buildGrid, createTapSession, offsetMs }` — 앱에 하나뿐인 소리 엔진, `js/core/rhythm.js`의 함수, 열 때의 `device.calibrationOffsetMs` |
+| `signal` | 방 중단 신호. '방에서 나가기'나 관을 떠날 때 중단된다 |
+| `manifest` | 자산 목록(세션이 한 번 읽은 것). 방이 `createAssets`로 자기 손잡이를 만들고 스스로 치운다. `assets`는 넘기지 않는다 |
+| `appearance` | 지금 기록의 `appearance`(`'a'` \| `'b'`) |
+| `songs` | 등록된 노래 목록(「정석가」 방이 「서경별곡」을 찾는다) |
+
+### 방 무대 — `world.openRoom(el)` · `world.closeRoom()` (`js/world/world.js`)
+
+- `openRoom(el)`: 이동 조작·상황 버튼을 멈추고(`.world.is-room`) 학생과 카메라를 더는 움직이지 않는다.
+  - 3D: 세계 장면의 다른 것(회랑, 관 문, 현판, **관 모형**, 학생, 도착 표시, 세계의 빛)을 모두 숨기고 안개를 끄고 바탕을 한지색으로 둔 뒤, **세계 원점에 빈 무대 `root`**(무리 하나)를 붙여 `{ THREE, root, camera }`를 돌려준다. 방은 원점 둘레(약 ±35m)를 마음대로 쓴다.
+  - 세계는 방이 열린 동안에도 **프레임마다 그린다.** 다만 `el`(방 칸)의 자리와 크기에만 그리고(그리기 판의 viewport·scissor), 카메라 비율(`aspect`)을 그 칸에 맞춘다. 그래서 방이 `camera`로 투영한 점은 `el` 기준 좌표와 맞는다(T12). 카메라 자리·방향·시야각은 방이 정하고 세계는 손대지 않는다(T16).
+  - 세계의 빛을 숨기므로 빛을 쓰는 재질의 방은 자기 빛을 무리 안에 둔다(T13·T15는 이미 그렇다).
+  - 2D: `null`을 돌려준다. 방은 `container` 안에 자기 그림 판을 그린다(불투명).
+- `closeRoom()`: 빈 무대를 떼고 숨긴 것을 모두 되살리고, 안개·바탕, 카메라의 시야각·near·far·up·zoom을 열기 전으로 돌리고 view offset을 지운다. 그리기 판은 다시 화면 전체, 카메라 비율도 화면 전체로 돌아가고, 카메라는 학생을 따라가는 자리로 바로 옮긴다. 조작이 다시 켜진다. 방이 무대에 남긴 것이 있어도 무대째 떼어진다.
+- `getRoomState()` → `{ open, children, wingHidden }`(점검용 읽기).
+- 방 쪽 약속: 빌린 장면이 보이도록 장면을 둘 곳의 바탕은 투명하게 둔다(「상춘곡」은 `three`를 받으면 `.rg-room.is-host-3d`로 방 바탕까지 투명하다). 「십 년을 경영하야」(T14)는 `three.THREE`만 쓰고 `container` 안에 자기 그림판을 만든다. 이때 세계는 빈 무대를 그 아래에 계속 그린다(가려져 보이지 않는다).
+
+### 한 판 화면(`js/play/wing.js`, `css/play.css`)
+
+- 방 문 → 상황 버튼 '작품 방 들어가기' → `.play-room`(위 띠 + 방 칸)을 띄우고, 등록된 방이면 `.play.is-in-room`(한 판 화면의 위 띠·떠도는 노래·서가 띠를 숨김)과 `world.openRoom(방 칸)`. 3D 무대를 받으면 `.play-room.is-world-stage`로 방 칸이 투명해진다.
+- 방을 마치면(`{ completed: true, record }`): 방이 스스로 치운 뒤 → `world.closeRoom()` → `progress.completeRoom(관, record)`(저장은 엔진) → 판을 마치면 판의 끝(단청 → 판 카드 …).
+- '방에서 나가기'·관을 떠남: 방 신호를 중단하고 곧바로 방 칸을 거두고 `world.closeRoom()`. 기록은 남지 않고, 다음에 들어가면 방이 처음부터 시작한다(spec 20).
+- 등록되지 않은 방은 전처럼 자리표시와 나가기만 보이고 세계는 방 무대가 되지 않는다.
+
+### 방 기록과 판 카드
+
+엔진이 `progress.rooms[관]`에 7.3 모양 그대로 저장하고, 판 카드(`buildWingCard` → `js/result/card.js`)가 이렇게 보인다.
+
+| 관 | 카드 칸 |
+| --- | --- |
+| `hyangga` | 고른 해석 = `interpretationText`('해석' 표시) |
+| `goryeo` | 내세운 조건 = `lastConditionText`(마지막으로 내세운 카드 이름) |
+| `sijo` | 세 칸 = `rooms`의 물건 이름, 집 밖 = `outside`의 물건 이름, 해석 문장 = `interpretationText`('해석' 표시) |
+| `gasa` | 모은 시어 = `words`(방 글 차례) |
+| `saseol` | 나의 예측 = `predictionText` |
+
+### 방 스타일
+
+- 다섯 방 스타일은 모두 `index.html`에 함께 붙는다. 「정석가」와 「상춘곡」이 같은 머리 `rg-`를 써서 `.rg-stage`·`.rg-panel`·`.rg-card`·`.rg-row`·`.rg-gloss`·`.rg-finish`가 서로의 방에 번졌으므로, 두 파일의 모든 규칙을 방 뿌리 아래로 묶었다(`css/room-goryeo.css`는 `.room-goryeo …`, `css/room-gasa.css`는 `.rg-room …`). 앞으로 방 스타일은 방 뿌리 클래스 아래에만 쓴다.
+
+### 점검
+
+- `tests/check-rooms-in-flow.mjs`: 실제 앱 페이지(`index.html`)에서 등록된 한 판 화면을 띄워(점검 도구가 `screens.play`를 연다. 시작 화면이 등록되면 그 길로 바꿀 수 있다) 관 다섯 × 3D 1366×768·강제 2D 844×390마다 실제 방을 실제 입력으로 끝까지 하고, 도중에 나갔다가 다시 들어가기, 방이 보이는지(가려짐·바탕만 보임), 기록·판 카드·단청, 세계 되돌림을 본다.
+- 낭송 조각(T28)이 아직 없어서 실제 소리 엔진은 낭송할 때 `assets/audio/voice/…`를 요청하고 404(콘솔 줄)를 받는다. 점검은 자산 목록에 `voice`가 하나도 없는 동안만 이 요청을 따로 세어 알리고, 그 밖의 404·콘솔 오류는 실패로 본다.

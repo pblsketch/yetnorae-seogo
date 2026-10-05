@@ -12,6 +12,9 @@
 //   getWingHandle()                       지금 관 모형의 손잡이(등록된 관 모형이면 normalizeWing으로 맞춘 모양). 회랑이면 null
 //   setDancheong(id, level)               관마다 먹빛(0)~단청(1)
 //   getMode()                             '3d' | '2d'
+//   openRoom(el) / closeRoom()            작품 방 무대(README '연결 결정(F3)'). 여는 동안 이동 조작이 멈추고 학생·카메라를 움직이지 않는다.
+//                                         3D면 세계의 다른 것을 모두 숨기고 원점의 빈 무대에 { THREE, root, camera }를 돌려준다.
+//                                         그리기는 세계가 프레임마다 el의 자리·크기에만 한다. 2D면 null. closeRoom()이면 모두 되돌린다
 //   dispose()
 //
 // 사건: 사건 버스의 diorama:* 사건을 지금 관 모형의 react로 넘기고, wing:state로 관 문을 열고 닫는다.
@@ -60,7 +63,7 @@ function loop(now) {
     setDancheongLevel(id, t.from + (1 - t.from) * k);
     if (k >= 1) w.tweens.delete(id);
   }
-  w.host.frame(dt, w.split ? { x: 0, y: 0 } : w.controls.moveVector());
+  w.host.frame(dt, w.split || w.room ? { x: 0, y: 0 } : w.controls.moveVector());
 }
 
 function restoreDancheong(id) {
@@ -122,8 +125,8 @@ export function mount(container, opts = {}) {
     view,
     hud,
     safe,
-    onTap: (x, y) => { if (w && !w.split && !isPaused()) host.tapAt(x, y); },
-    onRotate: (dx) => { if (w && !w.split) host.rotateBy(dx); },
+    onTap: (x, y) => { if (w && !w.split && !w.room && !isPaused()) host.tapAt(x, y); },
+    onRotate: (dx) => { if (w && !w.split && !w.room) host.rotateBy(dx); },
   });
 
   const offs = [];
@@ -135,11 +138,11 @@ export function mount(container, opts = {}) {
   }
   offs.push(on('wing:state', (d) => host.setWingState(d?.wing, d?.state)));
   offs.push(onDancheong((id) => host.dancheongChanged(id)));
-  offs.push(onPauseChange((paused) => controls.setEnabled(!paused && !w?.split)));
+  offs.push(onPauseChange((paused) => controls.setEnabled(!paused && !w?.split && !w?.room)));
   offs.push(() => fine?.removeEventListener('change', syncPointer));
   if (isPaused()) controls.setEnabled(false);
 
-  w = { root, view, panel, host, assets, controls, offs, split: false, raf: 0, last: null, tweens: new Map() };
+  w = { root, view, panel, host, assets, controls, offs, split: false, room: false, raf: 0, last: null, tweens: new Map() };
   w.raf = requestAnimationFrame(loop);
   return api;
 }
@@ -173,9 +176,36 @@ export function closeSplit() {
   w.split = false;
   w.root.classList.remove('is-split');
   w.panel.replaceChildren();
-  w.controls.setEnabled(!isPaused());
+  w.controls.setEnabled(!isPaused() && !w.room);
   w.host.setMeasureFocus(false);
   w.host.resize();
+}
+
+// 작품 방 무대를 연다. el: 방 칸(작품 방의 ctx.container). 3D면 { THREE, root, camera }, 2D면 null.
+export function openRoom(el) {
+  if (!w) return null;
+  if (w.room) closeRoom();
+  w.room = true;
+  w.root.classList.add('is-room');
+  w.controls.setContext(null);
+  w.controls.setEnabled(false);
+  w.host.clearTarget();
+  return w.host.beginRoom?.(el) ?? null;
+}
+
+export function closeRoom() {
+  if (!w || !w.room) return;
+  w.room = false;
+  w.root.classList.remove('is-room');
+  w.host.endRoom?.();
+  w.controls.setEnabled(!isPaused() && !w.split);
+}
+
+// 점검용 읽기: { open, children(빈 무대에 붙은 것 수, 3D), wingHidden(관 모형을 숨겼는지, 3D) }
+export function getRoomState() {
+  if (!w) return null;
+  const h = w.host.getRoomState?.() ?? {};
+  return { open: w.room, children: h.children ?? 0, wingHidden: h.wingHidden ?? false };
 }
 
 export function setDancheong(wingId, level) {
@@ -210,6 +240,7 @@ export function toScreen(p) { return w?.host.toScreen(p) ?? null; }
 
 export function dispose() {
   if (!w) return;
+  closeRoom();
   cancelAnimationFrame(w.raf);
   w.offs.forEach((off) => off());
   w.controls.dispose();
@@ -220,6 +251,6 @@ export function dispose() {
 }
 
 const api = {
-  mount, enterWing, enterCorridor, setContext, openSplit, closeSplit, setDancheong, getDancheong, getMode, dispose,
+  mount, enterWing, enterCorridor, setContext, openSplit, closeSplit, openRoom, closeRoom, getRoomState, setDancheong, getDancheong, getMode, dispose,
   shake, moveTo, getPlace, getPlayer, getMarker, getCamera, resetCamera, getAnchors, getWingHandle, getThree, getStats, toScreen,
 };

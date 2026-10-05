@@ -1,7 +1,7 @@
 // 관 한 판(spec 2·3.2·4.3·5·6·8·12·20). 관 하나에서 학생이 하는 일을 처음부터 끝까지 잇는다.
 //   들어가기 → 떠도는 노래 잡기 → 재기(js/measure) → 칸·탑·바구니에 꽂기(바구니는 갈 관도 고른다)
 //   → 다 차면 판정(진행 엔진) → 제본·금박·먹안개 / 틀린 노래만 삐져나와 손으로 → 가객과 기념품
-//   → 작품 방(js/registry.js의 rooms) → 판의 끝: 단청, 판 카드, 다음 관 문틈 소리, 덤 칸
+//   → 작품 방(js/registry.js의 rooms, 세계는 방 무대가 된다 — README '연결 결정(F3)') → 판의 끝: 단청, 판 카드, 다음 관 문틈 소리, 덤 칸
 // 마친 관에 다시 들어오면 덤 칸과 다시 듣기만 한다. 판정 기록은 바뀌지 않는다.
 //
 // 움직임은 세계 바탕의 약속을 따른다: 누른 곳으로 걸어가 멈추면 오른쪽 아래 상황 버튼("잡기", "꽂기" …)이 뜬다.
@@ -10,7 +10,7 @@
 import * as bus from '../core/events.js';
 import { TUNABLES } from '../core/progress.js';
 import { buildWingCard } from '../core/cards.js';
-import { buildGrid } from '../core/rhythm.js';
+import { buildGrid, createTapSession } from '../core/rhythm.js';
 import { SONG_TABLE } from '../data/song-table.js';
 import { PLAY_WING_IDS, WINGS, wingById } from '../data/wings.js';
 import { openMeasure } from '../measure/measure.js';
@@ -564,10 +564,19 @@ export function createWingPlay(session, wingId) {
   }
 
   // ───────── 작품 방 ─────────
+  // 방 손잡이(README 7.3, '연결 결정(F3)'): 방 칸(container)을 세계 위에 겹치고, 세계는 world.openRoom으로 방 무대가 된다.
+  // 3D면 세계가 원점의 빈 무대 { THREE, root, camera }를 내주고 프레임마다 방 칸 자리에 그린다(관 모형·회랑은 숨는다).
+  // 방을 마치거나 나가면 world.closeRoom으로 카메라·관 모형·조작을 되돌린다. 도중에 나가면 다음에 처음부터 한다.
+  function roomRhythm() {
+    const device = session.store?.data?.device ?? {};
+    return { ...session.rhythm, engine: audio, buildGrid, createTapSession, offsetMs: device.calibrationOffsetMs ?? session.rhythm?.offsetMs ?? 0 };
+  }
+
   async function openRoom() {
     if (busy || disposed || !ws().shelfBound || ws().roomDone) return;
     busy = true;
     closeDialog();
+    world.setContext(null);
     const roomSong = song(t.room);
     const box = el('section', 'play-room');
     box.setAttribute('role', 'dialog');
@@ -581,7 +590,19 @@ export function createWingPlay(session, wingId) {
     const roomAc = new AbortController();
     const onAbort = () => roomAc.abort(ac.signal.reason);
     ac.signal.addEventListener('abort', onAbort, { once: true });
-    const closeRoom = () => { box.remove(); ac.signal.removeEventListener('abort', onAbort); busy = false; render(); };
+    let stageOpen = false;
+    let closed = false;
+    const closeRoom = () => {
+      if (closed) return;
+      closed = true;
+      box.remove();
+      ac.signal.removeEventListener('abort', onAbort);
+      session.root.classList.remove('is-in-room');
+      if (stageOpen && !disposed) world.closeRoom();   // 관을 떠날 때는 dispose가 거둔다
+      stageOpen = false;
+      busy = false;
+      render();
+    };
     leave.addEventListener('click', () => { roomAc.abort(new DOMException('방에서 나감', 'AbortError')); closeRoom(); });
     const mod = session.rooms?.[wingId];
     if (typeof mod?.start !== 'function') {
@@ -589,24 +610,30 @@ export function createWingPlay(session, wingId) {
       body.append(el('p', 'play-room-placeholder', L.roomPlaceholder));
       return;
     }
-    const three = is3D() ? world.getThree() : null;
+    session.root.classList.add('is-in-room');
+    const stage = world.openRoom(body);
+    stageOpen = true;
+    box.classList.toggle('is-world-stage', !!stage);
+    const record = session.store?.currentRecord?.() ?? null;
     let res = null;
     try {
       res = await mod.start({
         song: roomSong,
         container: body,
         mode: world.getMode(),
-        three: three ? { THREE: three.THREE, root: three.root, camera: three.camera } : undefined,
+        three: stage ?? undefined,
         noBeat: !!audio.noBeat?.value,
         reduceMotion: () => world.reduceMotion(),
-        rhythm: session.rhythm,
+        rhythm: roomRhythm(),
         signal: roomAc.signal,
-        manifest: session.manifest,
+        manifest: session.manifest ?? undefined,
+        appearance: record?.appearance ?? 'a',
+        songs: session.songs,
       });
     } catch (e) {
       if (e?.name !== 'AbortError') console.error('[play] 작품 방 실패', e);
     }
-    if (roomAc.signal.aborted || disposed) return;
+    if (roomAc.signal.aborted || disposed) { closeRoom(); return; }
     closeRoom();
     if (!res?.completed) return;
     const wasDone = isDone();
@@ -692,6 +719,8 @@ export function createWingPlay(session, wingId) {
     closeDialog();
     leakEl?.remove();
     for (const sel of ['.play-room', '.play-card', '.play-singers', '.play-keepsakes']) session.root.querySelectorAll(sel).forEach((n) => n.remove());
+    session.root.classList.remove('is-in-room');
+    world.closeRoom?.();
     layer.replaceChildren();
     hud.extras.replaceChildren();
     session.root.classList.remove('is-measuring');
