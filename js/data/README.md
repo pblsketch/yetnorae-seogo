@@ -1130,3 +1130,27 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 | `prompt` | 생성에 쓴 프롬프트 파일(`tools/art/prompts/...txt`) |
 | `rawSha256` | 생성 원본(`assets/raw/art/`, 저장소 밖) PNG의 sha256 |
 | `image` | `{ format, width, height, alpha }` — `tests/check-assets.mjs`가 파일 머리와 맞춰 본다 |
+
+## 추가 제안(T14) — 작품 방 「십 년을 경영하야」
+
+작품 방 작업(T14, `js/rooms/sijo.js`)이 정한 것이다. 연결 단계가 확인해 본문(7.3)에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### `ctx` 더하기와 읽는 방식
+
+| 열쇠 | 뜻 |
+| --- | --- |
+| `manifest` 또는 `assets` | 자산 목록(`assets/manifest.json`을 읽은 객체) 또는 `createAssets(목록)`(`js/world/assets.js`)의 손잡이. 2D 그림 판 `board/room-sijo`와 송순 그림 `sprite/singer-simnyeon-gyeongyeong`을 찾는다. 없으면 자리표시 그림을 쓴다 |
+| `three` | 3D일 때 `three.THREE`만 쓴다(없으면 `import('three')`). 방은 `container` 안에 **자기 그림판(WebGLRenderer)·장면·카메라**를 따로 만들고 끝나면 치운다. `three.root`·`three.camera`는 쓰지 않는다. 3D를 만들 수 없으면 2D로 한다 |
+| `reduceMotion` | 함수(`() => boolean`)나 값 모두 받는다. 없으면 `#app.reduce-motion`을 본다 |
+| `noBeat` | 처음 값. 그 뒤로는 `rhythm:no-beat`를 따른다. 박자 없는 방식이면 낭송이 끝나기를 기다리지 않고 '다음'이 열린다 |
+| `rhythm` | `{ engine, buildGrid? }`. 초장(시작)·중장(송순의 배치)·종장(강산을 밖에 둘 때)을 `engine.play(grid, [장])`으로 낭송하고, 놓을 때 `engine.sfx('place')`를 낸다 |
+
+- 방이 화면을 다 채운다고 보고 `container` 안을 꽉 채운다(`position: absolute; inset: 0`). 스타일은 `css/room-sijo.css`이고, 문서에 없으면 방이 스스로 `<link>`를 붙인다(연결 단계가 `index.html`에 더하면 깜박임이 없다).
+- 회전 멈춤(`orientation:pause`/`resume`)이면 물러나는 연출도 멈췄다가 이어 간다.
+
+### 기록 값(7.3 그대로)
+
+- `rooms`: 칸 번호 순서(첫째·둘째·셋째 칸)의 물건 id 셋. 강산은 들어가지 않는다.
+- `outside`: 집 밖에 **놓은 순서**의 물건 id. 방을 마치면 언제나 `gangsan`이 들어 있다. 놓지 않고 남긴 물건은 어디에도 적지 않는다.
+- `interpretationId`(`js/data/rooms-sijo.js`): `as-written`(나·달·청풍, 순서 무관) · `nature-swapped`(재물·벼슬 없이 손님이 한 칸) · `worldly`(금붙이나 관복을 들였고 달이나 청풍이 남음) · `worldly-only`(금붙이나 관복을 들였고 달도 청풍도 없음). 규칙은 `js/rooms/sijo-logic.js`의 `interpretationIdFor`.
+- 노래 데이터의 제목은 「십 년을 경영하야」(원문 표기)다. 7.3 표의 「십 년을 경영하여」는 같은 방이다.
