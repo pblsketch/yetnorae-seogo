@@ -1431,3 +1431,13 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - 문으로 들어가면 보스 화면이 진행 엔진 `enterBoss()`로 이어 간다: 마친 단계와 1단계 노래별 기록은 그대로, 하던 노래(1단계)·2단계·3단계는 처음부터(spec 20, 위 '추가 제안(T17)'의 '이어 하기').
 - 보스 도중에 나가면 회랑으로 돌아오고 보스 문은 열린 채 남는다.
 - 보스를 마쳤으면 엔딩, 서고가 완성되면 회랑이고 보스 문은 `data-state="done"`으로 닫혀 다시 열리지 않는다(바뀌지 않음).
+
+## 추가 제안(T27) — 낭송 조각 만들기와 점검
+
+낭송 조각 도구(`tools/voice/`)와 점검(`tests/check-voice.mjs`)이 따르는 약속이다. 10절의 조각 이름과 11절의 목록 모양은 그대로다.
+
+- **칸 길이**: 조각 하나의 길이는 그 노래의 박자 칸 `60 / tempoOf(노래)`초 이하다(향가는 구 하나가 한 박). 도구는 칸의 92% 안에 넣는다. 음보가 길어 빠르게 읽혀야 하는 노래는 노래 데이터의 `tempo`를 낮춘다(도구가 노래마다 '자연스럽게 들어갈 빠르기'를 알린다). `tempo`를 바꾸면 그 노래의 조각을 다시 만든다(점검이 기록의 칸과 지금 칸을 비교한다).
+- **생성 기록**: `assets/audio/voice/manifest.json` — `{ version: 1, source: 'Fish Audio', generator: { model, plan, voice, referenceSha256, … }, license, commercialUse: true, clips: [{ path, songId, unit, line, foot, text, duration, slotSec, tempo, naturalSec, ttsSpeed, stretch, sha256, generation }] }`. 게임은 이 파일을 읽지 않는다.
+- **자산 목록 조각**: `assets/manifest.parts/voice.json`에 조각마다 항목 하나(`kind: 'voice'`, `notes`는 그 조각의 글).
+- **승인된 목소리**: `tools/voice/voices.json`의 `approved`. 실제 조각은 승인된 목소리로만 만들고, 점검은 생성 기록의 `generator.voice`가 이 값과 같은지 본다.
+- **조각이 없을 때**: `check-voice`는 실패한다. 낭송 조각을 만들기 전에 다른 점검과 함께 돌릴 때만 `VOICE_OPTIONAL=1`로 '아직 없음'을 통과시킨다.
