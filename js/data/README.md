@@ -1249,3 +1249,28 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - `outside`: 집 밖에 **놓은 순서**의 물건 id. 방을 마치면 언제나 `gangsan`이 들어 있다. 놓지 않고 남긴 물건은 어디에도 적지 않는다.
 - `interpretationId`(`js/data/rooms-sijo.js`): `as-written`(나·달·청풍, 순서 무관) · `nature-swapped`(재물·벼슬 없이 손님이 한 칸) · `worldly`(금붙이나 관복을 들였고 달이나 청풍이 남음) · `worldly-only`(금붙이나 관복을 들였고 달도 청풍도 없음). 규칙은 `js/rooms/sijo-logic.js`의 `interpretationIdFor`.
 - 노래 데이터의 제목은 「십 년을 경영하야」(원문 표기)다. 7.3 표의 「십 년을 경영하여」는 같은 방이다.
+
+## 추가 제안(T15) — 작품 방 「상춘곡」
+
+작품 방 「상춘곡」(T15)이 정한 것이다. 연결 단계가 확인해 본문(7.3)에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 작품 방 `ctx` 더하기(7.3)
+
+| 열쇠 | 뜻 |
+| --- | --- |
+| `manifest` | (선택) 자산 목록 객체(`assets/manifest.json`을 읽은 것). 2D는 `board/room-<관 id>`, 3D·2D 걷는 사람은 `sprite/student-<a\|b>`를 여기서 찾는다. 없으면 자리표시 그림 |
+| `assets` | (선택) `createAssets(manifest)` 손잡이를 이미 만들었으면 이것을 넘겨도 된다(`manifest`가 먼저) |
+| `appearance` | (선택) 저장의 `appearance`(`'a'` \| `'b'`). 없으면 `'a'` |
+
+- `reduceMotion`은 값(`boolean`)이나 함수(`() => boolean`) 둘 다 받는다. 방은 `settings:reduce-motion`도 듣는다.
+- `noBeat`은 처음 값이고, 그 뒤로는 `rhythm:no-beat`를 따른다. `rhythm`은 '추가 제안(T5)'의 재기 화면과 같은 모양 `{ engine, buildGrid? }`이다.
+- 3D에서 `three`(`{ THREE, root, camera }`)를 넘기면 방은 `root`에 무리(group) 하나를 붙이고 카메라를 움직일 뿐, 그리기는 부르는 쪽이 한다. 그때 장면 칸 바탕은 투명하다. 방 장면은 원점 둘레 약 ±35m를 쓰므로 부르는 쪽은 비어 있는(또는 관 모형을 숨긴) `root`를 넘긴다. `three`가 없으면 방이 장면 칸 안에 그림판을 스스로 만든다. 3D를 만들지 못하면 같은 방을 2D로 이어 간다.
+- 스타일 `css/room-gasa.css`는 방이 스스로 붙인다(한 번만). 연결 단계가 `index.html`에 넣어도 겹치지 않는다.
+- 방은 받은 `container`를 가득 채우고(`position: absolute; inset: 0`), 마치거나 중단되면 자기가 만든 것을 모두 치운다. 오른쪽 아래 상황 버튼 구석(가로 78%·세로 78% 너머)에는 누를 것을 두지 않는다.
+
+### 방 글 — `js/data/rooms-gasa.js`
+
+- `roomGasa.stations`: 머무는 곳 다섯(작품 차례: `hut` 수간모옥 1~13행, `pavilion` 정자 14~21행, `stream` 시냇가 22~30행, `peak` 산봉우리 31~35행, `ending` 마무리 36~39행). 교과서 대목은 정자에서 끝나고, 시냇가부터 교과서 밖 원문이다.
+- 곳마다 `words`(모을 시어 `{ id, text, unit }`). `text`는 그 행 원문에 그대로 있다. 마무리를 뺀 네 곳에서 하나 이상 모아야 다음 곳으로 걷는다.
+- `record.words`는 모은 시어의 `text`를 **방 글 차례(작품 차례)**로 담는다. 누른 차례와 상관없다. 그래서 길이는 4 이상 19 이하다.
+- `letGo`(36행 공명·부귀를 떠나보내기)와 `finale`(안빈낙도 마무리 글)도 이 파일에 있다. 해석 고르기는 없다(채점·선택 없음).
