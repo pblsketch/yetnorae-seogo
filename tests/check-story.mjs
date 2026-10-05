@@ -10,6 +10,7 @@
 //  - 다시 열면 시작 화면에서 그 기록을 골라 있던 자리로 이어 간다(입구를 다시 보지 않는다)
 //  - 관에 처음 들어가면 들어가기 글(2D에서 실제로 문으로 걸어 들어간다)
 //  - (상태 주입) 다섯 관을 마치면 보스 문이 생긴다. 마치기 전에는 없다. 일지 단서 다섯
+//  - (상태 주입) 보스 도중의 기록을 다시 열면 회랑의 열린 보스 문 앞(보스로 곧장 가지 않음). 들어가면 하던 단계·노래부터, 나가면 문은 열린 채
 //  - (상태 주입) 보스를 마치면 엔딩: 행렬 순서, 빈자리, 한 줄 1~40자, 한마디 0~60자, 고른 관 갈래의 먹 개념만 고를 수 있음,
 //    꽂으면 서고 완성과 마지막 카드 내려받기(PNG), 시작 화면의 '서고 완성' 표시, 보스와 엔딩을 다시 할 수 없음, 카드는 다시 받음
 //  - 3D와 강제 2D, 1366×768과 844×390. 콘솔 오류·바깥 요청·점수 말 없음, 화면 넘침·48px 미만 단추 없음
@@ -58,7 +59,8 @@ const ROOM_RECORDS = {
   saseol: { room: 'saseol', predictionId: 'nim', predictionText: '점검용 예측' },
 };
 
-function seedAllDone({ name = '점검', bossDone = false, pencilConcept = null, appearance = 'a' } = {}) {
+// bossState: 보스를 마치지 않은 기록의 보스 단계(기본 'stage1'), unseenDone: 1단계에서 이미 마친 낯선 노래 수(차례대로)
+function seedAllDone({ name = '점검', bossDone = false, pencilConcept = null, appearance = 'a', bossState = 'stage1', unseenDone = 0 } = {}) {
   const data = defaultData();
   data.device.calibrated = true;
   data.device.slashMode = true;
@@ -75,12 +77,11 @@ function seedAllDone({ name = '점검', bossDone = false, pencilConcept = null, 
     const g = c.genre;
     p.concepts[c.id] = c.id === pencilConcept ? { state: 'pencil', songs: ['taesan'] } : { state: 'ink', songs: WING_TABLE[g].shelf.slice(0, 2) };
   }
-  p.boss.state = bossDone ? 'done' : 'stage1';
-  if (bossDone) {
-    for (const g of BOSS_TABLE.unseenOrder) {
-      const id = BOSS_TABLE.unseen[g];
-      p.boss.unseen[id] = { done: true, firstTryCorrect: g !== 'gasa', journalHelp: g === 'gasa', singerGroupCorrect: g !== 'saseol' };
-    }
+  p.boss.state = bossDone ? 'done' : bossState;
+  const doneCount = bossDone || bossState !== 'stage1' ? BOSS_TABLE.unseenOrder.length : unseenDone;
+  for (const g of BOSS_TABLE.unseenOrder.slice(0, doneCount)) {
+    const id = BOSS_TABLE.unseen[g];
+    p.boss.unseen[id] = { done: true, firstTryCorrect: g !== 'gasa', journalHelp: g === 'gasa', singerGroupCorrect: g !== 'saseol' };
   }
   const id = 's-story';
   data.slots[id] = { id, name, appearance, createdAt: '2026-10-01T09:00:00.000Z', updatedAt: '2026-10-01T09:00:00.000Z', progress: p };
@@ -534,6 +535,47 @@ try {
       ok((await text(page, '.story-toast'))?.length > 0 && (await place(page)) === 'corridor', v.label + ': 보스 화면이 아직 없으면 알리고 회랑에 머문다');
     }
     ok(game.errors.length === 0, v.label + ' 보스 문: 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
+    await game.close();
+    sessions.pop();
+  }
+
+  // ══════════ (상태 주입) 보스 도중의 기록 → 회랑의 열린 보스 문 → 들어가면 그 단계부터 ══════════
+  // 다시 열면 보스로 곧장 가지 않고 회랑에서 열린 보스 문을 보인다. 문으로 들어가면 마친 단계와 1단계 노래 기록은 그대로, 하던 노래부터.
+  // 도중에 나가면 회랑으로 돌아오고 문은 열린 채 남는다.
+  for (const v of [
+    { label: '3D 1366 1단계 셋째 노래', viewport: VIEWPORTS.chromebook, disable3d: false, bossState: 'stage1', unseenDone: 2 },
+    { label: '2D 844 2단계', viewport: VIEWPORTS.phone, disable3d: true, bossState: 'stage2', unseenDone: 0 },
+  ]) {
+    console.log('— 보스 도중의 기록(' + v.label + '): 회랑의 열린 문으로 이어 간다');
+    const game = await openGame(server.url, { viewport: v.viewport, disable3d: v.disable3d, seed: seedAllDone({ bossState: v.bossState, unseenDone: v.unseenDone }) });
+    sessions.push(game);
+    const { page } = game;
+    await waitStart(page);
+    await click(page, '.story-record .story-record-open');
+    await waitSel(page, '.story-boss-door');
+    let s = await ev(page, () => ({ place: document.querySelector('.play')?.dataset.place, door: document.querySelector('.story-boss-door')?.dataset.state, boss: !!document.querySelector('.story-boss-host, .boss'), hasBoss: !!document.querySelector('.play.has-boss') }));
+    ok(s.place === 'corridor' && s.door === 'open' && !s.boss && !s.hasBoss, v.label + ': 다시 열면 회랑에 서고 보스 문이 열려 있다(보스로 곧장 가지 않는다) ' + JSON.stringify(s));
+    await click(page, '.story-boss-door');
+    await waitSel(page, '.story-boss-host .boss');
+    await page.waitForFunction((st) => document.querySelector('.boss')?.dataset.stage === st, v.bossState, { timeout: 20000, polling: 100 });
+    ok(true, v.label + ': 문으로 들어가면 보스가 ' + v.bossState + '부터 이어진다');
+    if (v.bossState === 'stage1') {
+      if (await ev(page, () => !!document.querySelector('.boss .boss-go'))) await click(page, '.boss .boss-go');
+      await waitSel(page, '.boss .boss-song[data-song]');
+      const want = BOSS_TABLE.unseen[BOSS_TABLE.unseenOrder[v.unseenDone]];
+      const got = await ev(page, () => document.querySelector('.boss .boss-song')?.dataset.song);
+      ok(got === want, v.label + ': 마친 노래는 건너뛰고 하던 노래부터 한다 ' + JSON.stringify({ got, want }));
+    }
+    await click(page, '.boss .boss-leave');
+    await waitGone(page, '.story-boss-host');
+    await waitSel(page, '.story-boss-door');
+    s = await ev(page, () => ({ place: document.querySelector('.play')?.dataset.place, door: document.querySelector('.story-boss-door')?.dataset.state, hasBoss: !!document.querySelector('.play.has-boss') }));
+    ok(s.place === 'corridor' && s.door === 'open' && !s.hasBoss, v.label + ': 도중에 나가면 회랑으로 돌아오고 보스 문은 열린 채다 ' + JSON.stringify(s));
+    const rec = await record(page);
+    const doneIds = Object.entries(rec.progress.boss.unseen).filter(([, u]) => u.done).map(([id]) => id).sort();
+    const wantDone = BOSS_TABLE.unseenOrder.slice(0, v.bossState === 'stage1' ? v.unseenDone : BOSS_TABLE.unseenOrder.length).map((g) => BOSS_TABLE.unseen[g]).sort();
+    ok(rec.progress.boss.state === v.bossState && same(doneIds, wantDone), v.label + ': 나가도 보스 단계와 마친 노래 기록은 그대로 ' + JSON.stringify({ state: rec.progress.boss.state, doneIds }));
+    ok(game.errors.length === 0, v.label + ': 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
     await game.close();
     sessions.pop();
   }
