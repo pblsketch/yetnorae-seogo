@@ -1,4 +1,4 @@
-// 3D 바탕(spec 3.1·14): 장면과 그리기, 자동으로 따라가는 카메라와 제한 각도 회전, 종이 인형 무대,
+// 3D 바탕(spec 3.1·14): 장면과 그리기, 자동으로 따라가는 카메라와 제한 각도 회전, 학생 3D 인물,
 // 입구·회랑·관 문, 관 모형을 끼우는 자리, 먹빛→단청 색.
 // 회랑 건축은 gfx 꾸러미(js/world/gfx/)로 corridor-art.js가 짓는다: 재질 역할마다 합친 기하 하나라 그리기 호출이 적다.
 // 관 문은 InstancedMesh 하나로 그린다. 실시간 그림자와 후처리는 쓰지 않는다(접지는 그림자 번짐 카드).
@@ -10,7 +10,7 @@ import { TUNING } from './tuning.js';
 import { createTextures } from './gfx/textures.js';
 import { createMaterials } from './gfx/materials.js';
 import { createKit } from './gfx/kit.js';
-import { createFigure, FIGURE_HEIGHT } from './gfx/figures.js';
+import { createCharacter, FIGURE_HEIGHT } from './gfx/figures.js';
 import { applyRenderSettings, createLightRig, setFog } from './gfx/lighting.js';
 import { buildCorridorGallery, buildCorridorGrounds } from './corridor-art.js';
 
@@ -163,11 +163,13 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   const signs = signBoards();
   scene.add(signs);
 
-  // 학생 종이 인형(종이 카드 + 발밑 그림자, gfx/figures.js)
+  // 학생: 절차 3D 인물(gfx/figures-3d.js, 생김새 a·b) + 발밑 그림자. 조립법이 없는 생김새면 종이 카드로 돌아간다.
   const look = 'student-' + (appearance === 'b' ? 'b' : 'a');
-  const dollUrl = assets.image?.('sprite/' + look) ?? null;
-  const doll = createFigure(THREE, {
-    url: dollUrl, canvas: dollUrl ? null : paperDollCanvas(look), height: FIGURE_HEIGHT.student, reduceMotion, name: 'student',
+  const doll = createCharacter(THREE, {
+    kind: look,
+    url: assets.image?.('sprite/' + look) ?? null,
+    canvas: assets.image?.('sprite/' + look) ? null : paperDollCanvas(look),
+    height: FIGURE_HEIGHT.student, reduceMotion, name: 'student',
   });
   scene.add(doll.root);
   let dollFlip = false;
@@ -207,7 +209,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   doll.root.position.copy(player);
 
   function bounds() {
-    // 북쪽 벽에서는 1m 떨어진다(빌보드 윗부분이 벽 뒤로 기울어 가려지지 않게).
+    // 북쪽 벽에서는 1m 떨어진다(인물 윗부분이 벽 처마에 가려지지 않게).
     if (place === 'corridor') return { x0: CORRIDOR.x0 + 1, x1: CORRIDOR.x1 - EDGE, z0: CORRIDOR.z0 + 1, z1: CORRIDOR.z1 - EDGE };
     const x = slotX(wingIndex(place));
     return { x0: x - WING_HALF + EDGE, x1: x + WING_HALF - EDGE, z0: SLOT_Z - WING_HALF + EDGE, z1: SLOT_Z + WING_HALF - EDGE };
@@ -543,7 +545,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
       camera.position.y += (Math.random() - 0.5) * 0.12 * shakeLeft;
     }
     camera.lookAt(camLook);
-    doll.update(dt, camera, { moving: !!dir, flip: dollFlip });
+    doll.update(dt, camera, { moving: !!dir, flip: dollFlip, dir, speed: dir ? TUNING.moveSpeed * Math.min(1, dir.length()) : 0 });
     lights.aim(player);
     render();
   }

@@ -3,7 +3,7 @@
 // three가 주어지면({ THREE, root, camera }) 그 root에 붙이고 카메라만 움직인다(그리기는 부르는 쪽).
 // 없으면 장면 칸 안에 그림판을 스스로 만든다.
 import { createRoute } from './gasa-route.js';
-import { paperDollCanvas } from '../world/sprites.js';
+import { createCharacter } from '../world/gfx/figures.js';
 import { TOKENS } from '../world/palette.js';
 import { createAssets } from '../world/assets.js';
 
@@ -219,16 +219,9 @@ export async function createScene3D({ host, three = null, assets = null, manifes
     labels[st.id] = sp;
   }
 
-  // 걷는 사람(종이 인형)
-  const name = 'sprite/student-' + (appearance === 'b' ? 'b' : 'a');
-  let tex = art?.texture?.(name) ?? null;
-  if (!tex) {
-    tex = own(new THREE.CanvasTexture(paperDollCanvas(appearance === 'b' ? 'student-b' : 'student-a')));
-    tex.colorSpace = THREE.SRGBColorSpace;
-  }
-  const walker = new THREE.Sprite(own(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.1 })));
-  walker.center.set(0.5, 0);
-  walker.scale.set(1.0, 2.0, 1);
+  // 걷는 사람: 세계와 같은 절차 3D 인물(gfx/figures-3d.js). 카메라가 멀어서 조금 크게 세우고, 움직인 거리로 걸음을 맞춘다
+  const student = createCharacter(THREE, { kind: appearance === 'b' ? 'student-b' : 'student-a', height: 1.85, reduceMotion, name: 'rg-walker', faceCamera: false });
+  const walker = student.root;
   group.add(walker);
 
   // 떨어지는 꽃잎(움직임 줄이기면 멈춘다)
@@ -271,6 +264,7 @@ export async function createScene3D({ host, three = null, assets = null, manifes
     if (t < dur && !rm) { t = Math.min(dur, t + dt); s = from + (to - from) * (t / dur); } else s = to;
     setWalked(s);
     aimCamera(rm);
+    student.update(dt, camera);
     // 꽃잎
     const time = performance.now() / 1000;
     petalState.forEach((p, i) => {
@@ -317,6 +311,7 @@ export async function createScene3D({ host, three = null, assets = null, manifes
     info: () => ({ s, drawCalls: lastCalls }),
     dispose() {
       cancelAnimationFrame(raf);
+      student.dispose();
       group.parent?.remove(group);
       for (const x of owned) x.dispose?.();
       posts.dispose(); trunks.dispose(); crowns.dispose(); pinks.dispose(); stones.dispose(); petals.dispose();

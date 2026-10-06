@@ -11,7 +11,13 @@
 //   scene.add(fig.root);  fig.root.position.copy(발 자리);
 //   fig.update(dt, camera, { moving: true, flip: false });
 //   fig.dispose();
+//
+// 절차 3D 인물(figures-3d.js): createCharacter(THREE, { kind, … })는 kind에 3D 조립법이 있으면 3D 인물을,
+// 없으면 위의 종이 카드를 돌려준다. 두 손잡이는 같은 모양이다(root, shadow, update, dispose).
 import { TOKENS } from '../palette.js';
+import { buildProceduralFigure, hasProceduralFigure } from './figures-3d.js';
+
+export { hasProceduralFigure, RECIPES as FIGURE_RECIPES } from './figures-3d.js';
 
 export const FIGURE_HEIGHT = {
   student: 1.62,
@@ -129,17 +135,8 @@ export function createFigure(THREE, { url = null, canvas = null, texture = null,
   card.name = name + '-card';
   pivot.add(card);
 
-  let shadowMesh = null;
-  if (shadow) {
-    shadowMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: TOKENS.meok, map: contactTexture(THREE), transparent: true, depthWrite: false, opacity: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
-    );
-    shadowMesh.name = name + '-shadow';
-    shadowMesh.position.y = 0.015;
-    shadowMesh.renderOrder = 6;
-    root.add(shadowMesh);
-  }
+  const shadowMesh = shadow ? contactShadowMesh(THREE, name) : null;
+  if (shadowMesh) root.add(shadowMesh);
   applyAspect(map?.image ?? canvas);
 
   let time = phase;
@@ -196,13 +193,59 @@ export function createFigure(THREE, { url = null, canvas = null, texture = null,
     geo.dispose();
     mat.dispose();
     if (ownsMap) map?.dispose();
-    if (shadowMesh) {
-      shadowMesh.geometry.dispose();
-      shadowMesh.material.dispose();
-      if (--shadowUsers <= 0) { shadowTex?.dispose(); shadowTex = null; shadowUsers = 0; }
-    }
+    disposeShadow(shadowMesh);
     root.removeFromParent();
   }
 
   return { root, card, shadow: shadowMesh, material: mat, update, setTexture, dispose, get aspect() { return aspect; } };
+}
+
+// 발밑 접지 그림자(둥근 번짐 카드). 종이 카드와 3D 인물이 같이 쓴다.
+export function contactShadowMesh(THREE, name = 'figure') {
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ color: TOKENS.meok, map: contactTexture(THREE), transparent: true, depthWrite: false, opacity: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
+  );
+  m.name = name + '-shadow';
+  m.position.y = 0.015;
+  m.renderOrder = 6;
+  return m;
+}
+
+function disposeShadow(m) {
+  if (!m) return;
+  m.geometry.dispose();
+  m.material.dispose();
+  if (--shadowUsers <= 0) { shadowTex?.dispose(); shadowTex = null; shadowUsers = 0; }
+}
+
+// 인물 하나: kind에 절차 3D 조립법(figures-3d.js RECIPES)이 있으면 3D 인물, 없으면 종이 카드(createFigure).
+//   kind: 'student-a' | 'student-b' | 그 밖(종이 카드). 나머지 인자는 createFigure와 같다.
+//   faceCamera: 3D 인물이 오래 서 있으면 카메라 쪽으로 비스듬히 돌아선다(세계 true, 길을 걷는 방 false).
+//   3D 인물의 update(dt, camera, { moving, dir, speed })는 dir·speed를 주지 않으면 root가 움직인 거리로 스스로 잰다.
+//   flip은 종이 카드만 쓴다.
+export function createCharacter(THREE, { kind = null, height = FIGURE_HEIGHT.student, reduceMotion = () => false, shadow = true, name = 'figure', phase = 0, faceCamera = true, ...card } = {}) {
+  if (!kind || !hasProceduralFigure(kind)) return createFigure(THREE, { ...card, height, reduceMotion, shadow, name, phase });
+  const fig = buildProceduralFigure(THREE, { kind, height, reduceMotion, name, phase, faceCamera });
+  const shadowMesh = shadow ? contactShadowMesh(THREE, name) : null;
+  if (shadowMesh) {
+    const k = height / FIGURE_HEIGHT.student;
+    shadowMesh.scale.set(0.78 * k, 1, 0.5 * k);
+    fig.root.add(shadowMesh);
+  }
+  return {
+    kind: 'procedural',
+    root: fig.root,
+    card: null,
+    body: fig,
+    shadow: shadowMesh,
+    material: fig.material,
+    update: fig.update,
+    setTexture() {},   // 3D 인물은 그림을 쓰지 않는다
+    dispose() {
+      disposeShadow(shadowMesh);
+      fig.dispose();
+    },
+    get aspect() { return 0.45; },
+  };
 }

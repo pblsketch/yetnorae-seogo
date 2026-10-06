@@ -3,7 +3,7 @@
 // 저폴리 상자·원뿔을 코드로 조립하고, 되풀이되는 것은 InstancedMesh 하나로 그린다. 그리기 호출은 열둘 안팎이다(예산 60).
 // 그림자·후처리는 쓰지 않는다. 그리기는 부르는 쪽(세계 바탕)이 하고, 이 장면은 물체와 카메라만 움직인다.
 import { TOKENS, mixHex } from '../world/palette.js';
-import { paperDollCanvas } from '../world/sprites.js';
+import { createCharacter } from '../world/gfx/figures.js';
 
 // ── 배치(1 = 1m, +y 위, +z 카메라 쪽) ──
 const START_Z = 6.2;       // 학생이 서는 곳(중문 앞)
@@ -175,16 +175,10 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
   veil.name = 'rs-veil';
   group.add(veil);
 
-  // 학생 종이 인형
-  const SPRITE_H = 1.55;
-  let tex = assets?.texture?.('sprite/student-' + appearance) ?? null;
-  if (!tex) {
-    tex = own(new THREE.CanvasTexture(paperDollCanvas('student-' + appearance, 128, 256)));
-    tex.colorSpace = THREE.SRGBColorSpace;
-  }
-  const runner = new THREE.Mesh(own(new THREE.PlaneGeometry(1, 1)), own(new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.2, depthWrite: true })));
-  runner.scale.set(SPRITE_H * 0.5, SPRITE_H, 1);
-  runner.name = 'rs-runner';
+  // 학생: 세계와 같은 절차 3D 인물(gfx/figures-3d.js). 발 자리가 원점이고, 움직인 거리로 걸음을 스스로 맞춘다
+  const FIGURE_H = 1.55;
+  const student = createCharacter(THREE, { kind: 'student-' + (appearance === 'b' ? 'b' : 'a'), height: FIGURE_H, reduceMotion, name: 'rs-runner', faceCamera: false });
+  const runner = student.root;
   group.add(runner);
 
   // 발자국: 박에 맞춰 두드린 자리마다 작은 금빛 점
@@ -241,9 +235,7 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
     else runner.position.z += (tz - runner.position.z) * (1 - Math.exp(-dt * 7));
     runner.position.x = pathX(runner.position.z) - 0.25;
     hop = snap ? 0 : Math.max(0, hop - dt * 5);
-    runner.position.y = SPRITE_H / 2 + Math.sin(hop * Math.PI) * 0.12;
-    runner.quaternion.copy(camera.quaternion);
-    if (tex.image?.width && tex.image?.height) runner.scale.x = SPRITE_H * (tex.image.width / tex.image.height);
+    runner.position.y = Math.sin(hop * Math.PI) * 0.12;
     if (revealT >= 0 && revealT < 1) {
       revealT = snap ? 1 : Math.min(1, revealT + dt / 1.2);
       veilMat.opacity = 0.92 * (1 - revealT);
@@ -251,9 +243,10 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
       if (revealT >= 1) veil.visible = false;
     }
     placeCamera(snap, dt);
+    student.update(dt, camera, { dir: { x: 0, z: -1 } });
   }
 
-  runner.position.set(pathX(START_Z) - 0.25, SPRITE_H / 2, START_Z);
+  runner.position.set(pathX(START_Z) - 0.25, 0, START_Z);
   placeCamera(true, 0);
   raf = requestAnimationFrame(frame);
 
@@ -281,6 +274,7 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
     dispose() {
       cancelAnimationFrame(raf);
       root.remove(group);
+      student.dispose();
       for (const x of owned) x.dispose?.();
       owned.length = 0;
       camera.position.copy(saved.pos);
