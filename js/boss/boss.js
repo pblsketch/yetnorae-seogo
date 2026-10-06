@@ -64,6 +64,8 @@ export async function start(ctx = {}) {
   const root = el('section', 'boss');
   root.setAttribute('aria-label', T.title);
   Object.assign(root.dataset, { fog: 'normal', king: 'hidden', mentor: 'trapped', stage: 'locked' });
+  // 보스 화면은 세계를 꽉 덮는다: 세계 바탕은 이 표시가 있는 동안 그리지 않는다(js/world/world.js '가림')
+  root.dataset.worldCover = '';
   const sceneHost = el('div', 'boss-scene');
   const ui = el('div', 'boss-ui');
   const top = el('header', 'boss-top');

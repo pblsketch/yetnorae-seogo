@@ -3,7 +3,8 @@
 여기는 관 모형을 끼우는 바탕이다. 관 모형 다섯의 건축과 손잡이 약속은 `wings/`가 맡는다.
 
 ## 맡는 것
-- `world.js`: 바깥 손잡이. 다른 화면은 이 파일만 부른다. `mount(container, { wings, manifest, appearance, reduceMotion, onArrive })`, `enterWing`/`enterCorridor`, 상황 버튼 `setContext(label, handler)`, 반반 틀 `openSplit(panelEl)`/`closeSplit()`, 방 무대 `openRoom(el)`/`closeRoom()`, `setDancheong`, `getMode()`, `getWingHandle()`, `dispose()`. 사건 버스의 `diorama:*`를 지금 관 모형의 `react`로 넘기고, `wing:state`로 관 문을 열고 닫는다.
+- `world.js`: 바깥 손잡이. 다른 화면은 이 파일만 부른다. `mount(container, { wings, manifest, appearance, reduceMotion, onArrive })`, `enterWing`/`enterCorridor`, 상황 버튼 `setContext(label, handler)`, 반반 틀 `openSplit(panelEl)`/`closeSplit()`, 방 무대 `openRoom(el)`/`closeRoom()`, `setDancheong`, `getMode()`, `getQuality()`, `getWingHandle()`, `dispose()`. 사건 버스의 `diorama:*`를 지금 관 모형의 `react`로 넘기고, `wing:state`로 관 문을 열고 닫는다.
+- `quality.js`: 화질 단계(자동). 세계가 그린 프레임을 재어 오래 느리면 픽셀 비율과 꾸밈 겹을 한 단계씩 낮춘다(내려가기만). `getQuality()`로 읽는다.
 - `mode.js`: WebGL2 확인으로 `'3d'`/`'2d'`를 정한다(창마다 한 번, 바뀌지 않음). 3D 그림판을 못 만들면 `fallbackTo2D()`.
 - `scene3d.js`: Three.js 장면, 따라가는 카메라와 제한 각도 회전, 학생 3D 인물, 관 문과 현판, 먹빛→단청 색. `board2d.js`: 같은 일을 16:9 그림 판 위 DOM 겹으로.
 - `corridor-art.js`: 회랑 건축(그림만). 한옥 서고 회랑(마루, 서가와 창살 벽, 기둥·공포·서까래, 기와 처마, 문루, 초롱, 난간, 입구 문)과 언제나 보이는 바깥(마당, 관 자리 바닥돌과 길, 종이 나무, 관 뒤 수묵 병풍, 먼 산). 배치 값은 `scene3d.js`가 넘기고 여기서 바꾸지 않는다.
@@ -22,13 +23,16 @@
 ## 불변식
 - 세계는 한 번에 하나다(`world.js`의 모듈 변수). 다시 띄우기 전에 `dispose()`를 부른다.
 - 제품에는 2D를 강제하는 스위치가 없다. 점검은 WebGL을 끈 브라우저로 2D를 연다.
-- 성능 상한: 관 하나의 그리기 호출 60회 이하, 픽셀 비율 1.5 이하, 실시간 그림자·후처리 없음(`TUNING.drawCallBudget`, `pixelRatioMax`). 회랑 건축은 재질 역할마다 합친 기하 하나(책등은 `InstancedMesh` 하나)라서 회랑 전체가 22회, 관 문은 `InstancedMesh` 하나다. 접지는 그림자 번짐 카드가 맡는다.
+- 성능 상한: 관 하나의 그리기 호출 60회 이하, 픽셀 비율 1.5 이하, 실시간 그림자·후처리 없음(`TUNING.drawCallBudget`, `pixelRatioMax`). 회랑 건축은 재질 역할마다 합친 기하(책등은 `InstancedMesh`)를 관 자리 사이 x 구간으로 나눠 보이는 구간만 그린다(회랑 화면 36회 안팎). 관 문은 `InstancedMesh` 하나다. 접지는 그림자 번짐 카드가 맡는다.
 - 회랑 건축(`gallery`)은 관 안에서 숨긴다. 관 카메라(`anchors.camera`)가 회랑 벽 위에 서므로 높은 처마가 관을 가린다. 마당·바닥돌·나무·병풍(`grounds`)은 관 안에서도 보인다. 첫 화면이 늦지 않게 `grounds`는 두 번째 프레임에 짓고 셰이더를 따로 엮은 뒤(`compileAsync`) 붙이고, `gallery`는 처음 회랑을 그릴 때 짓는다.
+- 회랑·바깥·관 문은 꼭짓점 빛 재질(`gfx/t39-perf.js`의 `createRigLitMaterials`, 빛 묶음 'corridor'·'wing'과 같은 값)로 그린다. 회랑 건축은 관 자리 사이 경계로 x 구간을 나눠 화면 밖을 그리지 않는다.
 - 그리기 판은 `NeutralToneMapping`·sRGB 출력이다(`gfx/lighting.js`). 승인된 그림(종이 인형, 현판)의 재질은 `toneMapped: false`로 색을 지킨다. 작품 방 무대가 열린 동안은 톤 매핑을 끄고 닫으면 되돌린다.
 - 건축 단청 칠은 가라앉은 뇌록·석간주로 칠하고 단청 값 0에서 먹빛이다. 밝은 녹청·주홍은 누를 수 있는 것(관 문)에만 쓴다.
 - 2D 누를 자리는 관 모형의 `anchors`마다 세계가 48px 이상으로 만들고, 이름표는 `board2d.js`의 `ANCHOR_LABELS`(모두 한국어)에서 온다. 그림 판 오른쪽 아래 구석(`x > 78`이면서 `y > 78`)에는 상황 버튼이 있다. 2D에서 학생은 그림 판 `y` 40~95% 띠 안에서만 걷는다.
 - `openSplit`·`openRoom` 동안 이동 조작과 상황 버튼은 멈춘다. `closeRoom()`은 숨긴 것, 안개, 바탕, 카메라의 시야각·near·far·up·zoom, 그리기 판 크기를 열기 전으로 되돌린다.
 - 회전 안내가 떠 있는 동안 그리기 고리는 프레임을 건너뛴다(`isPaused()`).
+- 가림: `mount`에 넘긴 container 안에 `data-world-cover`가 붙은(hidden이 아닌) 요소가 있으면 그리기와 관 모형 update를 건너뛴다(단청 돌아오기 값은 계속). 세계를 꽉 덮는 겹(보스, 입구·엔딩 장면, 판 카드, 마지막 카드, 수첩·일지·도감 창)은 뿌리에 이 속성을 단다. 반투명 겹은 달지 않는다.
+- 화질 단계는 픽셀 비율과 꾸밈 겹(`corridor-decor`)만 바꾼다. 누를 자리, 카메라, 관 모형, 그리기 호출 예산 검사는 그대로다. 소프트웨어 그리기(SwiftShader 등)에서는 세계 그림판이 MSAA 없이 만들어진다(`gfx/t39-perf.js`).
 - `palette.js`의 `TOKENS`는 `css/base.css`의 색 토큰과 같은 값이다.
 
 ## 구현 방식

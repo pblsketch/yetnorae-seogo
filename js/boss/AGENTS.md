@@ -15,6 +15,7 @@
 - `js/story/`를 import하지 않는다.
 
 ## 불변식
+- 보스 뿌리(`.boss`)에는 `data-world-cover`가 붙는다. 세계 바탕은 보스 화면이 떠 있는 동안 그리지 않는다(`js/world/world.js` '가림'). 보스 그림판은 소프트웨어 그리기에서 MSAA를 끄고(`world/gfx/t39-perf.js`), 열릴 때 세계의 화질 단계 픽셀 몫을 따른다.
 - 이 폴더의 `.js` 파일과 `js/data/remix.js`·`js/data/boss-text.js`·`css/boss.css`의 글에는 주소 인자 읽기, 점검용 낱말(`__b`, `__test`, `stub`), 평가를 매기는 한국어 낱말, `http://`·`https://` 주소(SVG 이름공간 주소만 예외)가 **주석을 포함해** 하나도 없다(`check-boss`가 글 전체를 훑는다).
 - 무작위가 없다. 모든 학생이 같은 순서로 같은 노래와 같은 리믹스를 만난다. 3단계 '지워진 글줄'도 정해진 무늬(`erasedEvery`)로 지운다.
 - 시간 제한도 실패로 끝나는 판도 없다. 틀리면 먹안개가 `fogPulseMs`(1.4초) 동안 짙어질 뿐이다.

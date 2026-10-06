@@ -2,8 +2,8 @@
 // 탑의 배치(층 높이, 칸 너비, 서가 자리)는 hyangga.js가 넘기고 여기서 바꾸지 않는다. 반응하는 부분(칸 불, 책, 문, 이름표, 먹안개)은
 // hyangga.js에 그대로 있고, 여기는 그 뒤와 둘레의 돌·나무·기와만 맡는다.
 //
-//   탑: 이층 기단(갑석과 탱주 새김) → 층마다 탑신(돌 몸, 우주·탱주, 감실 창) → 층급받침 → 네 귀가 들린 옥개석, 귀마다 풍탁
-//       → 꼭대기 상륜부(노반·복발·앙화·보륜·보주).
+//   탑: 이층 기단(갑석과 탱주 새김) → 층마다 탑신(돌 몸, 얕게 새긴 우주·탱주, 감실 창 띠) → 층급받침 → 두툼하고 네 귀가 살짝 들린 옥개석, 귀마다 풍탁
+//       → 꼭대기 상륜부(노반·복발·앙화·보륜·보주). 탑의 돌은 한 그물로 모아 화강암 결(무늬 'granite')로 그린다(나무 누각이 아니라 석탑으로 읽히게).
 //   마당: 돌담(돌 기단 + 회벽 + 기와 지붕)과 단청 무늬 판, 작품 방 일주문(기와 지붕·공포), 경장(덤 서가), 석등 둘, 소나무,
 //         층 이름 비석, 배례석(기다리는 노래 자리), 박석 길, 대바구니, 돌아온 노래 선반.
 import { TOKENS, mixHex } from '../palette.js';
@@ -27,13 +27,17 @@ export function buildHyanggaArt(gfx, L) {
   const depth = T.front - T.back;
   const floors = L.FLOORS.length;
 
+  // 탑의 돌(기단·탑신·우주·탱주·층급받침·옥개석·상륜부 돌)은 따로 모아 화강암 결(무늬 'granite')로 그린다.
+  // 다른 돌(담 기단, 석등, 비석, 디딤돌)은 꾸러미의 돌 역할 그대로다.
+  const tb = kit.builder();
+
   // 가운데가 덮여 보이지 않는 판은 테(앞·옆·뒤 띠 넷)로만 짓는다. 소프트웨어 그리기(SwiftShader)는 가려진 면도 칠하므로
   // 겹치는 넓은 면을 줄이는 것이 프레임을 지킨다. 모서리는 크게 보이는 부분만 깎는다(깎은 상자는 삼각형이 다섯 배).
   const ring = (y, h, w, d, band, color, ao = 0.3, zc = cz) => {
-    b.box('stone', w, h, band, { p: [cx, y, zc + d / 2 - band / 2], color, ao, bevel: 0.002 });
-    b.box('stone', w, h, band, { p: [cx, y, zc - d / 2 + band / 2], color, ao, bevel: 0.002 });
-    b.box('stone', band, h, d - 2 * band, { p: [cx - w / 2 + band / 2, y, zc], color, ao, bevel: 0.002 });
-    b.box('stone', band, h, d - 2 * band, { p: [cx + w / 2 - band / 2, y, zc], color, ao, bevel: 0.002 });
+    tb.box('stone', w, h, band, { p: [cx, y, zc + d / 2 - band / 2], color, ao, bevel: 0.002 });
+    tb.box('stone', w, h, band, { p: [cx, y, zc - d / 2 + band / 2], color, ao, bevel: 0.002 });
+    tb.box('stone', band, h, d - 2 * band, { p: [cx - w / 2 + band / 2, y, zc], color, ao, bevel: 0.002 });
+    tb.box('stone', band, h, d - 2 * band, { p: [cx + w / 2 - band / 2, y, zc], color, ao, bevel: 0.002 });
   };
 
   // ── 기단: 하층(넓고 낮게) + 상층(갑석) ──
@@ -44,11 +48,11 @@ export function buildHyanggaArt(gfx, L) {
   // 기단 앞면의 우주·탱주 새김
   for (let i = 0; i <= 6; i++) {
     const x = cx - (T.width + 1.6) / 2 + 0.05 + (i * (T.width + 1.5)) / 6;
-    b.box('stone', i % 6 === 0 ? 0.12 : 0.07, 0.12, 0.03, { p: [x, 0.08, cz - 0.05 + (depth + 1.3) / 2 + 0.01], color: STONE_LIGHT, ao: 0, bevel: 0.002 });
+    tb.box('stone', i % 6 === 0 ? 0.12 : 0.07, 0.12, 0.03, { p: [x, 0.08, cz - 0.05 + (depth + 1.3) / 2 + 0.01], color: STONE_LIGHT, ao: 0, bevel: 0.002 });
   }
   // 앞 계단 두 단
-  b.box('stone', 1.5, 0.1, 0.5, { p: [cx, 0.05, T.front + 1.0], color: STONE, ao: 0.4, bevel: 0.02 });
-  b.box('stone', 1.3, 0.1, 0.36, { p: [cx, 0.15, T.front + 0.72], color: STONE_LIGHT, ao: 0.3, bevel: 0.02 });
+  tb.box('stone', 1.5, 0.1, 0.5, { p: [cx, 0.05, T.front + 1.0], color: STONE, ao: 0.4, bevel: 0.02 });
+  tb.box('stone', 1.3, 0.1, 0.36, { p: [cx, 0.15, T.front + 0.72], color: STONE_LIGHT, ao: 0.3, bevel: 0.02 });
   kit.contactShadow(b, { x: cx, z: cz + 0.6, w: T.width + 2.2, d: 1.6, strength: 1 });
 
   // ── 탑신과 옥개석 ──
@@ -59,8 +63,8 @@ export function buildHyanggaArt(gfx, L) {
     const bodyH = H - 0.24;
     // 돌 몸: 앞·옆 면만(윗면은 옥개석이 덮는다). 감실 창이 그 앞에 붙는다
     const bodyD = depth - 0.34;
-    b.add('stone', kit.card(), { p: [cx, y0, T.front - 0.3], s: [T.width - 0.06, bodyH, 1], color: STONE, ao: 0.25 });
-    for (const sx of [-1, 1]) b.add('stone', kit.card(), { p: [cx + sx * (T.width / 2 - 0.03), y0, cz - 0.15], r: [0, sx * Math.PI / 2, 0], s: [bodyD, bodyH, 1], color: STONE_DARK, ao: 0.25 });
+    tb.add('stone', kit.card(), { p: [cx, y0, T.front - 0.3], s: [T.width - 0.06, bodyH, 1], color: STONE, ao: 0.25 });
+    for (const sx of [-1, 1]) tb.add('stone', kit.card(), { p: [cx + sx * (T.width / 2 - 0.03), y0, cz - 0.15], r: [0, sx * Math.PI / 2, 0], s: [bodyD, bodyH, 1], color: STONE_DARK, ao: 0.25 });
     // 칸 사이 탱주, 양 끝 우주(10구 층은 4·4·2 무리 경계를 굵게)
     let acc = 0;
     const edges = new Set();
@@ -68,11 +72,12 @@ export function buildHyanggaArt(gfx, L) {
     for (let k = 0; k <= n; k++) {
       const corner = k === 0 || k === n;
       const t = corner ? 0.24 : edges.has(k) ? 0.18 : 0.1;
-      b.box('stone', t, bodyH, 0.24, { p: [T.x0 + k * bw, y0 + bodyH / 2, T.front - 0.12], color: corner ? STONE_LIGHT : STONE, ao: 0.2, bevel: corner ? 0.02 : 0.002 });
+      // 돌에 얕게 새긴 기둥 모양(나무 기둥처럼 깊게 튀어나오지 않게): 칸 불 판보다 조금만 앞으로
+      tb.box('stone', t, bodyH, corner ? 0.16 : 0.1, { p: [T.x0 + k * bw, y0 + bodyH / 2, T.front - (corner ? 0.2 : 0.22)], color: corner ? STONE_LIGHT : STONE, ao: 0.2, bevel: corner ? 0.02 : 0.002 });
     }
     // 감실 창 테(창 위·아래 돌 띠)
-    b.box('stone', T.width + 0.1, 0.08, 0.26, { p: [cx, y0 + 0.2, T.front - 0.12], color: STONE_LIGHT, ao: 0, bevel: 0.002 });
-    b.box('stone', T.width + 0.1, 0.1, 0.26, { p: [cx, y0 + bodyH - 0.05, T.front - 0.12], color: STONE_LIGHT, ao: 0, bevel: 0.002 });
+    tb.box('stone', T.width + 0.1, 0.08, 0.14, { p: [cx, y0 + 0.2, T.front - 0.21], color: STONE_LIGHT, ao: 0, bevel: 0.002 });
+    tb.box('stone', T.width + 0.1, 0.1, 0.14, { p: [cx, y0 + bodyH - 0.05, T.front - 0.21], color: STONE_LIGHT, ao: 0, bevel: 0.002 });
     // 층급받침: 위로 갈수록 넓어지는 돌 세 단(앞·옆 띠만, 가운데는 옥개석에 가린다)
     for (let s = 0; s < 3; s++) {
       const grow = 0.12 + s * 0.14;
@@ -80,14 +85,14 @@ export function buildHyanggaArt(gfx, L) {
       const d = depth + grow - 0.2;
       const y = y0 + bodyH + 0.03 + s * 0.06;
       const c = s % 2 ? STONE_LIGHT : STONE_DARK;
-      b.box('stone', w, 0.06, 0.3, { p: [cx, y, cz + d / 2 - 0.15], color: c, ao: 0, bevel: 0.002 });
-      for (const sx of [-1, 1]) b.box('stone', 0.3, 0.06, d - 0.6, { p: [cx + sx * (w / 2 - 0.15), y, cz], color: c, ao: 0, bevel: 0.002 });
+      tb.box('stone', w, 0.06, 0.3, { p: [cx, y, cz + d / 2 - 0.15], color: c, ao: 0, bevel: 0.002 });
+      for (const sx of [-1, 1]) tb.box('stone', 0.3, 0.06, d - 0.6, { p: [cx + sx * (w / 2 - 0.15), y, cz], color: c, ao: 0, bevel: 0.002 });
     }
-    // 옥개석: 네 귀가 들린 얕은 돌 지붕(아래층일수록 크다)
-    const rw = T.width + 1.55 - f * 0.18;
-    const rd = depth + 1.45 - f * 0.18;
-    // 옥개석은 한 덩이 돌이라 쌓은 돌 무늬 대신 매끈한 결(회벽 역할)에 돌 색을 칠한다
-    b.add('plaster', gfx.roofStoneGeometry(rw, rd, 0.34, 0.24, 0.13), { p: [cx, y0 + H + 0.03, cz], color: f % 2 ? '#a39d92' : '#b3ada1', ao: 0.15 });
+    // 옥개석: 한 덩이 화강암. 처마 끝이 두툼하고(돌 두께) 네 귀는 살짝만 들린다. 위층일수록 작아져 탑이 위로 좁아 보인다.
+    // (나무 기와지붕처럼 얇고 멀리 뻗은 처마로 보이지 않게 내밂을 줄였다)
+    const rw = T.width + 1.3 - f * 0.25;
+    const rd = depth + 1.2 - f * 0.25;
+    tb.add('stone', gfx.roofStoneGeometry(rw, rd, 0.3, 0.12, 0.22), { p: [cx, y0 + H + 0.03, cz], color: f % 2 ? '#a6a196' : '#b2ada2', ao: 0.15 });
     // 풍탁(귀마다 매단 작은 종): 청동이 뇌록빛으로 삭았다. 단청 값이 오르면 색이 돌아온다
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
@@ -102,9 +107,9 @@ export function buildHyanggaArt(gfx, L) {
 
   // ── 상륜부 ──
   const top = L.floorBase(floors) + 0.03 + 0.34;
-  b.box('stone', 0.8, 0.26, 0.8, { p: [cx, top + 0.1, cz], color: STONE, ao: 0, bevel: 0.03 });                 // 노반
-  b.add('stone', new THREE.SphereGeometry(0.32, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2).toNonIndexed(), { p: [cx, top + 0.23, cz], color: STONE_LIGHT, ao: 0 });   // 복발
-  b.add('stone', kit.cylinder(0.3, 0.16, 0.14, 8), { p: [cx, top + 0.6, cz], color: STONE, ao: 0 });                   // 앙화
+  tb.box('stone', 0.8, 0.26, 0.8, { p: [cx, top + 0.1, cz], color: STONE, ao: 0, bevel: 0.03 });                 // 노반
+  tb.add('stone', new THREE.SphereGeometry(0.32, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2).toNonIndexed(), { p: [cx, top + 0.23, cz], color: STONE_LIGHT, ao: 0 });   // 복발
+  tb.add('stone', kit.cylinder(0.3, 0.16, 0.14, 8), { p: [cx, top + 0.6, cz], color: STONE, ao: 0 });                   // 앙화
   b.add('paint', kit.cylinder(0.035, 0.035, 1.2, 6), { p: [cx, top + 1.2, cz], color: BRONZE, ao: 0 });                // 찰주
   for (let i = 0; i < 5; i++) b.add('paint', kit.cylinder(0.17 - i * 0.015, 0.19 - i * 0.015, 0.06, 10), { p: [cx, top + 0.78 + i * 0.16, cz], color: BRONZE, ao: 0 });   // 보륜
   b.add('paint', new THREE.SphereGeometry(0.11, 10, 8).toNonIndexed(), { p: [cx, top + 1.86, cz], color: mixHex(BRONZE, TOKENS.gold, 0.5), ao: 0 });   // 보주
@@ -245,6 +250,13 @@ export function buildHyanggaArt(gfx, L) {
   kit.glowCards(b, glows);
 
   const group = b.build('hyangga-art');
+  // 석탑: 화강암 재질(꼭짓점 빛 + 먹빛 걸이, 먹 바닥은 돌과 같다). 치울 때 hyangga.js가 userData.granite를 버린다
+  const tower = tb.build('hyangga-tower');
+  const granite = gfx.inkHook(gfx.litHook(new THREE.MeshBasicMaterial({ map: gfx.textures.get('granite'), vertexColors: true })), 0.75);
+  granite.name = 'hyangga-granite';
+  for (const m of tower.children) m.material = granite;
+  group.add(tower);
+  group.userData.granite = granite;
   const mural = muralB.build('hyangga-mural');
   const muralMesh = mural.children[0];
   if (muralMesh) muralMesh.material = gfx.mural();

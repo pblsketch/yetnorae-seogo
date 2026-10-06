@@ -665,6 +665,7 @@ export function createWingPlay(session, wingId) {
     audio.sfx('gold');
     await new Promise((resolve) => {
       const host = el('div', 'play-card');
+      host.dataset.worldCover = '';
       host.setAttribute('role', 'dialog');
       session.root.append(host);
       const view = showCard(host, () => buildWingCard(session.store.currentRecord(), wingId), {

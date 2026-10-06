@@ -66,6 +66,8 @@
 | 고려가요 음보의 `kind`(여음·후렴·되풀이 머리) | 같은 노래 `features.refrains`의 구간, `tests/check-goryeo.mjs`의 `METRIC` | 검증기 `FORM`이나 `check-goryeo`가 실패한다. 구간만 고치면 두드릴 박에 여음이 남는다 |
 | 고려가요 음보 경계(나누는 자리) | 그 줄의 낭송 조각(캐시로 다시 자르기)과 `--write-tempo` | `check-voice`가 조각 수·글이 어긋난다고 실패 |
 | `assets/manifest.parts/*.json` | `node tools/manifest/build.mjs`로 `assets/manifest.json` 다시 합치기 | 게임이 새 그림·소리를 모르고 자리표시를 쓴다 |
+| `js/world/gfx/lighting.js`의 빛 묶음 색·세기(`createLightRig`, `LIGHT_PRESETS`) | `js/world/gfx/t39-perf.js`의 `RIG_COLORS`(회랑·바깥 꼭짓점 빛), `t35-wing.js`의 꼭짓점 빛 | 회랑 건축과 학생 3D 인물의 밝기가 어긋난다 |
+| 세계를 꽉 덮는 새 겹 화면 | 그 뿌리 요소에 `data-world-cover`(`js/world/world.js` '가림') | 겹 뒤에서 세계가 계속 그려 프레임이 떨어진다(보스 화면에서 약 6fps였다) |
 
 ## 소리·낭송
 
@@ -142,6 +144,29 @@
 - 까닭: 그리기 호출 자체는 싸다(작은 그물 20개를 더해도 거의 0ms). 비싼 것은 화면을 덮는 빛 계산 재질(`MeshLambertMaterial`: 반구광 + 방향광 둘 + 안개 + 무늬)의 픽셀이다. 건축이 화면을 더 많이 덮을수록 그만큼 늘어난다. 뒷면까지 그리는 `DoubleSide`는 닫힌 기하에서 픽셀을 두 번 칠한다.
 - 대응: 관 안의 빛은 방향이 바뀌지 않으므로 꼭짓점마다 빛을 미리 계산해 꼭짓점 색에 곱하고, 빛 없는 `MeshBasicMaterial`로 그린다(`js/world/gfx/t36-props.js`의 `createLightBaker`·`createBakedMaterials`). 그물 하나의 그리기 시간이 대략 절반이 된다. 재질 역할은 다섯(wood, paint, roof, stone, contact)만 쓰고, 알파 자르기 종이 나무 대신 덩이로 만든 솔·꽃나무를, 추가 무늬(서가 뒤판의 가사관 무늬)는 이름판 그림 한 장에 함께 그렸다. 닫힌 기하는 `FrontSide`.
 - 확인: `tests/shots/t36-iso.mjs <관> 1366`(gitignore)이 그물 하나만 보이게 하고 그리기 한 번의 시간(픽셀 하나를 읽어 끝을 기다린 값)을 잰다. 다른 점검이 같은 기기에서 돌면 값이 2배까지 흔들리므로 전후를 번갈아 여러 번 잰다.
+
+### 보스 화면 뒤에서 세계가 계속 그려져 보스가 약 6fps였다
+- 증상: 보스 화면(꽉 덮는 자기 그림판)에서 SwiftShader 1366×768 약 6fps. 숫자 버튼과 박자 탭이 늦게 반응했다.
+- 까닭: 세계 바탕의 그리기 고리는 회전 안내(`isPaused`)와 숨은 창에서만 멈췄다. 보스·입구·엔딩·판 카드·수첩 창이 세계를 다 덮어도 회랑을 계속 그렸다.
+- 대응: 세계는 `mount`에 넘긴 container 안에 `data-world-cover` 속성이 붙은(hidden이 아닌) 요소가 있으면 그리기와 관 모형 update를 건너뛴다(단청 돌아오기 값만 계속 올린다). 보스 뿌리(`.boss`)와 `.story-boss-host`, 입구·엔딩 장면, `.story-final-card`, 판 카드(`.play-card`), 수첩·일지·도감 창(`.play-panel`)이 이 속성을 단다. 반투명 겹(노래 부른 이 소개, 기념품 줄, 설정 창)은 세계가 비쳐 보이므로 달지 않는다.
+- 확인: `tests/shots/t39-fps.mjs`(gitignore)의 `boss-1|2|3`. 6.5 → 26fps(보스 쪽 다듬기 포함).
+
+### SwiftShader에서는 MSAA가 프레임 시간의 약 3분의 1이었다
+- 증상: 회랑 그리기 한 번이 84ms, 같은 장면을 `antialias: false` 그림판으로 그리면 58ms(향가관 67 → 46ms).
+- 까닭: 소프트웨어 그리기는 다중 표본 버퍼를 픽셀마다 넷씩 쓰고 풀어 낸다.
+- 대응: `js/world/gfx/t39-perf.js`의 `softwareRendering()`(그리기 판 이름에 SwiftShader·llvmpipe 등)이면 세계와 보스 그림판이 MSAA를 끈다. GPU가 있는 기기(학교 크롬북 포함)는 그대로 켠다. 그 기기에서 느리면 화질 단계(`js/world/quality.js`)가 픽셀 비율을 줄인다. 따라서 SwiftShader에서 잰 fps 오름에는 GPU 기기에는 없는 몫(MSAA)이 섞여 있다.
+- 확인: `world.getQuality()`의 `software`·`antialias`.
+
+### 회랑과 바깥을 꼭짓점 빛으로 그리자 회랑이 두 배 빨라졌다
+- 증상: 회랑 12fps, 관마다 바깥(`grounds`: 병풍·나무·바닥돌)만 13ms 안팎.
+- 까닭: 세계 꾸러미 재질이 램버트(픽셀마다 빛 셋 + 삼선형 무늬)였다. 회랑 건축은 역할마다 100m 가까운 그물 하나라 화면 밖 서가·책등의 꼭짓점도 모두 처리했다. 관 뒤 수묵 병풍은 한지 판 위에 투명한 산 카드 두 장을 겹쳐 세 번 칠했다.
+- 대응: `createRigLitMaterials`(빛 묶음과 같은 램버트 빛을 꼭짓점에서, 'corridor'·'wing' 값은 uniform), 무늬는 `LinearMipmapNearest`. 회랑 건축은 관 자리 사이 경계로 x 구간을 나눠(`splitByX`) 화면 밖 구간을 시야 거르기로 뺀다(바깥 `grounds`는 나누면 관 화면 그리기 호출만 늘어 나누지 않는다). 병풍은 `createInkScreens`가 한지와 산 두 겹을 판 하나의 셰이더에서 칠한다. 먹안개·보스 먹 덩이·달무리 카드는 네 귀를 잘라낸 둥근 판(`fogDisc`, 반지름 0.48)으로.
+- 확인: `tests/shots/t39-prof.mjs <보기>`(gitignore)가 renderer.render + readPixels(동기) 시간을 재고 그물을 하나씩 숨겨 줄어든 값을 적는다. 메시를 숨겨 보는 값은 ±1.5ms 흔들리므로 앞뒤로 두 번 재서 뺀다.
+
+### 화질 단계가 점검을 흔들지 않게
+- 증상(설계 때 걱정): 느린 기기에서 자동으로 화질을 바꾸면 같은 점검이 기기 부하에 따라 다른 화면에서 돈다.
+- 대응: 단계는 내려가기만 한다(같은 창 안에서). 장면이 바뀐 뒤 2.5초는 버리고, 5초 평균이 18fps 아래일 때만 내린다. 0.25초 넘는 끊김 프레임은 셈에서 뺀다. 세계가 가려졌거나 회전 안내·숨은 창이면 재지 않는다. 단계는 픽셀 비율(×0.8, ×0.65)과 꾸밈 겹(관 사이 종이 나무·먼 수묵 산, 단계 2)만 바꾸고 누를 자리·카메라·관 모형은 건드리지 않는다. SwiftShader 1366×768의 모든 화면이 20fps 넘게 돌아 점검 중에는 거의 내려가지 않는다. 내려가면 콘솔에 `console.info`로 한 줄 남긴다(점검의 콘솔 오류 수에 들지 않는다).
+- 확인: `tests/shots/t39-quality.mjs`(gitignore)가 문턱을 높여 단계 0 → 1 → 2와 픽셀 비율·꾸밈 겹을 본다. 지금 단계는 `world.getQuality().tier`, `getStats().quality`.
 
 ### 승인된 종이 인형 색이 톤 매핑으로 바뀐다
 - 까닭: 세계 그리기 판은 `NeutralToneMapping`을 쓴다(`js/world/gfx/lighting.js`). 톤 매핑은 모든 재질에 걸린다.

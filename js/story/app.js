@@ -249,6 +249,7 @@ export async function startApp(container) {
     // 회랑에서 띄운 알림(예: '다섯 관을 모두 마쳤다')이 보스 화면 위에 남지 않게 거둔다
     g.layer.querySelectorAll('.story-toast').forEach((t) => t.remove());
     const host = el('div', 'story-boss-host');
+    host.dataset.worldCover = '';   // 세계를 꽉 덮는다: 세계 바탕은 그리지 않는다(world.js '가림')
     g.layer.append(host);
     g.bossHost = host;
     g.layer.querySelector('.story-boss-door')?.remove();
@@ -312,6 +313,7 @@ export async function startApp(container) {
   function showFinalCard() {
     if (!game) return;
     const box = el('section', 'story-final-card');
+    box.dataset.worldCover = '';
     box.setAttribute('role', 'dialog');
     box.setAttribute('aria-label', STORY.hud.finalCardTitle);
     game.layer.append(box);

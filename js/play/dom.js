@@ -30,6 +30,7 @@ export function assetUrl(manifest, name) {
 export function openPanel(host, { kind, title, onClose }) {
   const box = el('section', 'play-panel');
   box.dataset.panel = kind;
+  box.dataset.worldCover = '';   // 창이 세계를 거의 다 덮는다: 세계 바탕은 그리지 않는다(js/world/world.js '가림')
   box.setAttribute('role', 'dialog');
   box.setAttribute('aria-modal', 'true');
   box.setAttribute('aria-label', title);

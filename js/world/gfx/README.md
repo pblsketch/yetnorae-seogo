@@ -8,13 +8,14 @@
 
 | 파일 | 맡는 일 |
 | --- | --- |
-| `textures.js` | 캔버스 무늬: `hanji` 한지 섬유, `wood` 나뭇결(결이 u 방향), `planks` 마루 널, `roof` 기와 골, `stone` 돌 쌓기, `plaster` 회벽, `foliage` 종이 나무 두 칸(왼쪽 소나무, 오른쪽 매화), `mountains` 수묵 산 세 줄, `contact` 접지 그림자, `glow` 등불 번짐. 씨앗이 있어서 늘 같은 그림이 나온다 |
+| `textures.js` | 캔버스 무늬: `hanji` 한지 섬유, `wood` 나뭇결(결이 u 방향), `planks` 마루 널, `roof` 기와 골, `stone` 돌 쌓기, `granite` 한 덩이 화강암 결(향가관 석탑), `plaster` 회벽, `foliage` 종이 나무 두 칸(왼쪽 소나무, 오른쪽 매화), `mountains` 수묵 산 세 줄, `contact` 접지 그림자, `glow` 등불 번짐. 씨앗이 있어서 늘 같은 그림이 나온다 |
 | `materials.js` | 역할별 재질 하나씩과 먹빛 → 단청 걸이(`addInkHook`) |
 | `kit.js` | 모서리를 깎은 부분을 역할마다 하나의 기하로 합치는 틀(`builder`)과 소품 함수 |
 | `figures.js` | 인물 무대: 인물 고르기(`createFigure`·`createCharacter`, 조립법이 있는 그림은 저절로 3D), 종이 카드(`createPaperCard`), 발밑 그림자, 무리(`createFigureCrowd`) |
 | `figures-3d.js` | 절차 3D 인물: 부분 조립법(`RECIPES`: 학생 둘, 선대 사서, 가객 45, 좀, 좀 대왕), 뼈대 셋(사람·좀·좀 대왕), 한 기하로 합친 SkinnedMesh와 먹 테두리, 코드로 하는 움직임, 무리 굽기 |
 | `cast.js` | 가객 표: 틀(신분·직분 14) → 생김새(그림 25장) → 노래 45편. 검토용 데이터 |
 | `lighting.js` | 그리기 설정(색 공간, 톤 매핑), 빛 묶음(반구광 + 주광 + 보조광), 장면별 안개 |
+| `t39-perf.js` | 그리기 비용 줄이기: 회랑·바깥 꼭짓점 빛 재질(`createRigLitMaterials`), 밉맵 한 장 거르기(`mipNearest`), 긴 무리 x 구간 나누기(`splitByX`), 한 번에 칠하는 수묵 병풍(`createInkScreens`), 둥근 먹안개 판(`fogDisc`), 소프트웨어 그리기 알아보기(`softwareRendering`) |
 
 ## 기본 사용
 
@@ -179,3 +180,19 @@ jom.rig = 'bug'; jom.designHeight = 0.62; jom.shadow = [0.8, 1.0]; jom.stride = 
 - 방마다 `sc.materials.setDancheong(값)`을 따로 둔다(방은 세계와 다른 재질 묶음을 쓴다).
 - 넓은 땅은 무늬 없는 `plain`으로 그린다. SwiftShader에서 비스듬히 보이는 넓은 면의 무늬 읽기가 가장 비쌌다(「상춘곡」 방에서 무늬 땅을 빼자 약 1.5배).
 - 보스의 좀·좀 대왕·선대 사서는 `figures.js`의 `createFigure`로 만든다(조립법이 있으면 3D 인물로 나온다, 방의 학생은 `createCharacter`). 종이 카드일 때 선대 사서는 갇힌 동안 `material.userData.ink`를 0으로 두어 먹빛이고, 풀려나면 1로 돌아온다(그 값이 없으면 빛깔 바꾸기만 건너뛴다).
+
+## 그리기 비용 줄이기(t39-perf.js, T39)
+
+SwiftShader(점검 브라우저, GPU 없는 기기)에서 모든 3D 화면이 1366×768 20fps를 넘게 하려고 더한 도구다. 모양은 그대로 두고 칠하는 비용만 줄인다.
+
+- `createRigLitMaterials(THREE, textures)`: `createMaterials`와 같은 손잡이(`get`, `shared`, `setDancheong`, `dispose`)에 `setPreset('corridor'|'wing')`를 더했다. 빛을 받는 역할을 MeshBasic + 꼭짓점 램버트 빛(uniform) + 먹빛 걸이로 그린다. 창호지·초롱의 스스로 빛은 빛을 곱한 뒤 더한다(꾸러미 재질의 emissive와 같다). 세계(`scene3d.js`)가 회랑·바깥·관 문에 쓴다. 빛 묶음 색을 바꾸면 `RIG_COLORS`도 바꾼다.
+- `addRigLight(재질, light, emit)`: 다른 MeshBasic 재질에 같은 꼭짓점 빛을 단다(관 문 인스턴스).
+- `mipNearest(THREE, textures)`: 무늬를 `LinearMipmapNearest`로 거른다(`t35-wing.js`와 같은 값).
+- `splitByX(THREE, 무리, 경계)`: 역할마다 합친 그물을 x 구간으로 나눠 화면 밖 구간을 시야 거르기로 뺀다. 회랑 건축(`corridor-gallery`)만 관 자리 사이 경계로 나눈다(회랑 그리기 호출 25 → 보이는 구간만 36 안팎, 삼각형 10만 → 5만, 12 → 33fps). 바깥(`grounds`)은 관 화면에서 그리기 호출만 늘어 나누지 않는다.
+- `createInkScreens(THREE, materials, textures)`: 관 뒤 수묵 병풍(나무 테·그림자는 꾸러미 틀에, 한지 판은 따로). 한지와 먼 산·가까운 산을 판 하나에서 한 번에 칠한다(예전에는 한지 판 + 투명 산 카드 둘). 자리·크기는 `kit.inkScreen`과 같다.
+- `fogDisc(THREE, 반지름 = 0.48)`: `PlaneGeometry(1, 1)`과 같은 무늬 좌표의 둥근 판. 둥근 번짐 무늬(먹안개, 보스 먹 덩이, 달무리)의 투명한 네 귀를 칠하지 않는다(약 28% 덜 칠함).
+- `softwareRendering()`: 세계·보스 그림판이 MSAA를 끌지 정한다(소프트웨어 그리기에서만 끈다).
+
+화질 단계(`js/world/quality.js`)는 세계가 그린 프레임을 재어 5초 평균이 18fps 아래면 픽셀 비율을 ×0.8, 다시 ×0.65로 낮추고 두 번째에는 꾸밈 겹(`corridor-decor`: 관 사이 종이 나무, 먼 수묵 산)을 숨긴다. 내려가기만 한다. 보스 그림판은 열릴 때 지금 단계의 픽셀 몫을 따른다. 자세한 규칙은 그 파일 머리글과 `docs/engineering-notes.md`.
+
+잰 값과 재는 법은 `docs/engineering-notes.md`의 '회랑과 바깥을 꼭짓점 빛으로…', '보스 화면 뒤에서 세계가…'. 그리기 한 번의 시간은 `tests/shots/t39-prof.mjs`, 화면 fps는 `tests/shots/t39-fps.mjs`(둘 다 커밋하지 않음)로 잰다.

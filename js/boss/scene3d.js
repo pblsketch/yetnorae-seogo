@@ -11,6 +11,8 @@ import { createAssets } from '../world/assets.js';
 import { paperDollCanvas } from '../world/sprites.js';
 import { createFigure } from '../world/gfx/figures.js';
 import { createScenery, disposeGroupGeometry } from '../world/gfx/t37-scenery.js';
+import { fogDisc, softwareRendering } from '../world/gfx/t39-perf.js';
+import { qualityInfo } from '../world/quality.js';
 
 export const SCENE_TUNING = Object.freeze({
   pixelRatioMax: 1.5,
@@ -56,8 +58,10 @@ function blobCanvas(kind) {
 }
 
 export function createScene3D(host, { manifest = null, reduceMotion = () => false } = {}) {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, SCENE_TUNING.pixelRatioMax));
+  // 소프트웨어 그리기(GPU를 못 쓰는 기기)에서는 MSAA를 끈다(프레임 시간의 약 3분의 1, gfx/t39-perf.js)
+  const renderer = new THREE.WebGLRenderer({ antialias: !softwareRendering() });
+  // 세계 바탕이 낮춘 화질 단계가 있으면 같은 몫으로 픽셀 비율을 줄인다(js/world/quality.js)
+  renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, SCENE_TUNING.pixelRatioMax) * qualityInfo().pixelScale);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.domElement.className = 'boss-canvas';
   host.append(renderer.domElement);
@@ -77,7 +81,8 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
   const texs = [];
   const keep = (x, list) => { list.push(x); return x; };
   const box = keep(new THREE.BoxGeometry(1, 1, 1), geos);
-  const plane = keep(new THREE.PlaneGeometry(1, 1), geos);
+  // 먹안개 덩이·달무리 번짐: 둥글게 자른 판(투명한 네 귀를 칠하지 않는다, world/gfx/t39-perf.js)
+  const disc = keep(fogDisc(THREE), geos);
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const col = new THREE.Color();
@@ -165,7 +170,7 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
   const puffMat = keep(new THREE.MeshBasicMaterial({ map: puffTex, transparent: true, depthWrite: false, opacity: SCENE_TUNING.puffOpacity.normal, fog: false }), mats);
   const PUFFS = [];
   for (let i = 0; i < 14; i++) PUFFS.push({ x: -6 + (i % 7) * 2, y: 0.4 + (i % 3) * 0.5, z: 2.5 - Math.floor(i / 7) * 4, s: 3 + (i % 4) * 0.7, ph: i * 0.9 });
-  const puffMesh = new THREE.InstancedMesh(plane, puffMat, PUFFS.length);
+  const puffMesh = new THREE.InstancedMesh(disc, puffMat, PUFFS.length);
   puffMesh.frustumCulled = false;
   puffMesh.renderOrder = 20;
   scene.add(puffMesh);
@@ -179,7 +184,8 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
     return f;
   };
   const JOMS = [[-5.6, 2.2, 1.0], [-5.6, 0.9, 2.2], [5.6, 1.6, 0.4], [5.6, 3.1, 2.0], [-3.4, 2.7, -2.8], [3.0, 1.0, -2.8], [-1.2, 0.08, 2.4], [1.8, 0.08, 1.6]];
-  const joms = JOMS.map((p, i) => figure('boss-jom-' + i, 'jom', 0.6, { shadow: p[1] < 0.5, phase: i * 0.7, lean: 0.2 }));
+  // 좀은 작고 멀리 있으므로 간단한 몸(detail 0.55, 삼각형 약 절반)으로 짓는다
+  const joms = JOMS.map((p, i) => figure('boss-jom-' + i, 'jom', 0.6, { shadow: p[1] < 0.5, phase: i * 0.7, lean: 0.2, detail: 0.55 }));
   const king = figure('boss-king', 'jom-king', 3.4, { shadow: false, lean: 0.1 });
   const kingBase = new THREE.Vector3(-2.2, 1.35, 0.4);
   king.root.position.copy(kingBase);
@@ -199,7 +205,7 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
   const haloTex = keep(new THREE.CanvasTexture(haloCanvas), texs);
   haloTex.colorSpace = THREE.SRGBColorSpace;
   const haloMat = keep(new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0.9 }), mats);
-  const halo = new THREE.Mesh(plane, haloMat);
+  const halo = new THREE.Mesh(disc, haloMat);
   halo.renderOrder = 15;
   halo.visible = false;
   scene.add(halo);

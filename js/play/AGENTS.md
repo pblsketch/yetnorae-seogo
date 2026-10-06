@@ -11,6 +11,7 @@
 - 시작 화면, 입구 문, 보스 문, 엔딩(`js/story/`가 세션 갈고리 `store`·`audio`·`onCorridorArrive`·`clues`로 얹는다).
 
 ## 불변식
+- 세계를 꽉 덮는 겹(판 카드 `.play-card`, 수첩·일지·도감 창 `.play-panel`)의 뿌리에는 `data-world-cover`를 단다. 세계 바탕이 그 뒤에서 그리지 않는다(`js/world/world.js` '가림'). 반투명 겹(노래 부른 이 소개, 기념품 줄)에는 달지 않는다.
 - 이 폴더의 `.js` 파일에는 주소 인자 읽기(`location.search`, `location.hash`, `URLSearchParams`), 점검용 낱말(`__wf`, `__test`, `stub`), 평가를 매기는 한국어 낱말이 **주석을 포함해** 하나도 없다(`check-wingflow`가 파일 글 전체를 훑는다).
 - 디오라마 사건(`diorama:*`)은 이 화면이 낸다. 관에 들어온 직후 지금 상태를 다시 낸다: `diorama:slot-set`(칸·덤·판정 전 바구니, `returned` 0~3, 보스를 마쳤으면 시조관 `mentor`) → 묶였으면 `diorama:shelf-bound` → `diorama:fog-recede`. 바구니에서 이미 보낸 노래는 다시 그리지 않는다. 처음 띄울 때 기록의 관 상태를 `wing:state`로 한 번씩 다시 내고 마친 관은 `setDancheong(관, 1)`로 알린다.
 - 판정에서 돌아온 노래마다 `diorama:pop-out`을 내고, `popOutMs`(2.4초) 뒤 그 자리가 비어 있으면 `slot-set { songId: null }`. 바구니에서 보낸 노래는 `sentMs`(1.2초) 뒤 비운다.
