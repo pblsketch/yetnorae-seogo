@@ -1,4 +1,10 @@
 /* 공통 바탕: 색 토큰, 글꼴, 화면 틀. 화면별 스타일은 각 모듈의 css 파일에 둔다. */
+/* 부분 글꼴(tools/fonts/build_fonts.py, Noto Serif KR에서 게임 글자만 남김, SIL OFL 1.1 — assets/fonts/OFL.txt).
+   YetnoraeText는 본문 전체, YetnoraeUI는 같은 파일을 옛한글 자모·한자 범위로만 써서 화면 글의 옛 표기와 향찰을 맡는다. */
+@font-face { font-family: 'YetnoraeText'; src: url('../assets/fonts/yetnorae-text-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'YetnoraeText'; src: url('../assets/fonts/yetnorae-text-700.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'YetnoraeUI'; src: url('../assets/fonts/yetnorae-text-400.woff2') format('woff2'); font-weight: 400; font-display: swap; unicode-range: U+1100-11FF, U+302E-302F, U+3165-318E, U+3400-4DBF, U+4E00-9FFF, U+A960-A97F, U+D7B0-D7FF, U+F900-FAFF; }
+@font-face { font-family: 'YetnoraeUI'; src: url('../assets/fonts/yetnorae-text-700.woff2') format('woff2'); font-weight: 700; font-display: swap; unicode-range: U+1100-11FF, U+302E-302F, U+3165-318E, U+3400-4DBF, U+4E00-9FFF, U+A960-A97F, U+D7B0-D7FF, U+F900-FAFF; }
 :root {
   --hanji: #f3ead6;      /* 한지 미색 바탕 */
   --hanji-deep: #e6d9bb;

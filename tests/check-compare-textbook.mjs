@@ -73,6 +73,23 @@ if (tool) {
   const notTextbook = compareSong({ ...sijo, sourceType: 'old-text' }, normalizeText(goodExtract));
   check(notTextbook.status === 'not-textbook', '교과서 노래가 아니면 대조하지 않는다');
 
+  console.log('\n[1-2] 한양 PUA 옛 글자(T30)');
+  const { decodeHypua, HYPUA_MAP } = tool;
+  check(typeof decodeHypua === 'function' && HYPUA_MAP instanceof Map && HYPUA_MAP.size === 18, 'decodeHypua와 18자 표를 내보낸다');
+  const gasaRow = {
+    id: 'fx-gasa', title: '시험 가사', genre: 'gasa', sourceType: 'textbook-common2',
+    units: [{ feet: [{ original: '녯사ᄅᆞᆷ', reading: '옛사람' }, { original: '풍류(風流)ᄅᆞᆯ', reading: '풍류를' }, { original: '미ᄎᆞᆯ가', reading: '미칠까' }, { original: 'ᄆᆞᆺ 미ᄎᆞᆯ가', reading: '못 미칠까' }], gloss: 'ㄱ' }],
+  };
+  const puaLine = '녯사 풍류(風流) 미가  미가\b';
+  const dec = decodeHypua(puaLine);
+  check(dec.decoded === 5 && dec.unknown.size === 0, '추출본의 PUA 글자 다섯을 첫가끝 자모로 푼다 (' + dec.decoded + ')');
+  check(compareSong(gasaRow, normalizeText(dec.text)).status === 'match', 'PUA를 푼 추출본은 첫가끝 자모로 적은 데이터와 일치(제어 문자도 뺀다)');
+  check(compareSong(gasaRow, normalizeText(puaLine)).status === 'mismatch', '음성 사례: PUA를 풀지 않으면 어긋남');
+  const unknownLine = puaLine.replace('', '');
+  const decU = decodeHypua(unknownLine);
+  check(decU.unknown.get('') === 1, '음성 사례: 표에 없는 PUA 글자를 따로 알린다');
+  check(compareSong(gasaRow, normalizeText(decU.text)).status === 'mismatch', '음성 사례: 표에 없는 PUA 글자가 든 자리는 일치로 넘기지 않는다');
+
   console.log('\n[2] 추출본 찾기');
   const { extractFilesFor } = tool;
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'yetnorae-extract-'));

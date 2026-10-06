@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "family": "Yetnorae Text",
+  "source": "Noto Serif KR (NotoSerifKR-VF.ttf, SIL OFL 1.1)",
+  "files": {
+    "yetnorae-text-400.woff2": {
+      "weight": 400,
+      "glyphs": 4516
+    },
+    "yetnorae-text-700.woff2": {
+      "weight": 700,
+      "glyphs": 4516
+    }
+  },
+  "features": [
+    "ljmo",
+    "vjmo",
+    "tjmo",
+    "ccmp"
+  ],
+  "chars": 3115,
+  "missingInSource": "✎内夘扵数湌肹过隠髙",
+  "note": "원본 글꼴에 없는 글자는 브라우저가 기기 글꼴로 대신 그린다. tests/check-fonts.mjs가 이 목록을 따로 확인한다."
+}
