@@ -15,6 +15,7 @@ import { validateDataSet, validateNotebookPage } from '../js/core/validate.js';
 import { deriveConcepts, squash, feetCounts, joinFeet, isMetricFoot } from '../js/core/song-shape.js';
 import { SONG_TABLE } from '../js/data/song-table.js';
 import { buildGrid, createTapSession } from '../js/core/rhythm.js';
+import { GORYEO_LINE_TEXT } from './fixtures/goryeo-line-text.mjs';
 import { conceptsOfGenre } from '../js/data/concepts.js';
 
 let failures = 0;
@@ -63,6 +64,8 @@ const METRIC = {
 };
 // 낱말 안에서 3·3·2로 나눈 줄: 음보를 이으면 원문 그대로여야 한다(띄어쓰기까지)
 const JOINED_LINES = [
+  ['cheongsan-byeolgok', 0, 0, '살어리 살어리랏다'],
+  ['cheongsan-byeolgok', 5, 1, '바ᄅᆞ래 살어리랏다'],
   ['gasiri', 0, 0, '가시리 가시리잇고 나ᄂᆞᆫ'],
   ['gasiri', 2, 0, '잡ᄉᆞ와 두어리마ᄂᆞᄂᆞᆫ'],
   ['gasiri', 3, 0, '셜온 님 보내ᄋᆞᆸ노니 나ᄂᆞᆫ'],
@@ -150,6 +153,21 @@ function inspect(songs, page) {
     const line = get(id)?.units?.[u]?.lines?.[l];
     if (!line) { bad(id + ': ' + (u + 1) + '연 ' + (l + 1) + '줄이 없다'); continue; }
     if (joinFeet(line.feet, 'original') !== want) bad(id + ': ' + (u + 1) + '연 ' + (l + 1) + '줄 음보를 이은 글 "' + joinFeet(line.feet, 'original') + '" ≠ 원문 "' + want + '"');
+  }
+
+  // 5-2) 모든 줄: 음보를 이은 글이 원문 줄 글(띄어쓰기까지, tests/fixtures/goryeo-line-text.mjs)과 같다.
+  //      낱말 안에서 나눈 곳에 빈칸이 끼거나(joined 빠짐) 낱말 사이가 붙으면 잡힌다.
+  for (const s of songs) {
+    const want = GORYEO_LINE_TEXT[s?.id];
+    if (!want) { bad((s?.id ?? '?') + ': 원문 줄 글 사본이 없다'); continue; }
+    (s.units ?? []).forEach((u, ui) => (u.lines ?? []).forEach((l, li) => {
+      const got = joinFeet(l.feet, 'original');
+      if (got !== want[ui]?.[li]) bad(s.id + ': ' + (ui + 1) + '연 ' + (li + 1) + '줄 음보를 이은 글 "' + got + '" ≠ 원문 "' + want[ui]?.[li] + '"');
+      // 오늘 소리도 낱말 안 나눔에는 빈칸이 없다(낭송에 읽히는 줄 글)
+      (l.feet ?? []).forEach((f, fi) => {
+        if (f?.joined && (/\s$/.test(l.feet[fi - 1]?.reading ?? '') || /^\s/.test(f.reading))) bad(s.id + ': ' + (ui + 1) + '연 ' + (li + 1) + '줄 ' + (fi + 1) + '번째 음보: 붙여 쓰는 오늘 소리에 빈칸이 있다');
+      });
+    }));
   }
 
   // 6) 「정석가」 작품 방
@@ -244,6 +262,8 @@ console.log('\n[고려가요] 음성 사례 (망가뜨린 데이터를 잡아야
     ['가시리 가시리잇고를 3·3·2로 나누지 않음', (songs) => { const l = songs.find((s) => s.id === 'gasiri').units[0].lines[0]; l.feet.splice(1, 2, { original: '가시리잇고', reading: '가시리잇고' }); for (const r of songs.find((s) => s.id === 'gasiri').features.refrains) for (const g of r.ranges) if (g.unit === 0 && g.line === 0) { g.from--; g.to--; } }],
     ['가시리 낱말 안 나눔에서 joined를 지워 원문이 띄어짐', (songs) => { delete songs.find((s) => s.id === 'gasiri').units[2].lines[0].feet[2].joined; }],
     ['서경별곡 한 줄의 아즐가를 구간과 표시에서 함께 빼 박으로 셈', (songs) => { const s = songs.find((x) => x.id === 'seogyeong-byeolgok'); delete s.units[0].lines[2].feet[1].kind; delete s.units[0].lines[2].feet[0].kind; const r = s.features.refrains.find((x) => x.text === '아즐가'); r.ranges = r.ranges.filter((g) => !(g.unit === 0 && g.line === 2)); }],
+    ['청산별곡 살어리랏다 나눔에서 joined를 지워 원문이 띄어짐', (songs) => { delete songs.find((s) => s.id === 'cheongsan-byeolgok').units[0].lines[1].feet[2].joined; }],
+    ['상저가 낱말 사이를 붙임(joined를 잘못 담)', (songs) => { songs.find((s) => s.id === 'sangjeoga').units[0].lines[0].feet[1].joined = true; }],
     ['정읍사 음보 세기 메모를 지움', (songs) => { const s = songs.find((x) => x.id === 'jeongeupsa'); s.citationNote = s.citationNote.replace(/음보 세기/g, '음보'); }],
   ];
   for (const [name, mutate] of negatives) {
