@@ -1178,7 +1178,7 @@ async function runSetup(server, S) {
     console.error('✗ ' + L + ' 진행 실패: ' + (e?.stack ?? e).toString().split('\n').slice(0, 3).join(' | '));
     if (!e?.diagnosed && !dog.fired) {
       try { await page.screenshot({ path: path.join(SHOTS, 'playthrough-' + S.id + '-fail.png'), timeout: 15000 }); } catch { /* 그림 못 남김 */ }
-      try { console.error('   지금: ' + JSON.stringify(await ui.ev(() => ({ place: document.querySelector('.play')?.dataset.place, step: document.querySelector('.measure')?.dataset.step, ctx: document.querySelector('.world-context')?.textContent, dialogs: [...document.querySelectorAll('[role="dialog"]')].map((d) => d.className) })))); } catch { /* 페이지 닫힘 */ }
+      try { console.error('   지금: ' + JSON.stringify(await ui.ev(() => ({ place: document.querySelector('.play')?.dataset.place, step: document.querySelector('.measure')?.dataset.step, ctx: document.querySelector('.world-context')?.textContent, dialogs: [...document.querySelectorAll('[role="dialog"]')].map((d) => d.className), playClass: document.querySelector('.play')?.className, songs: [...document.querySelectorAll('.play-song')].map((b) => { const r = b.getBoundingClientRect(); const cs = getComputedStyle(b); const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return { id: b.dataset.song, x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), vis: cs.visibility, disp: cs.display, op: cs.opacity, pe: cs.pointerEvents, top: top === b || b.contains(top) ? 'self' : (top?.className || top?.tagName) }; }) })))); } catch { /* 페이지 닫힘 */ }
       if (trail.length) console.error('   최근 기록(끝 15줄):\n' + trail.slice(-15).map((l) => '     ' + l).join('\n'));
     }
   } finally {
