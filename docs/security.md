@@ -52,7 +52,7 @@
 
 | 사건 | 남는 곳 |
 | --- | --- |
-| 화풍 승인, 낭송 목소리 승인과 노래별 배정 결정 | `docs/approvals.md`(날짜, 결정, 덧붙인 지시, 샘플 해시) |
+| 화풍 승인, 낭송 목소리 승인과 노래별 배정 결정 | 저장소의 승인 기록 파일(날짜, 결정, 덧붙인 지시, 샘플 원본 해시)과 `tools/voice/voices.json`의 `approved` |
 | 낭송 조각 하나하나의 생성(모델, 목소리, 기준 음성 sha256, 줄 글, 자르기 방식, 받아쓰기 일치, 길이, sha256) | `assets/audio/voice/manifest.json` |
 | 승인한 목소리의 고정(기준 음성 sha256, 설계 id) | `tools/voice/voices.json`의 `candidates.*.referenceSha256`·`voiceDesignId` |
 | 그림 하나하나의 생성(프롬프트 파일, 원본 sha256, 크기·형식) | `assets/manifest.parts/art.json` |
@@ -68,7 +68,7 @@
 - **보관**: `%LOCALAPPDATA%/yetnorae/fish.key` 한 곳. 저장소, 셸 설정 파일, 환경 변수 영구 설정, 다른 문서에 복사하지 않는다.
 - **전달**: 명령 하나에만 환경 변수로 넘긴다: `YETNORAE_FISH_API_KEY="$(cat "$LOCALAPPDATA/yetnorae/fish.key")" python tools/voice/build_voice.py …`. 키 파일을 `cat`만 하거나 `echo`로 출력하지 않는다.
 - **쓰기**: `tools/voice/build_voice.py`만 키를 읽는다. 도구는 키를 화면·기록·파일에 쓰지 않고 오류 글에서도 지운다. `--dry-run`·`--self-test`는 키 없이 돈다.
-- **지출 한도**: 한 번 실행에서 `--max-usd`(기본 3 USD)를 넘을 요청은 보내지 않는다. 한도를 올리는 것은 사용자 승인 뒤에만.
+- **지출 한도**: 요청을 보내기 전마다 이번 실행에서 쓴 돈(추정)이 `--max-usd`(기본 3 USD)에 닿았는지 보고, 닿았으면 더 보내지 않고 멈춘다. 요청을 기본 4개씩 동시에 보내므로, 닿기 직전에 이미 보낸 요청만큼 한도를 조금 넘을 수 있다. 한도를 올리는 것은 사용자 승인 뒤에만.
 - **회전과 폐기**: 낭송 제작을 마친 뒤 사용자가 Fish Audio에서 지금 키를 폐기하고 필요하면 새 키를 만든다(아직 하지 않았다). 키가 대화, 로그, 커밋, 파일 어디에든 드러났으면 바로 폐기한다.
 
 ## 6. 민감한 자료의 처리

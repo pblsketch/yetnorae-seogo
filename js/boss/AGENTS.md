@@ -26,7 +26,7 @@
 - 3단계에서 시조 자리에 꽂아 보스를 마치면 `diorama:slot-set { area: 'mentor', index: 0, songId: 'taesan' }`을 낸다(시조관 '선대 사서의 자리').
 
 ## 구현 방식
-- `start`는 `ctx = { session, container, signal }`만 본다. 나가기와 바깥 중단을 하나의 `AbortController`로 묶고, 끝날 때 스스로 치운 뒤 `progress.leaveBoss()`를 부른다(앱이 다시 불러도 해가 없다). 마치면 `{ completed: true }`, 닫혀 있거나 나가면 `{ completed: false, reason: 'locked' | 'left' }`, 중단 신호면 `AbortError`.
+- `start`는 `ctx`에서 `session`, `container`, `signal`, `rhythm`(없으면 `session.rhythm`)을 본다. 나가기와 바깥 중단을 하나의 `AbortController`로 묶고, 끝날 때 스스로 치운 뒤 `progress.leaveBoss()`를 부른다(앱이 다시 불러도 해가 없다). 마치면 `{ completed: true }`, 이미 마친 기록이면 `{ completed: true, already: true }`, 나가면 `{ completed: false, reason: 'left' }`, 들어갈 수 없으면 `enterBoss()`가 돌려준 까닭 그대로(`{ completed: false, reason: entered.reason }`, 예: `'boss-locked'`), 중단 신호면 `AbortError`.
 - `show`는 세션이 없으면 만들고, 끝나면 `ctx.go('ending' | 'play', { session })`.
 - 2단계 놓친 지점은 한 바퀴가 끝나면 `remixReplaySegments`(앞 조각의 끝 단위 + 뒤 조각의 첫 단위)를 바로 다시 들려주고, 그래도 남으면 '놓친 곳 다시 듣기' 단추를 둔다.
 - 3단계 다시 재기도 다섯 도구 방식이다(재기 화면에 도구를 시조 것만으로 줄이는 방법이 없다. 계단 오르기를 그 가운데 하나로 쓴다).

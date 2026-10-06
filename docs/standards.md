@@ -17,9 +17,17 @@
 - **바깥 주소 요청**: 글꼴, CDN, 분석 도구, 이미지 주소를 포함해 같은 사이트 밖으로 나가는 요청을 하나도 만들지 않는다. CSS의 `url(//…)`·`url(http…)`도 안 된다.
   - 위반 판정: `check-smoke`와 `check-playthrough`가 브라우저의 모든 요청을 모아 바깥 주소가 하나라도 있으면 실패한다. `check-fonts`는 CSS에서 바깥 `url()`을 찾는다. `check-boss`는 `js/boss/`·`js/data/remix.js`·`js/data/boss-text.js`·`css/boss.css`의 글에 `http://`·`https://`가 있으면(주석 안이라도, SVG 이름공간 주소만 빼고) 실패한다.
 - **진행이나 장면을 바꾸는 주소 인자, 교사 기능, 숨은 미리보기 주소, 점검용 입구**를 만들지 않는다. 제품 코드는 `location.search`·`location.hash`·`URLSearchParams`를 읽지 않고, 점검을 위한 전역(`window.__…`)이나 흉내 함수를 두지 않는다.
-  - 위반 판정: `check-engine`(엔진 파일 `save.js`·`progress.js`·`judge.js`·`cards.js`가 `location`·`URLSearchParams`·`document`·`window`·`localStorage`·`sessionStorage`·`navigator`를 쓰면 실패, 진행 엔진에 `unlock`·`setState`·`skip`·`force`·`debug`·`cheat` 같은 이름의 공개 함수가 있으면 실패), `check-wingflow`(`js/play/*.js`), `check-boss`(`js/boss/*.js` 등), `check-story`(`js/story/`의 **모든 파일**과 `js/data/story.js`).
+  - 위반 판정: 점검마다 훑는 범위와 낱말이 다르다.
+    - `check-engine`: 엔진 파일 `save.js`·`progress.js`·`judge.js`·`cards.js`에서 주석을 뺀 뒤 `location`·`URLSearchParams`·`document`·`window`·`localStorage`·`sessionStorage`·`navigator` 낱말을 찾는다. 진행 엔진의 공개 함수 이름에 `unlock`·`setState`·`setWing`·`skip`·`force`·`debug`·`cheat`가 있어도 실패한다.
+    - `check-wingflow`: `js/play/*.js`의 글 전체(주석 포함)에서 `location.search`, `URLSearchParams`, `location.hash`, `__wf`·`__test`·`stub`을 찾는다.
+    - `check-boss`: `js/boss/*.js`, `js/data/remix.js`, `js/data/boss-text.js`, `css/boss.css`의 글 전체(주석 포함)에서 같은 주소 인자 낱말과 `__b`·`__test`·`stub`, 바깥 주소를 찾는다.
+    - `check-story`: `js/story/`의 **모든 파일**(확장자를 가리지 않음)과 `js/data/story.js`의 글 전체(주석 포함)에서 `location.search`·`location.hash`, `URLSearchParams`, `__test`, `window.__`를 찾는다.
 - **점수, 등급, 순위, 랭킹, 타이머, 게임 오버, 정답률**과 그렇게 읽히는 말을 화면, 결과 카드, 데이터 글 어디에도 쓰지 않는다.
-  - 위반 판정: 위 세 점검의 정적 검사가 이 말들을 찾는다. `js/play/*.js`와 `js/boss/*.js`는 **주석까지** 검사하므로 주석에 "점수 없음"이라고 써도 실패한다. 같은 검사가 `stub`, `__test`, `__wf`, `__b` 같은 낱말도 잡는다. `check-story`는 `//`로 시작하는 줄만 빼고 검사하며, 영어 `score`·`rank`·`grade`도 대소문자 없이 잡는다(`upgrade`, `underscore` 같은 낱말 안에 든 것도 걸린다).
+  - 위반 판정: 정적 검사마다 찾는 낱말이 다르다.
+    - `check-wingflow`(`js/play/*.js`)와 `check-boss`(보스 파일): `/점수|등급|순위|타이머|게임 오버/`를 **주석까지** 찾는다. 주석에 "점수 없음"이라고 써도 실패한다.
+    - `check-story`(`js/story/`의 모든 파일과 `js/data/story.js`): `/점수|등급|순위|랭킹|타이머|게임\s*오버|정답률|score|rank|grade/i`를 `//`로 시작하는 줄만 빼고 찾는다. 영어는 다른 낱말 안에 든 것(`upgrade`, `underscore`)도 걸린다.
+    - `check-engine`: 엔진 소스의 낱말은 보지 않고, 카드 자료의 열쇠 이름(속까지)에서 `/score|grade|rank|point|percent|점수|등급|순위/i`를 찾는다.
+    - 화면 글은 `check-story`, `check-boss`, `check-playthrough`, `check-card`가 화면과 카드에 그려진 글에서 찾는다.
 
 ## 3. 구조와 의존
 
@@ -51,7 +59,7 @@
 - 화면 글은 모두 한국어다. 2D 누를 자리 이름표도 한국어여야 한다(`js/world/board2d.js`의 `ANCHOR_LABELS`에 없는 열쇠는 '자리'로 보이고, `check-wing-contract`가 영어 이름표를 잡는다).
 - 스타일은 모듈마다 `css/<모듈>.css`에 두고 `index.html`에 링크한다. 색은 `css/base.css`의 토큰(`--hanji`, `--hanji-deep`, `--meok`, `--meok-soft`, `--meok-fog`, `--nokcheong`, `--juhong`, `--gold`)만 쓴다. 단청색(녹청·주홍)은 누를 수 있는 것에만 쓴다.
 - 색 토큰을 바꾸면 `js/world/palette.js`의 `TOKENS`도 같은 값으로 바꾼다(`check-world`가 두 값을 맞춰 본다).
-- 작품 방 스타일은 그 방 뿌리 클래스 아래에만 쓴다(`css/room-goryeo.css`는 `.room-goryeo …`, `css/room-gasa.css`는 `.rg-room …`처럼). 뿌리 밖에 쓴 규칙은 다른 방에 번진다.
+- 작품 방 스타일의 규칙은 모두 그 방만의 범위에 둔다: 방 뿌리 클래스 아래(`css/room-goryeo.css`는 `.room-goryeo …`, `css/room-gasa.css`는 `.rg-room …`)이거나, 그 방만 쓰는 머리글자의 클래스(「제망매가」 `rh-`, 「십 년을 경영하야」 `sj-`, 「님이 오마 하거늘」 `rs-`). 두 방이 같은 머리글자를 쓰거나 범위 밖에 규칙을 쓰면 다른 방에 번진다(다섯 방 CSS가 `index.html`에 함께 붙는다).
 - 글자 크기는 `--text-scale`(1, 1.15, 1.3)을 따르고, 세 단계 모두에서 넘치지 않아야 한다(`check-ui`). 결과 카드는 예외로 픽셀 고정이다.
 - 움직임 줄이기는 `#app`의 `reduce-motion` 클래스와 `settings:reduce-motion` 사건으로 알린다. 카메라 이동, 흔들림, 파티클을 쓰는 코드는 이 상태를 읽어 줄인다.
 - 누를 수 있는 것은 48px 이상이다. 화면은 16:9 안전 상자 기준이고, 높이는 `100dvh`, 노치는 `env(safe-area-inset-*)`로 피한다. 2D 그림 판의 오른쪽 아래 구석(가로 78% 너머이면서 세로 78% 너머)에는 상황 버튼이 있으므로 누를 것을 두지 않는다.
@@ -72,8 +80,8 @@
 - 커밋 글은 한국어로 `유형: 설명`(유형은 `feat`·`fix`·`test`·`docs`·`chore`·`merge`) 꼴로 쓰고, 끝 줄에 `Co-Authored-By:` 줄을 둔다. 커밋 글에도 출판사 이름은 없다.
 - 커밋 앞에 `node tests/check-rights.mjs`가 0으로 끝나야 한다. 출판사 이름이 한 번 커밋되면 이력을 다시 써야 하므로, 발견하면 더 커밋하지 않고 사용자에게 알린다.
 - 다음은 할 때마다 사용자에게 먼저 묻는다: 프로그램·패키지 설치(npm, Playwright, 파이썬 패키지, ffmpeg), 바깥 파일 내려받기(국악 음원, 글꼴 원본 등), GitHub 저장소 만들기·올리기(push)·Pages 켜기, 유료 서비스 사용과 지출.
-- 그림 화풍과 낭송 목소리는 사용자 승인 뒤에만 대량으로 만든다. 승인 기록은 `docs/approvals.md`에 남긴다.
-- git worktree를 쓸 때 `git worktree remove`에 `--force`를 쓰지 않는다. worktree의 `tests/node_modules`가 다른 폴더를 가리키는 연결(Windows junction)이면 먼저 그 연결을 지운다(순서는 운영 절차에 있다).
+- 그림 화풍과 낭송 목소리는 사용자 승인 뒤에만 대량으로 만든다. 승인할 때마다 날짜, 결정, 덧붙인 지시, 샘플 원본의 해시를 저장소의 승인 기록 파일에 남긴다(원본은 저장소 밖이므로 그 기록이 승인의 근거다). 지금 승인된 것: 화풍(2026-10-05, 한지 종이 인형·가는 먹선·단청색은 조금·그림 안 글자 없음), 낭송 목소리(2026-10-06, `narrator-a2` 여성 화자 13편, `narrator-b2` 나머지).
+- git worktree를 쓸 때 `git worktree remove`에 `--force`를 쓰지 않는다. worktree의 `tests/node_modules`가 다른 폴더를 가리키는 연결(Windows junction)이면 먼저 그 연결을 지운다: 그 worktree의 `tests/` 안에서 `cmd //c rmdir node_modules`를 하고 `ls node_modules`로 사라졌는지 확인한 뒤 `git worktree remove <경로>`를 부른다.
 
 ## 8. 이름 짓기
 

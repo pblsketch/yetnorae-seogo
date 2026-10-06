@@ -34,5 +34,5 @@
 - 스타일은 `css/measure.css`.
 
 ## 점검
-- `node tests/check-measure.mjs`(`tests/pages/measure.html`): 갈래별 시험 노래로 접기 경계, 음보 수, 고유 동작 증거가 데이터 계산과 같은지, 빗금 모드와 소리 끔에서 같은 증거, 놓친 박 처리와 빗금 권유, 반응 사건, 세 화면 크기와 글자 크기 3단계에서 넘침 없음. `MEASURE_ONLY=phone`은 화면 크기 부분만 돌린다(손볼 때만).
+- `node tests/check-measure.mjs`(`tests/pages/measure.html`): 갈래별 시험 노래로 접기 경계, 음보 수, 고유 동작 증거가 데이터 계산과 같은지, 빗금 모드와 소리 끔에서 같은 증거, 놓친 박 처리와 빗금 권유, 반응 사건(크롬북 크기), 넘침 없음(844×390에서 글자 크기 1·1.15·1.3만 본다). `MEASURE_ONLY=phone`은 화면 크기 부분만 돌린다(손볼 때만).
 - 재기를 고치면 `check-wingflow`, `check-boss`, `check-story`(입구 튜토리얼), `check-playthrough`가 함께 영향을 받는다.

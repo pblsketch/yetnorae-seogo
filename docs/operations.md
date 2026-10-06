@@ -10,7 +10,7 @@
 | Node(지금 제작 기기는 v24) | 점검 전부, 글 확인 문서, 자산 목록 합치기, 낭송 계획 | 점검을 돌릴 수 없다 |
 | 설치된 Chrome | 화면 점검(Playwright가 `channel: 'chrome'`으로 연다) | 화면 점검이 시작되지 않는다 |
 | `tests/node_modules`(Playwright 1.63.0) | 화면 점검, 화면 그림 도구 | `cd tests && npm ci`(승인 뒤) |
-| ffmpeg·ffprobe | `check-bgm`, 낭송·배경음 도구 | `check-bgm` 실패. PATH 밖이면 `FFMPEG_BIN` 또는 `%USERPROFILE%/ffmpeg/bin` |
+| ffmpeg·ffprobe | `check-bgm`, 낭송·배경음 도구 | `check-bgm` 실패. 찾는 순서는 `FFMPEG_BIN` 폴더 → `%USERPROFILE%/ffmpeg/bin` → PATH |
 | 파이썬 3 + 도구별 패키지 | 낭송(`numpy`, `msgpack`), 효과음(`numpy`, `scipy`), 그림(`numpy`, `Pillow`), 글꼴(`fontTools`, woff2 압축용 `brotli`), 화면 그림 줄이기(`Pillow`, 없으면 줄이지 않음) | 그 도구만 못 돈다. 게임과 점검에는 필요 없다 |
 
 ## 2. 처음 한 번
@@ -84,7 +84,7 @@ node tests/check-voice.mjs
 - 키는 그 명령 한 줄에만 넘긴다. 키 파일 내용을 화면에 내지 않는다.
 - 실제 조각은 `tools/voice/voices.json`의 승인 배정(`approved.default`, `approved.bySong`)대로만 만든다. `--voice`는 견본(`--sample`)과 빠르기 재기(`--tempo-probe`)에만 쓴다.
 - 이미 받은 줄은 `tools/voice_cache/`에 있어 다시 돈을 쓰지 않는다. 목소리 기준 음성은 `assets/raw/voice-ref/`에서 되살린다. 둘 다 저장소 밖이므로 다른 기기에서는 사용자에게 받아 같은 자리에 둔다.
-- 한도(`--max-usd`, 기본 3 USD)에 닿으면 도구가 멈춘다. 만든 것은 캐시에 남으므로 승인을 받아 한도를 올린 뒤 같은 명령을 다시 돌리면 이어서 만든다.
+- 쓴 돈이 한도(`--max-usd`, 기본 3 USD)에 닿으면 도구가 멈춘다(동시 요청 때문에 조금 넘을 수 있으니 한도를 여유 있게 정하지 않는다). 만든 것은 캐시에 남으므로 승인을 받아 한도를 올린 뒤 같은 명령을 다시 돌리면 이어서 만든다.
 - 끝에 도구가 알리는 '받아쓰기 일치 0.6 아래 줄'과 '음절 비율로 자른 조각'은 글 확인 문서의 '먼저 들어 볼 낭송'에 모이고, 사람이 귀로 확인한다.
 
 ## 7. 그림 만들기
