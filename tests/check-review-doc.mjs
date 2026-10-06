@@ -80,7 +80,8 @@ export function judgeDoc(md, { items, songs, voiceRows, approved }) {
 console.log('[1] 문서가 있고 최신인지');
 const exists = fs.existsSync(DOC_PATH);
 ok(exists, 'docs/글-확인-문서.md 있음');
-const md = exists ? fs.readFileSync(DOC_PATH, 'utf8') : '';
+// git이 줄 끝을 CRLF로 바꿔 꺼내도 같은 문서로 본다
+const md = exists ? fs.readFileSync(DOC_PATH, 'utf8').replace(/\r\n/g, '\n') : '';
 const { markdown: fresh } = await buildReviewDoc();
 ok(md === fresh, '지금 데이터로 다시 만든 문서와 같음' + (md === fresh ? '' : ' — node tools/text/review-doc.mjs로 다시 만드세요'));
 const imgs = Object.values(SHOTS).flat().map(([f]) => f);

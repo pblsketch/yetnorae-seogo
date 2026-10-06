@@ -135,7 +135,7 @@ export async function collect(root = ROOT) {
     for (const [sec, items] of Object.entries(groups)) texts[sec].push({ source: src.file, what: src.what, items });
   }
   {
-    const src = fs.readFileSync(path.join(root, CARD_SOURCE.file), 'utf8');
+    const src = fs.readFileSync(path.join(root, CARD_SOURCE.file), 'utf8').replace(/\r\n/g, '\n');   // 꺼낸 줄 끝(CRLF)과 상관없이 같은 문서
     const items = CARD_SOURCE.consts.map((n) => ({ path: [n], text: constBlock(src, n), block: true })).filter((it) => it.text);
     texts[CARD_SOURCE.route()].push({ source: CARD_SOURCE.file, what: CARD_SOURCE.what, items });
   }
@@ -333,13 +333,13 @@ export async function buildReviewDoc(root = ROOT) {
     }
   }
   L.push(...voiceSection(ctx));
-  return { markdown: L.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n', ctx };
+  return { markdown: L.join('\n').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n', ctx };
 }
 
 async function main() {
   const { markdown } = await buildReviewDoc();
   if (process.argv.includes('--check')) {
-    const now = fs.existsSync(DOC_PATH) ? fs.readFileSync(DOC_PATH, 'utf8') : '';
+    const now = fs.existsSync(DOC_PATH) ? fs.readFileSync(DOC_PATH, 'utf8').replace(/\r\n/g, '\n') : '';
     if (now !== markdown) { console.log('글 확인 문서가 최신이 아니다. node tools/text/review-doc.mjs로 다시 만드세요.'); return 1; }
     console.log('글 확인 문서가 최신이다.');
     return 0;
