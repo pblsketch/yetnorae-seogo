@@ -16,7 +16,7 @@
 ## 2. 처음 한 번
 
 ```sh
-git clone <저장소> && cd "옛 노래 서고"     # 공개 저장소는 아직 없다
+git clone https://github.com/pblsketch/yetnorae-seogo.git "옛 노래 서고" && cd "옛 노래 서고"
 cd tests && npm ci && cd ..                 # Playwright 설치(사용자 승인 뒤). 브라우저 내려받기는 필요 없다
 node tests/check-smoke.mjs                  # 첫 화면이 열리고 바깥 요청·콘솔 오류가 없는지
 ```
@@ -122,11 +122,10 @@ git add <파일> && git commit     # 한국어 '유형: 설명', 끝 줄 Co-Auth
 - 저장소 git 사용자는 이미 저장소 설정으로 정해져 있다(`pblsketch`). 바꾸지 않는다.
 - `git push`는 하지 않는다. 원격 저장소가 아직 없다.
 
-## 10. 공개(아직 하지 않음)
+## 10. 공개(GitHub Pages)
 
-공개는 사용자가 결정한다. 조건과 순서:
-
-1. 교사가 `docs/글-확인-문서.md`를 확인하고 모든 노래가 `verified`가 된다.
-2. `node tests/run-all.mjs`가 0으로 끝난다.
-3. 사용자 승인 뒤 GitHub 저장소를 만들고 올린 뒤 GitHub Pages를 켠다. 게임은 저장소 맨 위를 사이트 맨 위로 내놓는 정적 사이트이고, 모든 경로가 상대 경로라 하위 경로(`/<저장소 이름>/`)에서도 돈다.
-4. 공개 주소를 `README.md`의 '공개 주소' 칸에 적는다.
+- 저장소: https://github.com/pblsketch/yetnorae-seogo (공개), 기본 가지 `main`. 사이트: https://pblsketch.github.io/yetnorae-seogo/
+- Pages는 `main`의 맨 위 폴더를 그대로 내놓는다(빌드 없음, `.nojekyll`로 Jekyll 처리를 끈다). 모든 경로가 상대 경로라 하위 경로 `/yetnorae-seogo/`에서도 돈다.
+- 배포 순서: `node tests/run-all.mjs`가 0으로 끝난 것을 확인 → `node tests/check-rights.mjs` → `git push origin main`. 몇 분 뒤 `gh api repos/pblsketch/yetnorae-seogo/pages/builds/latest`의 `status`가 `built`이고 `commit`이 올린 커밋인지 본다.
+- 확인: 공개 주소를 브라우저로 열어 시작 화면, 새 기록, 이어폰 안내까지 오는지, 콘솔 오류·실패한 요청·바깥 요청이 없는지 본다.
+- 올리기(push)는 할 때마다 사용자 승인을 받는다. 교과서 밖 노래 글은 공개된 뒤에도 교사 확인 중이며, 확인이 끝나면 `verified`로 바꿔 다시 올린다.
