@@ -1,5 +1,5 @@
 // 작품 방 「제망매가」 3D 무대: 가을 산사 앞, 바람 부는 가지 하나에서 잎이 떨어진다. 길 끝은 미타찰로 가는 일주문,
-// 그 너머 산사(법당·석탑)와 안개 낀 수묵 산이 겹겹이 물러난다. 풍경은 gfx 꾸러미(js/world/gfx/t37-scenery.js)로 짓는다.
+// 그 너머 산사(법당·석탑)와 밑동이 안개로 번지는 수묵 산이 겹겹이 물러난다. 풍경은 gfx 꾸러미(js/world/gfx/t37-scenery.js)로 짓는다.
 // 부르는 쪽이 넘긴 root에 모형을 붙이고 camera를 잠시 빌린다(끝나면 처음 자리로 되돌린다). 그리기는 부르는 쪽이 한다.
 // 누를 자리(잎·무더기)는 방이 DOM 단추로 만들고, 이 무대는 그 자리를 화면 좌표로 투영해 준다.
 // 그리기 호출: 풍경 역할 열 남짓 + 줄기·가지 + 가지의 잎 + 떨어지는 잎 넷 + 길 다섯 + 무더기 넷 + 해·빛무리 = 서른 안팎(예산 60).
@@ -63,7 +63,6 @@ export function create3DStage({ three, pileCount = 4, reduceMotion = () => false
   const b = sc.kit.builder();
   sc.groundDisc(b, { x: 0, z: -14, r: 44, color: '#c2b49a', rings: 4 });
   sc.inkRanges(b, { x0: -90, x1: 90, z: -46, height: 24, gap: 14, y: -3 });
-  sc.mistBand(b, { x0: -40, x1: 40, z: -30, y: 1.2, h: 3.6, count: 3, seed: 5 });
   // 산사: 법당 한 채(기둥·공포·서까래·기와), 창살 문, 석탑
   const hallZ = -21;
   const posts = [-4.2, -1.4, 1.4, 4.2];

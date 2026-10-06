@@ -71,25 +71,27 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
   group.add(path);
 
   // ── 풍경(gfx 꾸러미) ──
-  const kitSc = createScenery(THREE);
+  // 달밤이라 빛의 결이 작다: 넓은 면 역할은 빛 계산 없는 꼴로 그린다(굽은 그늘은 꼭짓점 색에 남는다, 박자 두드리기의 프레임을 지킨다)
+  const kitSc = createScenery(THREE, { unlit: ['wood', 'stone', 'plaster', 'roof'] });
   kitSc.materials.setDancheong(0.6);   // 달빛 아래라 빛깔이 가라앉는다
   const boxGeo = own(new THREE.BoxGeometry(1, 1, 1));
   // 중문·대문: 문마다 주춧돌·기둥·인방·문짝 반쯤 열림·양옆 담·작은 맞배 기와지붕. 카메라가 문을 지나갈 때는 그 문을 감춘다.
+  const dim = (c) => mixHex(c, NIGHT, 0.42);   // 빛 없는 재질이라 달밤 어둠을 색에 미리 섞는다
   const gateGroups = GATES_Z.map((gz, gi) => {
     const gb = kitSc.kit.builder();
     const post = gi === 0 ? '#5a5048' : '#6e4a3e';
     for (const dx of [-1.25, 1.25]) {
-      gb.add('stone', kitSc.kit.cylinder(0.2, 0.24, 0.2, 8), { p: [dx, 0.1, gz], color: '#77726a', ao: 0.3 });
-      gb.box('wood', 0.24, 2.3, 0.24, { p: [dx, 1.3, gz], color: post, ao: 0.2 });
+      gb.add('stone', kitSc.kit.cylinder(0.2, 0.24, 0.2, 8), { p: [dx, 0.1, gz], color: dim('#77726a'), ao: 0.3 });
+      gb.box('wood', 0.24, 2.3, 0.24, { p: [dx, 1.3, gz], color: dim(post), ao: 0.2 });
       // 반쯤 열린 문짝(널문)
-      gb.box('wood', 1.05, 2.0, 0.07, { p: [dx * 0.8 + (dx < 0 ? -0.2 : 0.2), 1.15, gz - 0.45], r: [0, dx < 0 ? -1.15 : 1.15, 0], color: '#5c4d40', ao: 0.2 });
+      gb.box('wood', 1.05, 2.0, 0.07, { p: [dx * 0.8 + (dx < 0 ? -0.2 : 0.2), 1.15, gz - 0.45], r: [0, dx < 0 ? -1.15 : 1.15, 0], color: dim('#5c4d40'), ao: 0.2 });
       // 양옆 담: 회벽 + 아래 막돌
-      gb.box('plaster', 1.3, 1.5, 0.26, { p: [dx * 1.55, 1.05, gz], color: '#bdb39f', ao: 0.3 });
-      gb.box('stone', 1.34, 0.5, 0.32, { p: [dx * 1.55, 0.25, gz], color: '#77726a', ao: 0.4 });
+      gb.box('plaster', 1.3, 1.5, 0.26, { p: [dx * 1.55, 1.05, gz], color: dim('#bdb39f'), ao: 0.3 });
+      gb.box('stone', 1.34, 0.5, 0.32, { p: [dx * 1.55, 0.25, gz], color: dim('#77726a'), ao: 0.4 });
     }
-    gb.box('wood', 2.9, 0.2, 0.28, { p: [0, 2.45, gz], color: '#4a3f36', ao: 0 });
-    kitSc.hipRoof(gb, { x: 0, z: gz, y: 2.55, w: 3.0, d: 0.5, h: 0.55, overhang: 0.45, style: 'giwa', color: '#66666e', lift: 0.25, seg: 10 });
-    for (const dx of [-1.55, 1.55]) kitSc.hipRoof(gb, { x: dx, z: gz, y: 1.8, w: 1.3, d: 0.3, h: 0.28, overhang: 0.2, style: 'giwa', color: '#45444a', lift: 0.1, seg: 6 });
+    gb.box('wood', 2.9, 0.2, 0.28, { p: [0, 2.45, gz], color: dim('#4a3f36'), ao: 0 });
+    kitSc.hipRoof(gb, { x: 0, z: gz, y: 2.55, w: 3.0, d: 0.5, h: 0.55, overhang: 0.45, style: 'giwa', color: dim('#66666e'), lift: 0.25, seg: 10 });
+    for (const dx of [-1.55, 1.55]) kitSc.hipRoof(gb, { x: dx, z: gz, y: 1.8, w: 1.3, d: 0.3, h: 0.28, overhang: 0.2, style: 'giwa', color: dim('#45444a'), lift: 0.1, seg: 6 });
     const g = gb.build('rs-gate-' + gi);
     group.add(g);
     return g;
@@ -110,13 +112,13 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
     for (const side of [-1, 1]) {
       const x = side * (WALL_X + rand() * 0.15) + pathX(z) * 0.5;
       const tone = mixHex('#a39e94', '#7d7870', rand());
-      kitSc.rock(wb, { x, z, s: 0.42 + rand() * 0.1, flat: 1.1, seed: (rand() * 4) | 0, color: tone, shadow: false });
-      kitSc.rock(wb, { x: x + side * 0.05, y: 0.42, z: z + 0.45, s: 0.36 + rand() * 0.08, flat: 1.0, seed: (rand() * 4) | 0, color: mixHex(tone, '#b3aea4', 0.3), shadow: false });
-      wb.box('stone', 0.75, 0.1, 1.0, { p: [x, 0.86, z], r: [0, rand() * 0.2, (rand() - 0.5) * 0.1], color: '#8a867e', ao: 0 });
+      kitSc.rock(wb, { x, z, s: 0.42 + rand() * 0.1, flat: 1.1, seed: (rand() * 4) | 0, color: dim(tone), shadow: false });
+      kitSc.rock(wb, { x: x + side * 0.05, y: 0.42, z: z + 0.45, s: 0.36 + rand() * 0.08, flat: 1.0, seed: (rand() * 4) | 0, color: dim(mixHex(tone, '#b3aea4', 0.3)), shadow: false });
+      wb.box('stone', 0.75, 0.1, 1.0, { p: [x, 0.86, z], r: [0, rand() * 0.2, (rand() - 0.5) * 0.1], color: dim('#8a867e'), ao: 0 });
     }
   }
   // 건넌 산: 달빛 먹 산 두 줄
-  kitSc.inkRanges(wb, { x0: -70, x1: 70, z: -40, height: 16, gap: 10, y: -2, color: '#6f7686' });
+  kitSc.inkRanges(wb, { x0: -70, x1: 70, z: -40, height: 16, gap: 10, y: -2, color: '#6f7686', rows: [1] });
   const wallGroup = wb.build('rs-walls');
   group.add(wallGroup);
 
