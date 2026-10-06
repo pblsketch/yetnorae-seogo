@@ -6,7 +6,8 @@
 // openMeasure(ctx) → Promise<감정서>   (모양은 js/data/README.md 6절)
 //   ctx.song          노래 객체
 //   ctx.wing          지금 관 id('hyangga'…, 튜토리얼은 'entrance'). 그 관의 고유 동작을 쓴다
-//   ctx.mode          'wing'(기본) | 'boss' — 보스는 다섯 고유 동작을 도구로 골라 쓰고, 수첩 대신 일지를 연다
+//   ctx.mode          'wing'(기본) | 'boss' — 보스는 다섯 고유 동작을 도구로 골라 쓰고, 수첩 대신 일지를 연다.
+//                     갈래가 드러나지 않게 단위를 '덩이'라 부르고, 박 밖 음보의 이름표(여음·후렴·되풀이)를 달지 않는다
 //   ctx.world         세계 바탕 손잡이(js/world/world.js). openSplit/closeSplit로 반반 틀을 연다. 없으면 ctx.container에 붙인다
 //   ctx.rhythm        { engine, buildGrid?, createTapSession?, offsetMs? } — 소리 엔진과 박자 함수(README 추가 제안(T3))
 //   ctx.noBeat        처음 박자 없는 방식인지(없으면 engine.noBeat). 그 뒤로는 rhythm:no-beat를 따른다
@@ -121,7 +122,7 @@ export async function openMeasure(ctx = {}) {
   if (useWorld) ctx.world.openSplit(root);
   else (ctx.container ?? document.body).append(root);
 
-  const view = createTextView(text, { song, layer: 'original' });
+  const view = createTextView(text, { song, layer: 'original', neutral: boss });
   let hintText = '';
   const setHint = (t) => { hintText = t; hint.textContent = view.isGloss ? L.glossPaused : t; };
   const setStep = (s) => { root.dataset.step = s; };
@@ -194,7 +195,7 @@ export async function openMeasure(ctx = {}) {
 
     // ── 두드리기·빗금 ──
     setStep('tap');
-    const tapP = quiet(runTap({ song, view, root, controls, overlay, setHint, rhythm: ctx.rhythm ?? null, beat, setSlashMode, signal, emit }));
+    const tapP = quiet(runTap({ song, view, root, controls, overlay, setHint, rhythm: ctx.rhythm ?? null, beat, setSlashMode, signal, emit, neutral: boss }));
     if (needIntro('common')) {
       await intro('tap', controls.querySelector('.m-listen') ?? text.querySelector('button.m-word'));
       ctx.onIntroSeen?.('common');

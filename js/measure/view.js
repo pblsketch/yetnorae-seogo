@@ -8,11 +8,14 @@
 // 꾸밈(불 켜짐, 빗금, 고리, 접힘)은 글자 배치를 바꾸지 않는 표시만 쓴다. 그래서 꾸밈을 바꿔도 쪽이 넘치지 않는다.
 // 고려가요의 여음·후렴·되풀이 머리(박에 들지 않는 음보)는 단위 덩이에서 이름표(글자)와 점선 테두리로 늘 표시한다.
 // 색에만 기대지 않는다. 이름표는 같은 표시가 이어지는 첫 음보(쪽이 그 가운데서 시작하면 쪽 첫 음보)에만 붙인다.
+// 보스(neutral)에서는 이름표를 달지 않고 종류도 가리지 않는다. 같은 점선 테두리로만 묶어 박에 들지 않는 곳임을 보인다
+// (이름표가 갈래를 알려 주기 때문이다. spec 10.2). 그 말은 여전히 누를 수 없다.
 // 낱말 안에서 나눈 음보(joined)는 앞 음보와 띄우지 않고 가는 경계선만 보인다.
 import { piecesOf } from './text.js';
 import { MARK_NAMES } from './labels.js';
 
-export function createTextView(area, { song, layer = 'original' } = {}) {
+// opts.neutral: 보스 방식. 박 밖 음보의 이름표와 종류 표시를 숨긴다.
+export function createTextView(area, { song, layer = 'original', neutral = false } = {}) {
   let curLayer = layer;
   let pieces = piecesOf(song, curLayer);
   let mode = { flow: false, interactive: null };
@@ -96,11 +99,11 @@ export function createTextView(area, { song, layer = 'original' } = {}) {
       }
       if (p.kind === 'word' && (first || p.footStart || !footEl)) {
         footEl = document.createElement('span');
-        footEl.className = 'm-foot' + (p.mark ? ' is-offbeat is-' + p.mark : '') + (p.joined ? ' is-joined' : '');
+        footEl.className = 'm-foot' + (p.mark ? ' is-offbeat' + (neutral ? '' : ' is-' + p.mark) : '') + (p.joined ? ' is-joined' : '');
         footEl.dataset.u = p.u;
         footEl.dataset.l = p.l ?? '';
         footEl.dataset.f = p.f;
-        if (p.mark) {
+        if (p.mark && !neutral) {
           footEl.dataset.mark = p.mark;
           if (p.markStart || first) {
             const tag = document.createElement('span');
@@ -143,7 +146,8 @@ export function createTextView(area, { song, layer = 'original' } = {}) {
     if (!area.isConnected || area.clientHeight < 8 || n === 0) { pages = [[0, n]]; dirty = true; return; }
     const unitEnds = [];
     for (let i = 1; i <= n; i++) if (i === n || pieces[i].unitStart) unitEnds.push(i);
-    const breakable = (i) => i === n || (isGloss() ? true : pieces[i].footStart);
+    // 낱말 안에서 나눈 음보(joined) 앞에서는 나누지 않는다(text.js breakBefore)
+    const breakable = (i) => i === n || pieces[i].breakBefore;
     const lineBreak = (i) => i === n || pieces[i].lineStart;
     const out = [];
     let a = 0;

@@ -886,6 +886,7 @@ dispose()
 | `js/result/card-view.js` | `showCard(container, source, { manifest?, onClose? })` → `{ ready, download(), refresh(), layout, canvas, dispose() }` |
 
 - `data`는 `buildWingCard`·`buildFinalCard`(js/core/cards.js)의 결과만 쓴다. `source`에 **함수**(`() => buildWingCard(store.currentRecord(), 관 id)`)를 주면 내려받을 때마다 지금의 기록으로 다시 모아 다시 그린다(spec 12). 자료가 `null`이면 내려받기 버튼 없이 안내만 보인다.
+- 부르는 곳: 판의 끝(`js/play/wing.js`, 판 카드), 엔딩(`js/story/ending.js`, 마지막 카드), 서고 완성 뒤 게임 중 설정(`js/story/app.js`, 마지막 카드), 시작 화면 기록 목록의 '결과 카드'(`js/story/start-view.js`, 마친 관마다 판 카드와 서고 완성이면 마지막 카드. 자료는 `() => buildWingCard(store.getRecord(기록 id), 관 id)`처럼 그 기록을 내려받을 때마다 다시 읽는다).
 - 카드 배치는 픽셀로 고정이라 글자 크기 설정과 상관없다. 글꼴은 `css/base.css`의 `--font-body`·`--font-ui`를 읽고 `document.fonts.ready`를 기다린 뒤 그린다.
 - 학생 그림은 기록의 `appearance`로 `sprite/student-<a|b>`를 고른다. `manifest`(자산 목록)를 넘기면 그 그림을, 없으면 자리표시 종이 인형을 쓴다.
 - 파일 이름은 `data.fileName`(spec 12 기본값)을 쓰고, 파일 이름에 쓸 수 없는 글자(`\ / : * ? " < > |`)만 `_`로 바꾼다.
@@ -1507,9 +1508,9 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - **표시와 구간(4.4 `features.refrains`)은 서로 맞아야 한다**(검증기 `FORM`): 여음·후렴 구간 안의 음보는 모두 그 구간과 같은 `kind`이고, `kind`가 여음·후렴인 음보는 같은 `kind`의 구간 안에 있다. 되풀이 머리는 구간에 넣지 않고, 바로 뒤에 여음이 오며 그 뒤에 박에 드는 음보가 있어야 한다. 노래에 박에 드는 음보가 하나는 있어야 한다. spec 4.4의 '후렴·여음 구간 하나 이상'은 그대로다.
 - **줄 글 잇기**: `joinFeet(feet, layer)`(`js/core/song-shape.js`)가 음보를 빈칸으로 잇되 `joined` 앞은 붙인다. `songText`, 낭송 계획(`tools/voice/plan.mjs`의 줄 글), 「정석가」 방·보스 리믹스 글줄·묶기 연출의 첫 소절이 이 함수를 쓴다. 그래서 낱말 안에서 다시 나눠도 낭송에 읽힐 줄 글이 그대로라 낭송 캐시로 다시 자르기만 하면 된다.
 - **음보 수**: `feetCounts(song)`은 고려가요에서 줄마다 **박에 드는** 음보 수를 낸다(후렴만 있는 줄은 0). `goryeo-3beat`는 박에 드는 음보가 있는 줄 가운데 세 음보 줄이 80% 이상일 때 나온다(4.5 표의 '모든 줄'을 이렇게 읽는다).
-- **두드리기 증거(6절)**: 고려가요는 `{ mode: 'lines', feet: [[줄마다 박에 드는 음보 수], …], refrains: 여음·후렴 음보 수 }`. 감정서는 0인 줄(듣기만 하는 후렴 줄)을 빼고 세고, `refrains`가 0보다 크면 `[여음·후렴이 있다]` 줄을 더한다(글은 `js/measure/labels.js`의 `L.sheetRefrains`).
+- **두드리기 증거(6절)**: 고려가요는 `{ mode: 'lines', feet: [[줄마다 박에 드는 음보 수], …], refrains: 여음·후렴 음보 수 }`. 감정서는 0인 줄(듣기만 하는 후렴 줄)을 빼고 센다. `[여음·후렴이 있다]` 줄(글은 `js/measure/labels.js`의 `L.sheetRefrains`)은 두드리기 증거가 아니라 후렴 고리 걸기 증거(`refrain-link`, `present: true`)가 있을 때만 그 줄 뒤에 붙는다(줄 종류 `refrains`). 고유 동작이 그 증거를 맡게 하고(spec 5.4), 보스에서 도구를 쓰기 전에 갈래가 드러나지 않게 하려는 것이다. 보스(`neutral`) 감정서는 '줄' 대신 '덩이'를 쓴다.
 - **박자 칸**(`js/core/rhythm.js`): 여음·후렴·되풀이 머리 칸도 낭송 칸으로 놓이고 박에 `offbeat: kind`가 붙는다. `createTapSession`은 그 칸에 판정 창을 열지 않고 놓친 박으로도 세지 않는다. 그래서 그 칸 때문에 단위를 다시 듣거나 '놓친 박 3개' 빗금 권유가 뜨지 않는다. `listenOnly(단위)`는 박이 하나도 없는 단위(후렴만 있는 줄)다. 낭송 조각 이름(10절)과 번호는 그대로다(여음 조각도 `<연>-<줄>-<음보>.mp3`).
-- **재기 화면**: 두루마리 단위 덩이에서 박 밖 음보는 이름표 글자('여음'·'후렴'·'되풀이', `MARK_NAMES`)와 점선 테두리·옅은 바탕으로 늘 보인다(색에만 기대지 않음, 단청색은 쓰지 않음). 두드리기는 후렴만 있는 줄도 들려주되 장구를 쉬게 하고(안내 `L.listenOnly`), 빗금에서는 박 밖 말을 누를 수 없고 후렴만 있는 줄은 처음부터 마친 줄이다. 낱말 안에서 나눈 음보는 띄우지 않고 가는 경계선만 보인다. 조각(`piecesOf`)에 `mark`·`markStart`·`joined`가 붙는다.
+- **재기 화면**: 두루마리 단위 덩이에서 박 밖 음보는 이름표 글자('여음'·'후렴'·'되풀이', `MARK_NAMES`)와 점선 테두리·옅은 바탕으로 늘 보인다(색에만 기대지 않음, 단청색은 쓰지 않음). 보스(`createTextView(…, { neutral: true })`)에서는 이름표와 종류 클래스(`is-yeoeum` 등)·`data-mark`를 달지 않고 같은 점선 테두리(`is-offbeat`)로만 묶는다. 안내도 `L.tapHintPlain`·`L.slashPlainHint`·`L.listenOnlyPlain`을 쓴다. 두드리기는 후렴만 있는 줄도 들려주되 장구를 쉬게 하고(안내 `L.listenOnly`), 빗금에서는 박 밖 말을 누를 수 없고 후렴만 있는 줄은 처음부터 마친 줄이다. 낱말 안에서 나눈 음보는 띄우지 않고 가는 경계선만 보인다. 조각(`piecesOf`)에 `mark`·`markStart`·`joined`·`breakBefore`가 붙는다. `breakBefore`는 그 말 앞에서 쪽을 나눌 수 있는지이고, 낱말 안에서 나눈 음보의 첫 말(`joined`) 앞은 거짓이다(한 낱말이 두 쪽으로 갈라지지 않게).
 - **글 확인 문서**: 고려가요 줄은 박 밖 음보를 `[여음 나ᄂᆞᆫ]`처럼 묶어 보이고 줄 끝에 박 수(또는 '듣기만 하는 줄')를 적는다. 노래마다 근거는 `citationNote`의 '음보 세기'에 있다.
 
 ### 노래마다 음보 세기와 근거(모두 `pending`, 교사 확인 대상)

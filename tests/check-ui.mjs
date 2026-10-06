@@ -690,6 +690,19 @@ async function scenesFor(server, vp, scale) {
     const { page } = game;
     const ui = makeUi(page, touch);
     try {
+      // 기록 화면에서 결과 카드 다시 받기: 단추가 있는 기록 목록, 카드 고르기(판 카드 다섯), 그 위의 카드 화면
+      await ui.waitSel('.story-record-cards', 30000);
+      await scan(page, tag + ' 시작 화면(결과 카드 단추)', { contrast });
+      await ui.press('.story-record-cards');
+      await ui.waitSel('.story-cards');
+      await scan(page, tag + ' 결과 카드 고르기', { contrast });
+      await ui.press('.story-cards .story-card-pick[data-wing="gasa"]');
+      await ui.waitSel('.story-record-card .card-view-download', 30000);
+      await scan(page, tag + ' 기록 화면의 판 카드', { contrast });
+      await ui.press('.story-record-card .card-view-close');
+      await ui.waitGone('.story-record-card');
+      await ui.press('.story-cards .story-cards-close');
+      await ui.waitGone('.story-cards-shade');
       await openRecord(ui);
       await ui.waitSel('.story-ending[data-step="return"]', 30000);
       const cov = await ui.ev(coverProblems, '.story-ending');

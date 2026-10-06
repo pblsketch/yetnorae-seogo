@@ -1,7 +1,11 @@
 // 시작 화면(spec 2-1, 13): 이름 기록 목록(이름, 모습, '서고 완성'), 새 기록(이름 1~12자, 모습 a|b), 같은 이름이면 이어 할지 묻기,
-// 모습 바꾸기, 지우기(확인 한 번), 설정과 출처 화면으로 가는 문. 기록 보호(비밀번호)는 없다(spec 13).
+// 모습 바꾸기, 지우기(확인 한 번), 결과 카드 다시 받기, 설정과 출처 화면으로 가는 문. 기록 보호(비밀번호)는 없다(spec 13).
+// 결과 카드(spec 12): 마친 관마다 판 카드, 서고를 완성했으면 마지막 카드. 내려받을 때마다 그 기록의 지금 상태로 다시 그린다.
 import { NAME_LIMITS, validateName } from '../core/save.js';
+import { buildWingCard, buildFinalCard } from '../core/cards.js';
+import { PLAY_WING_IDS, wingById } from '../data/wings.js';
 import { STORY } from '../data/story.js';
+import { showCard } from '../result/card-view.js';
 import { el, button, spriteImg, confirmBox } from './dom.js';
 
 const T = STORY.start;
@@ -110,6 +114,9 @@ export function renderStart(container, { store, manifest, onOpen, onSettings, on
       const open = button('story-btn story-record-open', T.continue, r.name + ' ' + T.continue);
       const lookBtn = button('story-btn story-btn-quiet story-record-look', T.changeLook, r.name + ' ' + T.changeLook);
       const del = button('story-btn story-btn-quiet story-record-delete', T.delete, r.name + ' ' + T.delete);
+      const cards = cardsOf(r.id);
+      const cardsBtn = cards.length ? button('story-btn story-btn-quiet story-record-cards', T.cards, r.name + ' ' + T.cards) : null;
+      cardsBtn?.addEventListener('click', () => openCards(r.id, r.name));
       open.addEventListener('click', () => onOpen?.(r.id));
       lookBtn.addEventListener('click', () => {
         store.setAppearance(r.id, r.appearance === 'a' ? 'b' : 'a');
@@ -120,13 +127,76 @@ export function renderStart(container, { store, manifest, onOpen, onSettings, on
         if (yes) store.deleteRecord(r.id, { confirmed: true });
         refresh();
       });
-      btns.append(open, lookBtn, del);
+      btns.append(...[open, cardsBtn, lookBtn, del].filter(Boolean));
       info.append(nameRow, btns);
       li.append(thumb, info);
       ul.append(li);
     }
     listBox.append(ul);
   }
+
+  // ── 결과 카드 다시 받기 ──
+  // 그 기록으로 만들 수 있는 카드: 마친 관마다 판 카드(관 순서), 서고를 완성했으면 마지막 카드.
+  function cardsOf(id) {
+    const p = store.getRecord(id)?.progress;
+    if (!p) return [];
+    const out = PLAY_WING_IDS.filter((w) => p.wings?.[w]?.state === 'done').map((w) => ({ kind: 'wing', wing: w, label: T.wingCard(wingById(w).name) }));
+    if (p.ending?.completed) out.push({ kind: 'final', wing: null, label: T.finalCard });
+    return out;
+  }
+
+  // 카드를 만들 자료를 지금의 기록에서 다시 모은다(내려받을 때마다 부른다).
+  const cardSource = (id, c) => () => {
+    const record = store.getRecord(id);
+    return c.kind === 'final' ? buildFinalCard(record) : buildWingCard(record, c.wing);
+  };
+
+  // 카드 고르기 상자. 고르면 그 위에 카드 화면을 띄우고, 카드를 닫으면 고르기 상자로 돌아온다.
+  function openCards(id, name) {
+    root.querySelector('.story-cards-shade')?.remove();
+    const shade = el('div', 'story-cards-shade');
+    const box = el('section', 'story-cards story-scroll');
+    box.dataset.id = id;
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-label', T.cardsTitle(name));
+    const list = el('div', 'story-cards-list');
+    for (const c of cardsOf(id)) {
+      const b = button('story-btn story-card-pick', c.label, name + ' ' + c.label);
+      b.dataset.card = c.kind;
+      if (c.wing) b.dataset.wing = c.wing;
+      b.addEventListener('click', () => openCard(shade, id, name, c));
+      list.append(b);
+    }
+    const close = button('story-btn story-btn-quiet story-cards-close', T.cardsClose);
+    const actions = el('div', 'story-confirm-actions');
+    actions.append(close);
+    box.append(el('h2', 'story-confirm-title', T.cardsTitle(name)), el('p', 'story-confirm-text', T.cardsNote), list, actions);
+    shade.append(box);
+    root.append(shade);
+    const done = () => { shade.remove(); refresh(); };
+    close.addEventListener('click', done, { once: true });
+    box.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !shade.querySelector('.story-record-card')) done(); });
+    (list.querySelector('button') ?? close).focus({ preventScroll: true });
+  }
+
+  function openCard(shade, id, name, c) {
+    shade.querySelector('.story-record-card')?.remove();
+    const host = el('section', 'story-record-card');
+    host.dataset.card = c.kind;
+    if (c.wing) host.dataset.wing = c.wing;
+    host.setAttribute('role', 'dialog');
+    host.setAttribute('aria-modal', 'true');
+    host.setAttribute('aria-label', name + ' ' + c.label);
+    shade.append(host);
+    const back = () => {
+      view.dispose();
+      host.remove();
+      shade.querySelector('.story-card-pick[data-card="' + c.kind + '"]' + (c.wing ? '[data-wing="' + c.wing + '"]' : ''))?.focus({ preventScroll: true });
+    };
+    const view = showCard(host, cardSource(id, c), { manifest, onClose: back });
+  }
+
   refresh();
 
   return { root, refresh, dispose: () => root.remove() };

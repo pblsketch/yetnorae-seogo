@@ -35,6 +35,13 @@ export const STORY = {
     deleteText: (name) => "'" + name + "' 기록을 지우면 그 기록의 진행과 결과 카드 자료도 함께 사라져요. 되돌릴 수 없어요.",
     deleteYes: '지우기',
     deleteNo: '그대로 두기',
+    // 결과 카드 다시 받기(마친 관마다 판 카드, 서고를 완성했으면 마지막 카드)
+    cards: '결과 카드',
+    cardsTitle: (name) => "'" + name + "' 기록의 결과 카드",
+    cardsNote: '카드는 지금의 기록으로 다시 그려요. 판을 마친 뒤에 덤 칸을 채웠다면 그것도 카드에 담겨요.',
+    wingCard: (wingName) => wingName + ' 판 카드',
+    finalCard: '마지막 카드',
+    cardsClose: '닫기',
     settings: '설정',
     credits: '출처',
     saveFailed: '이 기기에 저장되지 않아요. 이번 창에서만 이어집니다',
