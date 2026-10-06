@@ -11,8 +11,9 @@
 | `textures.js` | 캔버스 무늬: `hanji` 한지 섬유, `wood` 나뭇결(결이 u 방향), `planks` 마루 널, `roof` 기와 골, `stone` 돌 쌓기, `plaster` 회벽, `foliage` 종이 나무 두 칸(왼쪽 소나무, 오른쪽 매화), `mountains` 수묵 산 세 줄, `contact` 접지 그림자, `glow` 등불 번짐. 씨앗이 있어서 늘 같은 그림이 나온다 |
 | `materials.js` | 역할별 재질 하나씩과 먹빛 → 단청 걸이(`addInkHook`) |
 | `kit.js` | 모서리를 깎은 부분을 역할마다 하나의 기하로 합치는 틀(`builder`)과 소품 함수 |
-| `figures.js` | 인물 무대: 종이 카드(한지 테두리, 숨쉬기와 걸음), 발밑 그림자, 인물 고르기 `createCharacter` |
-| `figures-3d.js` | 절차 3D 인물: 부분 조립법(`RECIPES`), 사람 뼈대, 한 기하로 합친 SkinnedMesh와 먹 테두리, 코드로 하는 걸음·숨쉬기·고개 돌리기 |
+| `figures.js` | 인물 무대: 인물 고르기(`createFigure`·`createCharacter`, 조립법이 있는 그림은 저절로 3D), 종이 카드(`createPaperCard`), 발밑 그림자, 무리(`createFigureCrowd`) |
+| `figures-3d.js` | 절차 3D 인물: 부분 조립법(`RECIPES`: 학생 둘, 선대 사서, 가객 45, 좀, 좀 대왕), 뼈대 셋(사람·좀·좀 대왕), 한 기하로 합친 SkinnedMesh와 먹 테두리, 코드로 하는 움직임, 무리 굽기 |
+| `cast.js` | 가객 표: 틀(신분·직분 14) → 생김새(그림 25장) → 노래 45편. 검토용 데이터 |
 | `lighting.js` | 그리기 설정(색 공간, 톤 매핑), 빛 묶음(반구광 + 주광 + 보조광), 장면별 안개 |
 
 ## 기본 사용
@@ -72,7 +73,7 @@ fig.dispose();
 - 움직임 줄이기면 숨쉬기·살랑임·걸음 흔들림이 모두 꺼진다. `update`는 그래도 불러야 카메라를 본다.
 - 방이나 보스에서 흔들기 같은 연출은 `fig.card.rotation.z`에 `update` 뒤에 더한다(「정석가」 방 참고).
 
-작품 방의 학생은 절차 3D 인물(아래), 보스의 좀·좀 대왕·선대 사서는 종이 인형이다(아래 '작품 방·보스 풍경').
+`createFigure`는 그림 이름에 3D 조립법이 있으면 종이 카드 대신 3D 인물을 돌려준다(아래 '절차 3D 인물'). 지금 종이 카드로 남는 것은 조립법이 없는 그림뿐이다(「정석가」 방의 '임', 그림 자산이 없어 자리표시 캔버스를 넘긴 경우). 종이 카드를 꼭 써야 하면 `procedural: false`를 주거나 `createPaperCard`를 부른다.
 
 ## 절차 3D 인물(figures-3d.js)
 
@@ -88,29 +89,42 @@ fig.update(dt, camera, { moving, dir: { x, z }, speed });   // 셋 다 빼면 ro
 fig.dispose();
 ```
 
-- `kind`에 조립법이 없으면 같은 인자로 종이 카드(`createFigure`)를 돌려준다. 그래서 `url`·`canvas`를 함께 넘겨 두면 언제든 카드로 돌아갈 수 있다. 두 손잡이는 `root`, `shadow`, `update`, `dispose`가 같다(3D는 `card`가 `null`, `body`에 뼈와 몸이 있다).
+- `kind`에 조립법이 없으면 같은 인자로 종이 카드(`createPaperCard`)를 돌려준다. 그래서 `url`·`canvas`를 함께 넘겨 두면 언제든 카드로 돌아갈 수 있다. 두 손잡이는 `root`, `card`, `shadow`, `material.userData.ink`, `update`, `setTexture`, `dispose`가 같다. 3D의 `card`는 발 가운데를 축으로 하는 묶음이라 `update` 뒤에 `card.rotation.z`를 더하는 흔들기 연출이 그대로 먹고(다음 `update`가 0으로 되돌린다), `material.userData.ink.value`(0 먹빛 ~ 1 제 빛깔)도 종이 카드와 같이 쓴다. `body`에 뼈와 몸이 있다.
+- 3D가 되는 이름: `student-a`·`student-b`, `mentor`, `jom`, `jom-king`, `singer-<노래 id>`(45), `look:<생김새>`(25). `createFigure({ url })`는 url의 `sprite/<이름>.webp`에서 이름을 읽는다(`spriteKind`). `sprite: 'sprite/mentor'`나 `kind`로 줘도 된다. 자산 목록이 없어 자리표시 캔버스만 넘기면 이름을 알 수 없으므로 종이 카드다.
+- `height`를 빼면 `FIGURE_HEIGHT`에서 고른다(좀 0.7, 좀 대왕 3.2, 선대 사서 1.7, 그 밖 1.62). 좀·좀 대왕의 키는 종이 카드처럼 그림 전체 높이(더듬이·왕관 끝까지)다.
 - 그리기: 몸 전체가 `SkinnedMesh` 하나(재질 하나: 한지 결 무늬 + 꼭짓점 색), 먹 테두리가 뒤집은 껍질 하나(같은 꼭짓점, 얼굴 장식·안경은 뺀 색인), 발밑 그림자 하나. 인물 하나에 그리기 호출 셋, 몸 삼각형 약 5.3천(a)·5.6천(b)에 테두리 몫이 더해져 화면에서 약 1만이다. 재질과 무늬는 모든 3D 인물이 나눠 쓴다(셰이더 둘).
 - 뼈대(`HUMANOID`): hips → torso → head, armL/R → foreL/R·sleeveL/R, hips → thighL/R → shinL/R, torso → bag·tassel. 무게는 거의 한 뼈에 1이다. 두루마기 자락처럼 다리를 따라야 하는 곳만 `weights`로 두 뼈에 나눈다.
 - 꼭짓점 색에 AO가 구워진다: 발 가까이, 아랫면, 몸 안쪽을 보는 팔다리 면(`cav`). 살갗·얼굴은 결 무늬를 쓰지 않는다(`flat`).
 - 움직임: 걸음 위상은 빠르기 ÷ 보폭(1.25m)으로 돈다. 다리·팔 흔들기, 앞 다리 무릎 굽힘, 몸 들썩임, 허리 비틀기, 소매·가방·술이 조금 늦게 흔들린다. 가만히 있으면 숨쉬기, 2.4~5초마다 고개 돌리기. 가는 쪽을 부드럽게 돌아본다. `faceCamera`(기본 true)면 1.4초 넘게 서 있을 때 카메라 쪽으로 비스듬히(3/4) 돌아선다. 길을 걸어가는 방은 false로 둔다.
 - 움직임 줄이기: 들썩임·비틀기·소매와 가방 흔들림·숨쉬기·고개 돌리기를 끄고, 다리·팔만 작게 움직이며, 방향은 바로 바꾼다.
 
-**인물을 더하는 법(선대 사서, 가객, 좀).** `figures-3d.js`의 `RECIPES`에 kind 이름으로 함수 하나를 더한다. 함수는 부분 모으는 틀 `p`를 받아 설계 좌표(발 가운데 원점, 정면 +z, 키 1.62m)로 부분을 놓는다.
+**선대 사서·가객·좀(T38).** 사용자가 학생 3D를 보고 '모든 인물로 넓힌다'고 정했다. 같은 틀(약 3등신, 한지 결, 꼭짓점 AO, 먹 테두리, 코드 움직임)로 다른 인물을 지었다.
+
+- 선대 사서(`mentor`, `sprite/mentor`): 흰 상투와 긴 흰 수염, 구름무늬 먹빛 장삼, 붉은 띠와 금 장식, 녹청 띠와 술, 왼손에 든 책, 허리의 열쇠.
+- 가객(`singer-<노래 id>`): 45명을 따로 짓지 않고 `cast.js`의 표로 짓는다. 틀(`ARCHETYPES`: 승려, 화랑, 신라 민간, 장사꾼·서민, 노인, 고려 궁중 악공, 신라 귀족(처용), 여인, 기녀, 규방 여성, 양반 선비·가객, 사대부 관리, 무인, 장수)이 몸 모양·머리·쓰개·옷 색을 정하고, 생김새(`LOOKS`, 승인된 가객 그림 25장에 하나씩)가 색·쓰개·수염·소품·손 자세만 덧쓴다. `SINGERS`가 노래 45편을 생김새에 잇는다(같은 그림을 쓰는 노래는 같은 생김새). 표를 고치면 바로 3D가 바뀐다. 「오백 년 도읍지를」 그림의 말은 넣지 않았다(따로 걷는 몸이 필요해서).
+- 사람 몸은 `person(p, 인자)` 하나가 짓는다: 몸(`jacket` 저고리·바지, `robe` 도포·장삼·철릭, `dallyeong` 단령, `skirt` 치마저고리, `armor` 두정갑), 머리(민머리, 상투, 쪽머리, 가체, 댕기), 쓰개(갓, 사모, 전립, 투구, 머리띠, 두건, 높은 관, 꽃 꽂은 관), 수염, 겹옷(조끼, 가사, 흉배, 붉은 띠, 앞섶 겹), 띠(띠와 술, 세조대, 각대, 새끼줄), 신(짚신, 흑혜, 꽃신), 소품(부채, 펼친 부채, 잔, 바리때, 두루마리, 붓, 책, 종이, 지팡이, 대지팡이, 가시 가지, 꽃, 매화 가지, 북, 피리, 초롱, 바구니, 지게, 걸망, 곰방대, 화살통, 칼, 세운 칼, 난 화분, 짚 묶음, 열쇠, 주머니).
+- 손에 든 소품은 '팔을 든 자세 그대로'의 좌표로 적고(`inHand`), 틀이 쉼 자세로 되돌려 아래팔 뼈에 붙인다. 팔을 얼마나 드는지는 생김새의 `pose`(foreL/foreR 아래팔, outL/outR 벌림)가 정하고 움직임이 그 자세를 쉼 자세로 쓴다. 들어 올린 소매는 천처럼 조금만 따라 든다. 치마 입은 인물은 다리를 덜 흔든다(`legScale`).
+- 좀(`jom`, 뼈대 `BUG`): 비늘 마디 여섯(붉은·녹청 테와 금 점), 긴 더듬이, 큰 눈과 웃는 입, 다리 세 쌍, 앞발에 든 종이 한 장. 걸으면 마디가 물결치고 다리 두 무리가 번갈아 빠르게 딛는다. 서 있으면 이따금 바르르 종종거리고 더듬이가 따로 살랑인다.
+- 좀 대왕(`jom-king`, 뼈대 `KING`): 먹구름 덩이 몸과 밝은 먹 소용돌이, 찌푸린 눈두덩 아래 빛나는 눈, 녹청 띠·금 테·붉은 꽃 장식의 왕관과 양옆 술, 끝이 말린 연기 팔, 몸을 천천히 도는 좀과 종잇조각. 늘 카메라를 마주 보고 천천히 떠올랐다 가라앉으며, 이따금 앞으로 몸을 기울여 내려다본다. 겁주기보다 으스스하게, 학생용으로 둥근 모양을 지켰다.
+- 움직임 줄이기: 좀의 물결·종종거림·더듬이, 좀 대왕의 떠오름·기울임·도는 좀이 모두 멈춘다(사람은 위와 같다).
+
+**인물을 더하는 법.** 가객 하나를 바꾸거나 더하려면 `cast.js`의 `LOOKS`·`SINGERS`만 고친다. 새 몸을 만들려면 `figures-3d.js`의 `RECIPES`에 kind 이름으로 함수 하나를 더한다. 함수는 부분 모으는 틀 `p`를 받아 설계 좌표(발 가운데 원점, 정면 +z, 사람 키 1.62m)로 부분을 놓는다.
 
 ```js
-RECIPES.mentor = (p) => {
-  face(p, { brows: '#3a3430' });                                                 // 얼굴·귀·목 공통
-  p.lathe('torso', [[0.26, 0.05], [0.2, 0.6], [0.18, 0.96], [0.05, 1.1]], { color: '#6e6a62', sz: 0.75, weights: … });   // 도포
-  p.ell('head', [0, 1.6, 0], [0.3, 0.02, 0.3], { color: '#2b2b2b' });            // 갓 테
-  for (const s of [1, -1]) arm(p, s, { cloth: '#6e6a62', cuff: '#e9e0cc', lining: '#e9e0cc', inner: '#d9cbae' });
-};
+RECIPES.mentor = (p) => person(p, { body: 'robe', hair: 'topknot', beard: 'long', coat: '#66615a', … });   // 사람은 person으로
+function jom(p) { p.ell('seg1', [0, 0.16, 0.1], [0.21, 0.1, 0.1], { color: '#9d978c' }); … }
+jom.rig = 'bug'; jom.designHeight = 0.62; jom.shadow = [0.8, 1.0]; jom.stride = 0.4;                 // 사람이 아닌 몸
 ```
 
-- 틀의 부분: `ell`(타원체), `tube`(두 점 사이 원기둥·원뿔), `lathe`(돌림, z 납작 `sz`), `box`, `torus`, `add`(어떤 기하든). 옵션은 `color`, `flat`, `ao`, `cav`, `line`(테두리 두께 배수, 0이면 테두리 없음), `shade`, `weights`.
-- 공통 조각 `face`, `hairCap`, `arm`, `leg`, `goreum`, `strap`, `satchel`을 다시 쓴다. 키가 다르면 `height`만 바꾼다(설계 좌표는 그대로 두고 통째로 키운다).
-- 사람이 아닌 몸(좀)은 `HUMANOID` 옆에 뼈대 표를 하나 더 두고 조립법이 그 표를 고르게 하면 된다(지금은 사람 뼈대 하나뿐).
-- 가객(`sprite/singer-<노래>`)처럼 사람마다 조금씩 다른 인물은 조립법 하나에 색·소품만 바꾸는 인자를 받게 한다. 종이 카드에서 3D로 옮길 때는 부르는 곳의 `createFigure`를 `createCharacter({ kind, …같은 인자 })`로 바꾸면 된다.
-- 승인: 학생 3D는 사용자가 학생부터 보고 정하기로 했다. 다른 인물은 그 결정 뒤에 옮긴다.
+- 틀의 부분: `ell`(타원체), `tube`(두 점 사이 원기둥·원뿔), `path`(여러 점을 잇는 관), `lathe`(돌림, z 납작 `sz`, 앞을 터 두는 `phi0`·`phiLen`), `box`, `torus`, `add`(어떤 기하든), `withMatrix`(행렬을 먼저 곱해 넣기). 옵션은 `color`, `flat`, `ao`, `cav`, `line`(테두리 두께 배수, 0이면 테두리 없음), `shade`, `weights`, `seg`, `minSeg`(먼 몸에서도 지킬 둘레 나눔).
+- 조립법 함수에 붙이는 값: `rig`(`humanoid` 기본, `bug`, `king`), `designHeight`, `shadow`, `stride`(걸음 한 바퀴 거리), `faceOffset`(서 있을 때 카메라에서 비켜 서는 각), `alwaysFace`, `pose`, `cacheKey`. 새 뼈대는 `RIGS`에 표를, `ANIMATE`에 움직임 함수를 더한다.
+
+**나눠 쓰기와 예산.**
+
+- 같은 조립법(`cacheKey`, 가객은 생김새)·같은 `detail`의 인물은 합친 기하 하나를 나눠 쓴다(마지막 인물이 치울 때 버린다). 재질은 모든 3D 인물이 둘(몸·테두리)을 나눠 쓴다. 인물 하나만 먹빛으로 바꿀 때만 같은 셰이더의 몸 재질 사본을 쓴다(셰이더는 늘지 않는다).
+- 인물 하나: 그리기 호출 셋(몸, 테두리, 발밑 그림자). 몸 삼각형은 가까운 몸 3.5천(좀)~7천(장수), 가객 대부분 4.1천~5.6천이다. `detail: 0.55`(먼 몸)이면 2.2천~2.6천이다. 머리와 머리 덮개는 먼 몸에서도 둘레 나눔을 줄이지 않는다(살갗이 머리카락 사이로 비치지 않게).
+- 무리(`createFigureCrowd(THREE, members, { detail, reduceMotion, outline })`): 엔딩 행렬처럼 많은 인물을 한꺼번에 세울 때. 서 있는 자세로 구운 몸을 기하 하나로 합쳐 몇 명이든 그리기 호출 셋(몸, 테두리, 그림자 인스턴스)이다. 사람마다 위상이 다른 작은 들썩임은 꼭짓점 셰이더가 하고(셰이더 둘 더), 움직임 줄이기면 멈춘다. 45명 먼 몸: 몸 삼각형 약 11만(테두리 포함 화면 약 20만).
+- SwiftShader에서 잰 수(다른 점검이 함께 돌던 때, 1600×900): 빈 장면 51fps, 가까운 3인(선대 사서·좀·좀 대왕) 22~24fps, 7인 한 줄 13~20fps, 가객 45명 개별 인물 136회·4~6fps, 같은 45명 무리 4회·8~10fps(844×390에서 16.5fps). 무리는 테두리를 빼도(`outline: false`) 빨라지지 않았다. 이 크기에서는 삼각형보다 채움이 무겁다.
 
 ## 빛과 그리기
 
@@ -135,9 +149,26 @@ RECIPES.mentor = (p) => {
 - 투명 재질(`backdrop`, `contact`, `glow`)은 `renderOrder`로 순서를 잡아 두었다. 투명한 것끼리 많이 겹치게 하지 않는다.
 - 무늬는 역할마다 한 장을 나눠 쓴다. 관마다 새 캔버스 무늬를 만들면 `textures.js`에 그리기 함수를 더하고 이름으로 받는다.
 
+## 가사관·사설시조관 소품과 구운 빛(`t36-props.js`)
+
+`createT36Props(THREE, kit)`는 kit 틀에 부분을 더하는 소품을 준다: 모임지붕 `hipRoof`, 물가 정자 `pavilion`, 연못 `pond`, 둔덕 `hill`, 바위 `rock`, 디딤돌 `flatStone`, 초가 이엉 `thatch`, 담장 `wallRun`, 띠살 문 `lattice`, 종이 초롱 `paperLantern`, 등줄 `lanternString`, 장터 좌판 `stall`, 옹기 `jar`, 종이 오린 사람 `cutout`(지게꾼·광주리 인 아낙·부채 든 양반·아이), 덩이 솔 `pine`, 꽃나무 `blossom`, InstancedMesh용 무늬 좌표 있는 깎은 상자 `unitBox`. 역할은 wood·paint·roof·stone·contact 다섯만 쓴다(회벽·창호지·초롱은 'paint'에 밝은 색).
+
+`createLightBaker(THREE, 'wing')`는 관 빛 묶음(반구광 + 주광 + 보조광)을 꼭짓점 색에 굽고, `createBakedMaterials(THREE, textures, materials).convert(무리, baker)`는 kit이 지은 무리의 빛 재질을 빛 없는 재질(먹빛 걸이 그대로)로 바꾼다. SwiftShader에서 같은 그물의 그리기 시간이 대략 절반이 된다(`docs/engineering-notes.md`). 빛이 움직이는 장면(작품 방 연출 등)에는 쓰지 않는다.
+
 ## 점수 기록
 
 다듬기 전후 스크린숏과 10항목 점수는 `tests/shots/gfx-before/`, `tests/shots/gfx-after/`(커밋하지 않음)에 있다. 찍는 도구는 `tests/shots/gfx-capture.mjs`(같은 폴더, 커밋하지 않음)다.
+
+## 관 내부 층(`t35-wing.js`)
+
+향가관·고려가요관·시조관 모형은 세계의 그림 도구를 넘겨받지 않으므로(`ctx`에 없다) `createWingGfx(THREE, { assets, wingId })`로 관마다 무늬·재질·소품 틀을 하나씩 만든다. 꾸러미 함수는 그대로 쓰고, 다음만 덧붙인다.
+
+- **꼭짓점 빛 재질**: 빛을 받는 역할(wood, paint, plaster, roof, stone, floor, paper, books, lantern, foliage)을 `MeshBasicMaterial` + 꼭짓점 빛(`LIGHT_PRESETS.wing`과 같은 반구광·주광·보조광) + 먹빛 걸이로 바꿔 쓴다. 평평한 면에서는 램버트와 같은 색이고 SwiftShader에서 훨씬 싸다. 관 안에서만 쓰므로 빛 묶음이 'wing'일 때를 기준으로 한다. 무늬는 `LinearMipmapNearest`로 거른다.
+- `boxMaterial(무늬, { tile })`: 크기를 바꾼 상자 인스턴스에 무늬가 늘어나지 않게 인스턴스 크기로 무늬 좌표를 잡는 재질(꼭짓점 빛 포함, 먹빛 걸이 없음 — 인스턴스 색이 이미 먹빛→단청으로 칠해져 있다). `bevelBox()`는 모서리를 깎은 단위 상자.
+- `transformed(b, 행렬)`: 꾸러미 소품 함수를 돌리거나 축척을 바꿔 넣는다(지붕 뒷면, 옆을 보는 담, 반 크기 한옥 뼈대).
+- `roofStone`·`roofStoneGeometry`(네 귀가 들린 오목한 돌·기와 지붕), `stoneLantern`(석등), `softSpot`(먹안개 번짐 무늬), `mural()`(관 그림 자산 `texture/<관>`을 먹빛 걸이 단 단청 판으로, 없으면 단청 칠).
+- `deferred(짓기)`: 관에 들어간 뒤 두 번째 프레임에 짓는다. `materials.fresh(역할)`은 색을 따로 바꿀 새 재질(시조관 지붕).
+- 수(SwiftShader, 1366×768, 점검 페이지 첫 화면): 그리기 호출 향가관 27, 고려가요관 27, 시조관 23. 비용 요령은 `docs/engineering-notes.md`의 '관 건축을 gfx 꾸러미로 짓자…'.
 
 ## 작품 방·보스 풍경(t37-scenery.js)
 
@@ -147,4 +178,4 @@ RECIPES.mentor = (p) => {
 - `unlit`: 밤 장면처럼 넓은 면이 많고 빛의 결이 작은 곳은 역할을 빛 없는 꼴(MeshBasic + 같은 무늬 + 먹빛 걸이)로 그린다.
 - 방마다 `sc.materials.setDancheong(값)`을 따로 둔다(방은 세계와 다른 재질 묶음을 쓴다).
 - 넓은 땅은 무늬 없는 `plain`으로 그린다. SwiftShader에서 비스듬히 보이는 넓은 면의 무늬 읽기가 가장 비쌌다(「상춘곡」 방에서 무늬 땅을 빼자 약 1.5배).
-- 보스의 좀·좀 대왕·선대 사서는 `figures.js`의 `createFigure`로 만든다(방의 학생은 `createCharacter`). 보스의 선대 사서는 갇힌 동안 `material.userData.ink`를 0으로 두어 먹빛이고, 풀려나면 1로 돌아온다(그 값이 없으면 빛깔 바꾸기만 건너뛴다).
+- 보스의 좀·좀 대왕·선대 사서는 `figures.js`의 `createFigure`로 만든다(조립법이 있으면 3D 인물로 나온다, 방의 학생은 `createCharacter`). 종이 카드일 때 선대 사서는 갇힌 동안 `material.userData.ink`를 0으로 두어 먹빛이고, 풀려나면 1로 돌아온다(그 값이 없으면 빛깔 바꾸기만 건너뛴다).

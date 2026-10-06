@@ -2,9 +2,9 @@
 // 10구 층의 마지막 두 칸(4·4·2의 마지막 무리) 앞에 글자 없는 표지만 새긴 '아아' 문이 있다.
 // 공통 자리: 바구니(두 자리), 덤 서가(세 자리), 돌아온 노래 선반, 작품 방 「제망매가」 문, 다음 관 문.
 //
-// 3D는 저폴리 상자를 코드로 조립한다. 그리기 호출을 아끼려고 같은 재질의 상자는 InstancedMesh 하나로 모은다
-// (정적 구조 1, 탑의 칸 불 1, 책·금박·문짝 1, 이름표 1, 먹안개 1, '아아' 문 2). 그림자는 쓰지 않는다.
-// 색은 관의 단청 값(0 먹빛 ~ 1 단청)에 맞춰 먹빛에서 단청색으로 돌아온다.
+// 3D 건축(돌탑, 돌담, 일주문, 경장, 석등, 소나무)은 hyangga-art.js가 gfx 꾸러미로 두 번째 프레임에 짓는다(재질 역할마다 그리기 호출 하나).
+// 반응하는 부분은 여기서 InstancedMesh로 그린다(누를 자리 틀 1, 탑의 칸 불 1, 책·금박·문짝 1, 이름표 1, 먹안개 1, '아아' 문 2). 그림자는 쓰지 않는다.
+// 색은 관의 단청 값(0 먹빛 ~ 1 단청)에 맞춰 먹빛에서 단청색으로 돌아온다. 건축 재질은 꾸러미의 setDancheong이 같은 값으로 옮긴다.
 // 2D 그림 판은 hyangga-board.js에 있다.
 import { TOKENS, dancheongColor, getDancheong, mixHex } from '../palette.js';
 import {
@@ -12,6 +12,8 @@ import {
   popShape, songTitle, roomTitle, WING_NAMES,
 } from './hyangga-shared.js';
 import { create2D as createBoard } from './hyangga-board.js';
+import { createWingGfx } from '../gfx/t35-wing.js';
+import { buildHyanggaArt } from './hyangga-art.js';
 
 export { REACTION_EVENTS } from './hyangga-shared.js';
 
@@ -50,90 +52,41 @@ function instanced(THREE, material, capacity) {
   return mesh;
 }
 
-// ── 정적 구조 ──
+// ── 누를 자리의 틀(인스턴스 상자, 첫 프레임부터 보인다) ──
+// 돌탑·돌담·경장·석등 같은 건축은 hyangga-art.js가 gfx 꾸러미로 두 번째 프레임에 짓는다.
+// 여기 남는 것은 누를 수 있는 자리(서가 자리 틀, 작품 방 문틀, 다음 관 문틀)뿐이다. 녹청·주홍은 누를 수 있는 것에만 쓴다.
 // 상자 하나: { p: [x,y,z], s: [w,h,d], c: 색, r?: y축 회전 }
 function staticBoxes() {
-  const T = TOWER;
-  const cx = T.x0 + T.width / 2;
   const out = [];
   const add = (p, s, c, r = 0) => out.push({ p, s, c, r });
-  // 관 뒷벽(작품 방 문 자리는 비운다)과 오른쪽 벽 일부
-  const wall = mixHex(TOKENS.hanji, TOKENS.meokFog, 0.3);
+  // 작품 방 문틀(기둥 주홍, 인방 녹청)
   const gapL = ROOM_DOOR.x - ROOM_DOOR.w / 2;
   const gapR = ROOM_DOOR.x + ROOM_DOOR.w / 2;
-  add([(-6.5 + gapL) / 2, 1.5, BACK_Z], [gapL + 6.5, 3, 0.2], wall);
-  add([(gapR + 6.5) / 2, 1.5, BACK_Z], [6.5 - gapR, 3, 0.2], wall);
-  add([0, 3.05, BACK_Z], [13, 0.2, 0.36], TOKENS.meokSoft);
-  // 작품 방 문틀(누를 수 있는 자리: 기둥 주홍, 인방 녹청)
-  add([gapL - 0.1, 1.2, BACK_Z + 0.12], [0.2, 2.4, 0.3], TOKENS.juhong);
-  add([gapR + 0.1, 1.2, BACK_Z + 0.12], [0.2, 2.4, 0.3], TOKENS.juhong);
+  add([gapL - 0.1, 1.3, BACK_Z + 0.12], [0.22, 2.6, 0.3], TOKENS.juhong);
+  add([gapR + 0.1, 1.3, BACK_Z + 0.12], [0.22, 2.6, 0.3], TOKENS.juhong);
   add([ROOM_DOOR.x, 2.45, BACK_Z + 0.12], [ROOM_DOOR.w + 0.5, 0.24, 0.34], TOKENS.nokcheong);
-  // 다음 관 문(오른쪽 벽)
+  // 다음 관 문(오른쪽 담)
   const rx = 6.45;
-  add([rx, 1.5, (BACK_Z + NEXT_DOOR.z - NEXT_DOOR.w / 2) / 2], [0.2, 3, NEXT_DOOR.z - NEXT_DOOR.w / 2 - BACK_Z], wall);
-  add([rx - 0.05, 1.2, NEXT_DOOR.z - NEXT_DOOR.w / 2 - 0.1], [0.3, 2.4, 0.2], TOKENS.juhong);
-  add([rx - 0.05, 1.2, NEXT_DOOR.z + NEXT_DOOR.w / 2 + 0.1], [0.3, 2.4, 0.2], TOKENS.juhong);
+  add([rx - 0.05, 1.2, NEXT_DOOR.z - NEXT_DOOR.w / 2 - 0.1], [0.3, 2.4, 0.22], TOKENS.juhong);
+  add([rx - 0.05, 1.2, NEXT_DOOR.z + NEXT_DOOR.w / 2 + 0.1], [0.3, 2.4, 0.22], TOKENS.juhong);
   add([rx - 0.05, 2.45, NEXT_DOOR.z], [0.34, 0.24, NEXT_DOOR.w + 0.5], TOKENS.nokcheong);
   add([rx + 0.02, 1.15, NEXT_DOOR.z], [0.08, 2.2, NEXT_DOOR.w - 0.1], TOKENS.meok);
-
-  // 탑: 기단, 층마다 뒷벽·옆벽·기둥·인방, 층 사이 처마 판, 지붕
-  add([cx, T.plinth / 2, (T.front + T.back) / 2], [T.width + 1.2, T.plinth, T.front - T.back + 1.4], TOKENS.hanjiDeep);
-  add([cx, T.plinth / 2 + 0.02, T.front + 1.2], [1.4, T.plinth - 0.04, 1.2], TOKENS.hanjiDeep);   // 앞 계단 디딤
-  FLOORS.forEach((n, f) => {
-    const y0 = floorBase(f);
-    const H = T.floorH;
-    add([cx, y0 + H / 2, T.back + 0.05], [T.width, H, 0.1], TOKENS.meokSoft);
-    add([T.x0 + 0.05, y0 + H / 2, (T.front + T.back) / 2], [0.1, H, T.front - T.back], TOKENS.meokSoft);
-    add([T.x0 + T.width - 0.05, y0 + H / 2, (T.front + T.back) / 2], [0.1, H, T.front - T.back], TOKENS.meokSoft);
-    const bw = bayWidth(f);
-    for (let b = 0; b <= n; b++) {
-      // 10구 층은 4·4·2 무리의 경계 기둥을 굵게 세운다.
-      let edge = 0;
-      if (f === FLOORS.length - 1) { let acc = 0; for (const g of GROUPING) { acc += g; if (acc === b && b < n) edge = 1; } }
-      const t = edge ? 0.2 : 0.11;
-      add([T.x0 + b * bw, y0 + (H - 0.14) / 2, T.front - 0.08], [t, H - 0.14, t], TOKENS.juhong);
-    }
-    add([cx, y0 + H - 0.2, T.front - 0.08], [T.width + 0.1, 0.16, 0.18], TOKENS.nokcheong);
-    // 처마 판(층 지붕). 위층일수록 처마가 조금 더 나온다.
-    add([cx, y0 + H - 0.03, (T.front + T.back) / 2 + 0.15], [T.width + 0.6 + f * 0.15, 0.12, T.front - T.back + 0.9], TOKENS.meok);
-    // 서가 자리(층마다 하나): 받침 판과 양옆 기둥(누를 수 있는 것, 녹청)
+  // 서가 자리(층마다 하나): 받침 판과 양옆 기둥, 덮개(누를 수 있는 것, 녹청)
+  FLOORS.forEach((_, f) => {
     const nx = nicheX(f);
     const ny = nicheY(f);
     add([nx, ny - 0.04, NICHE_Z], [0.62, 0.08, 0.6], TOKENS.nokcheong);
-    add([nx - 0.3, ny + 0.38, NICHE_Z + 0.24], [0.05, 0.84, 0.05], TOKENS.nokcheong);
-    add([nx + 0.3, ny + 0.38, NICHE_Z + 0.24], [0.05, 0.84, 0.05], TOKENS.nokcheong);
-    add([nx, ny + 0.8, NICHE_Z + 0.05], [0.66, 0.06, 0.5], TOKENS.nokcheong);
+    add([nx - 0.3, ny + 0.38, NICHE_Z + 0.24], [0.06, 0.84, 0.06], TOKENS.nokcheong);
+    add([nx + 0.3, ny + 0.38, NICHE_Z + 0.24], [0.06, 0.84, 0.06], TOKENS.nokcheong);
+    add([nx, ny + 0.8, NICHE_Z + 0.05], [0.7, 0.07, 0.52], TOKENS.nokcheong);
   });
-  const top = floorBase(FLOORS.length);
-  add([cx, top + 0.12, (T.front + T.back) / 2 + 0.1], [T.width + 1.4, 0.24, T.front - T.back + 1.6], TOKENS.meok);
-  add([cx, top + 0.42, (T.front + T.back) / 2], [T.width * 0.7, 0.36, (T.front - T.back) * 0.7], TOKENS.meokSoft);
-  add([cx, top + 0.75, (T.front + T.back) / 2], [0.5, 0.3, 0.5], TOKENS.meok);
-  add([cx, top + 1.1, (T.front + T.back) / 2], [0.12, 0.5, 0.12], TOKENS.gold);
-
-  // 층 이름 비석(땅). 서가 자리 앞에 하나씩, 그 위에 '4구 층' 이름표가 붙는다.
-  FLOORS.forEach((_, f) => add([nicheX(f), 0.32, -1.0], [0.8, 0.64, 0.16], TOKENS.hanjiDeep));
-
-  // 덤 서가: 낮은 장 위에 세 칸
+  // 덤 서가 칸막이(누를 수 있는 칸의 경계)
   const bx0 = BONUS_X[0] - 0.55;
   const bx1 = BONUS_X.at(-1) + 0.55;
-  add([(bx0 + bx1) / 2, BONUS.top / 2, BONUS.z], [bx1 - bx0, BONUS.top, 0.7], TOKENS.meokSoft);
-  add([(bx0 + bx1) / 2, BONUS.top + 0.82, BONUS.z - 0.3], [bx1 - bx0, 1.64, 0.08], TOKENS.meokSoft);
-  add([(bx0 + bx1) / 2, BONUS.top + 1.66, BONUS.z], [bx1 - bx0 + 0.1, 0.08, 0.72], TOKENS.meok);
   for (let i = 0; i <= BONUS_X.length; i++) {
     const x = i === 0 ? bx0 : i === BONUS_X.length ? bx1 : (BONUS_X[i - 1] + BONUS_X[i]) / 2;
-    add([x, BONUS.top + 0.82, BONUS.z], [0.06, 1.64, 0.7], TOKENS.nokcheong);
+    add([x, BONUS.top + 0.82, BONUS.z], [0.07, 1.64, 0.7], TOKENS.nokcheong);
   }
-
-  // 바구니(대나무 결 상자)
-  add([BASKET.x, 0.22, BASKET.z], [1.3, 0.44, 0.8], mixHex(TOKENS.hanjiDeep, TOKENS.gold, 0.35));
-  add([BASKET.x, 0.46, BASKET.z], [1.36, 0.06, 0.86], mixHex(TOKENS.meokSoft, TOKENS.gold, 0.3));
-
-  // 돌아온 노래 선반(왼쪽)
-  add([RETURNED.x, 0.6, RETURNED.z], [0.5, 1.2, 1.8], TOKENS.meokSoft);
-  add([RETURNED.x + 0.05, 1.22, RETURNED.z], [0.6, 0.06, 1.9], TOKENS.meok);
-
-  // 기다리는 노래 자리(입구 쪽 낮은 받침)
-  add([-1.6, 0.2, 4.4], [1.0, 0.4, 0.6], TOKENS.hanjiDeep);
   return out;
 }
 
@@ -257,14 +210,15 @@ export function create3D(ctx) {
   const disposables = [];
   const keep = (x) => { disposables.push(x); return x; };
 
-  // 정적 구조(재질 무늬가 오면 입힌다. 없으면 자리표시로 색만 쓴다)
-  const staticMat = keep(new THREE.MeshLambertMaterial());
-  const tex = ctx.assets?.texture?.('texture/' + wingId) ?? null;
-  if (tex) staticMat.map = tex;
+  // gfx 꾸러미(무늬·재질·소품 틀). 건축은 두 번째 프레임에 짓는다.
+  const gfx = createWingGfx(THREE, { assets: ctx.assets, wingId });
+  const art = gfx.deferred(() => buildHyanggaArt(gfx, { TOWER, BACK_Z, FLOORS, GROUPING, ROOM_DOOR, NEXT_DOOR, BONUS_X, BONUS, BASKET, RETURNED, floorBase, nicheX }));
+
+  // 누를 자리 틀: 모서리를 깎은 상자, 나뭇결 무늬(인스턴스 크기로 무늬 좌표를 잡는다)
+  const staticMat = gfx.boxMaterial('wood', { tile: 1.6 });
   const sList = staticBoxes();
-  const sMesh = instanced(THREE, staticMat, sList.length);
+  const sMesh = new THREE.InstancedMesh(gfx.bevelBox(), staticMat, sList.length);
   sMesh.name = 'hyangga-structure';
-  keep(sMesh.geometry);
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const e = new THREE.Euler();
@@ -299,7 +253,7 @@ export function create3D(ctx) {
   root.add(bays);
 
   // 책, 금박, 묶는 실, 작품 방 문짝, 바구니 두루마리, 돌아온 노래들
-  const dynMat = keep(new THREE.MeshLambertMaterial());
+  const dynMat = gfx.boxMaterial('hanji', { tile: 0.6 });
   const DYN_CAP = 128;
   const dyn = instanced(THREE, dynMat, DYN_CAP);
   dyn.name = 'hyangga-books';
@@ -328,7 +282,7 @@ export function create3D(ctx) {
   doorPivot.name = 'hyangga-aa-door';
   doorPivot.position.set(DOOR_HINGE_X, floorBase(2) + 0.02, TOWER.front + 0.06);
   const doorH = TOWER.floorH - 0.26;
-  const doorMat = keep(new THREE.MeshLambertMaterial());
+  const doorMat = keep(new THREE.MeshLambertMaterial({ map: gfx.textures.get('wood') }));
   const doorGeo = keep(new THREE.BoxGeometry(DOOR_W - 0.04, doorH, 0.07));
   const doorLeaf = new THREE.Mesh(doorGeo, doorMat);
   doorLeaf.position.set(DOOR_W / 2, doorH / 2, 0);
@@ -380,6 +334,7 @@ export function create3D(ctx) {
   }
 
   function paintStatic(level) {
+    gfx.setDancheong(level);
     sList.forEach((b, i) => sMesh.setColorAt(i, col.set(dancheongColor(b.c, level))));
     sMesh.instanceColor.needsUpdate = true;
     doorMat.color.set(dancheongColor(TOKENS.meokSoft, level));
@@ -539,6 +494,7 @@ export function create3D(ctx) {
   }
 
   function update(dt) {
+    art.tick(root);
     const doorT = state.door === 'open' ? 1 : 0;
     if (anim.door !== doorT) { anim.door = step(anim.door, doorT, dt, 1.6); bayDirty = true; }
     if (anim.doorShake > 0) anim.doorShake = rm() ? 0 : Math.max(0, anim.doorShake - dt);
@@ -593,8 +549,10 @@ export function create3D(ctx) {
     }),
     dispose() {
       root.remove(sMesh, bays, dyn, fog, doorPivot, labels);
+      art.dispose();
       for (const d of disposables) d.dispose?.();
       [sMesh, bays, dyn, fog].forEach((m) => m.dispose?.());
+      gfx.dispose();
     },
   };
 }
