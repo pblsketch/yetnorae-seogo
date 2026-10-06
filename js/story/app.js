@@ -18,6 +18,7 @@ import { el, button, spriteImg, ensureStyle, toast } from './dom.js';
 import { applyDevice, openSettings } from './settings.js';
 import { runCalibration } from './calibration.js';
 import { renderStart } from './start-view.js';
+import { fullscreenButton } from './fullscreen.js';
 import { runEntrance } from './entrance.js';
 import { runEnding } from './ending.js';
 
@@ -50,6 +51,8 @@ export async function startApp(container) {
   // ───────── 시작 화면 ─────────
   function showStart() {
     leaveGame();
+    startView?.dispose();
+    startView = null;
     container.replaceChildren();
     const credits = registry.screens.credits;
     startView = renderStart(container, {
@@ -142,9 +145,12 @@ export async function startApp(container) {
     if (info.scene === 'complete') say(STORY.complete.corridor);
   }
 
-  // ───────── 위 띠: 설정(게임 중에는 기록 목록으로·마지막 카드도) ─────────
+  // ───────── 위 띠: 전체 화면, 설정(게임 중에는 기록 목록으로·마지막 카드도) ─────────
   function addHud() {
     const btns = session.root.querySelector('.play-hud-btns');
+    // 전체 화면을 쓸 수 없는 기기에서는 단추가 없다. 좁은 화면에서는 그림만 보이고 이름은 읽어 주기로 남는다.
+    const fs = fullscreenButton('play-btn story-hud-fullscreen', { compact: true });
+    if (fs) (btns ?? session.root).append(fs.el);
     const b = button('play-btn story-hud-settings', STORY.hud.settings);
     b.addEventListener('click', () => {
       const extras = [{ className: 'story-go-home', label: STORY.start.recordsTitle + ' 보기', run: () => showStart() }];

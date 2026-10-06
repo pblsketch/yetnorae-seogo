@@ -10,7 +10,8 @@
 - `corridor-art.js`: 회랑 건축(그림만). 한옥 서고 회랑(마루, 서가와 창살 벽, 기둥·공포·서까래, 기와 처마, 문루, 초롱, 난간, 입구 문)과 언제나 보이는 바깥(마당, 관 자리 바닥돌과 길, 종이 나무, 관 뒤 수묵 병풍, 먼 산). 배치 값은 `scene3d.js`가 넘기고 여기서 바꾸지 않는다.
 - `gfx/`: 그래픽 꾸러미. 캔버스 무늬(`textures.js`), 역할별 재질과 먹빛→단청 걸이(`materials.js`), 모서리를 깎은 부분을 역할마다 합치는 소품 틀(`kit.js`), 인물 무대(`figures.js`: 인물 고르기·종이 카드·무리, `figures-3d.js`: 절차 3D 인물, `cast.js`: 가객 표), 그리기 설정·빛·안개(`lighting.js`). 쓰는 법과 예산 요령은 `gfx/README.md`.
 - `controls.js`: 탭 이동(도착 표시), 터치에서만 생기는 왼쪽 아래 조이스틱, 끌어 돌리기, 키보드(WASD·방향키, Enter·Space = 상황 버튼), 오른쪽 아래 상황 버튼.
-- `screen.js`: 세로 화면이면 회전 안내를 덮고 `#app`을 `inert`로, `orientation:pause`·`audio:pause { reason: 'orientation' }`을 내고 가로로 돌아오면 `resume`.
+- `screen.js`: 세로 화면이면 회전 안내를 덮고 `#app`을 `inert`로, `orientation:pause`·`audio:pause { reason: 'orientation' }`을 내고 가로로 돌아오면 `resume`. 전체 화면도 맡는다: `fullscreenSupported()`, `isFullscreen()`, `toggleFullscreen()`(문서 뿌리 `<html>`을 띄우고 가로 잠금을 한 번 시도, webkit 접두사 대신 쓰기), `onFullscreenChange(fn)`(`fullscreenchange`·`webkitfullscreenchange`). `#app`이 아니라 문서 뿌리를 띄우는 까닭은 body에 붙은 회전 안내가 전체 화면 안에서도 보여야 하기 때문이다.
+- `portrait.js`: 견습 사서 모습 고르기의 3D 미리보기(`createPortraitStage()`, 3D가 아니면 null). 화면에 붙이지 않은 작은 WebGL 그림판 하나로 `student-a|b`를 그려 2D 캔버스 칸에 옮긴다(`attach(canvas, look)` → `setSelected`), 3/4 자세 정지 그림(`portrait(look)` → `data:` PNG, 창이 닫힐 때까지 다시 씀). 세계와 따로 돌며 세계가 뜨기 전에 `dispose()`로 그림판을 버린다.
 - `motion.js`: 움직임 줄이기 전역 상태(기기 설정 또는 브라우저 `prefers-reduced-motion` 가운데 하나라도 켜지면 켜짐). `#app.reduce-motion`과 `settings:reduce-motion`.
 - `palette.js`(색 토큰 사본과 단청 값, DOM 없음), `assets.js`(자산 목록에서 그림 주소·무늬 찾기), `sprites.js`(그림이 없을 때 쓰는 자리표시 종이 인형 캔버스), `tuning.js`(조정 값).
 
@@ -31,6 +32,7 @@
 - 2D 누를 자리는 관 모형의 `anchors`마다 세계가 48px 이상으로 만들고, 이름표는 `board2d.js`의 `ANCHOR_LABELS`(모두 한국어)에서 온다. 그림 판 오른쪽 아래 구석(`x > 78`이면서 `y > 78`)에는 상황 버튼이 있다. 2D에서 학생은 그림 판 `y` 40~95% 띠 안에서만 걷는다.
 - `openSplit`·`openRoom` 동안 이동 조작과 상황 버튼은 멈춘다. `closeRoom()`은 숨긴 것, 안개, 바탕, 카메라의 시야각·near·far·up·zoom, 그리기 판 크기를 열기 전으로 되돌린다.
 - 회전 안내가 떠 있는 동안 그리기 고리는 프레임을 건너뛴다(`isPaused()`).
+- 전체 화면에 들어가고 나올 때 그리기 판 크기는 따로 맞추지 않는다. 3D 그림판은 `ResizeObserver`(`scene3d.js`), 2D 그림 판은 CSS 크기로 창을 따라간다. 회전 안내는 `fullscreenchange` 때 창 크기로 다시 판단한다.
 - 가림: `mount`에 넘긴 container 안에 `data-world-cover`가 붙은(hidden이 아닌) 요소가 있으면 그리기와 관 모형 update를 건너뛴다(단청 돌아오기 값은 계속). 세계를 꽉 덮는 겹(보스, 입구·엔딩 장면, 판 카드, 마지막 카드, 수첩·일지·도감 창)은 뿌리에 이 속성을 단다. 반투명 겹은 달지 않는다.
 - 화질 단계는 픽셀 비율과 꾸밈 겹(`corridor-decor`)만 바꾼다. 누를 자리, 카메라, 관 모형, 그리기 호출 예산 검사는 그대로다. 소프트웨어 그리기(SwiftShader 등)에서는 세계 그림판이 MSAA 없이 만들어진다(`gfx/t39-perf.js`).
 - `palette.js`의 `TOKENS`는 `css/base.css`의 색 토큰과 같은 값이다.

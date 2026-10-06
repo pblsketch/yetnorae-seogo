@@ -12,7 +12,8 @@
 //   5. 세로로 돌리면 '기기를 돌려 주세요'가 덮고 게임(낭송·박자·조작)이 멈추며, 가로로 돌아오면 이어진다.
 //   6. 터치 대상 48px 이상.
 //   7. 글자 크기 3단계 × 844×390·1366×768에서 넘침 없음: 시작, 설정, 회랑, 관(한 판 화면), 대화 상자, 재기 반반 화면,
-//      수첩·일지·도감, 작품 방, 보스, 엔딩.
+//      수첩·일지·도감, 작품 방, 보스, 엔딩. 시작 화면과 위 띠는 전체 화면을 켠 상태('전체 화면 끄기')에서도,
+//      기록 목록의 '모습 바꾸기' 상자(3D 미리보기 카드)도 본다.
 // 음성 사례: 대비 낮은 글, 받침 없이 그림 위에 놓인 글, 화면 밖 요소, 잘린 글, 48px 미만 단추, 색만 다른 갈래 자리를
 // 일부러 넣으면 검사가 잡는다.
 import { startServer } from './lib/server.mjs';
@@ -566,6 +567,14 @@ async function scenesFor(server, vp, scale) {
     try {
       await ui.waitSel('.story-start', 30000);
       await scan(page, tag + ' 시작 화면', { contrast });
+      // 전체 화면을 켜면 단추 이름이 길어진다('전체 화면 끄기'): 그 상태로도 넘침·대비를 본다
+      if (await ui.has('.story-open-fullscreen')) {
+        await ui.press('.story-open-fullscreen');
+        await ui.waitFn(() => !!document.fullscreenElement && document.querySelector('.story-open-fullscreen')?.dataset.fullscreen === 'on', null, 10000);
+        await scan(page, tag + ' 시작 화면(전체 화면 중)', { contrast });
+        await ui.ev(() => document.exitFullscreen());
+        await ui.waitFn(() => !document.fullscreenElement && document.querySelector('.story-open-fullscreen')?.dataset.fullscreen === 'off', null, 10000);
+      } else ok(false, tag + ' 시작 화면에 전체 화면 단추가 있다(점검 브라우저는 전체 화면을 쓸 수 있다)');
       await ui.press('.story-open-settings');
       await ui.waitSel('.story-settings');
       await scan(page, tag + ' 설정 화면', { contrast });
@@ -577,6 +586,11 @@ async function scenesFor(server, vp, scale) {
         await ui.press('.story-wing-intro .story-wing-intro-close');
       }
       await scan(page, tag + ' 관(한 판 화면)', { contrast });
+      await ui.press('.story-hud-fullscreen');
+      await ui.waitFn(() => !!document.fullscreenElement && document.querySelector('.story-hud-fullscreen')?.dataset.fullscreen === 'on', null, 10000);
+      await scan(page, tag + ' 관(전체 화면 중 위 띠)', { contrast });
+      await ui.ev(() => document.exitFullscreen());
+      await ui.waitFn(() => !document.fullscreenElement && document.querySelector('.story-hud-fullscreen')?.dataset.fullscreen === 'off', null, 10000);
       for (const p of ['notebook', 'journal', 'collection']) {
         await ui.press(`.play-btn[data-open="${p}"]`);
         await ui.waitSel(`.play-panel[data-panel="${p}"]`);
@@ -703,6 +717,13 @@ async function scenesFor(server, vp, scale) {
       // 기록 화면에서 결과 카드 다시 받기: 단추가 있는 기록 목록, 카드 고르기(판 카드 다섯), 그 위의 카드 화면
       await ui.waitSel('.story-record-cards', 30000);
       await scan(page, tag + ' 시작 화면(결과 카드 단추)', { contrast });
+      // 모습 바꾸기 상자(3D 미리보기 카드 둘, 지금 모습이 골라져 있다). 그대로 두고 닫는다
+      await ui.press('.story-record-look');
+      await ui.waitSel('.story-look-change');
+      await ui.waitFn(() => [...document.querySelectorAll('.story-look-change .story-look-canvas')].every((c) => c.dataset.painted === 'true'), null, 20000);
+      await scan(page, tag + ' 모습 바꾸기 상자', { contrast });
+      await ui.press('.story-look-change .story-look-cancel');
+      await ui.waitGone('.story-look-change');
       await ui.press('.story-record-cards');
       await ui.waitSel('.story-cards');
       await scan(page, tag + ' 결과 카드 고르기', { contrast });

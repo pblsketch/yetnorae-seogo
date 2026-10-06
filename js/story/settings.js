@@ -1,5 +1,6 @@
 // 설정 화면(spec 13 기기 공통 설정, 14 접근성): 배경음·낭송·효과음 크기, 소리 끄기, 빗금 모드, 글자 크기 3단계,
-// 움직임 줄이기, 박자 다시 맞추기. 바꾸면 곧바로 저장 엔진(device)에 저장하고 그 자리에서 적용한다.
+// 움직임 줄이기, 박자 다시 맞추기, 전체 화면(쓸 수 있는 기기에서만, 저장하지 않음).
+// 바꾸면 곧바로 저장 엔진(device)에 저장하고 그 자리에서 적용한다.
 //   - 소리: 소리 엔진의 setVolume·setMuted·setSlashMode(박자 없는 방식 신호는 엔진이 낸다)
 //   - 글자 크기: 문서의 --text-scale, settings:text-scale 사건
 //   - 움직임 줄이기: 세계 바탕의 움직임 상태(#app.reduce-motion), settings:reduce-motion 사건
@@ -9,6 +10,7 @@ import { TEXT_SCALES } from '../core/save.js';
 import { setDeviceReduceMotion } from '../world/motion.js';
 import { STORY } from '../data/story.js';
 import { el, button } from './dom.js';
+import { fullscreenButton } from './fullscreen.js';
 
 const S = STORY.settings;
 
@@ -124,11 +126,20 @@ export function openSettings(host, { store, audio, onRecalibrate, onClose, extra
   });
   body.append(recal);
 
+  // ── 전체 화면(저장하지 않는다. 켤 때마다 누른다) ──
+  const fs = fullscreenButton('story-btn story-settings-fullscreen');
+  if (fs) {
+    const fsBox = el('div', 'story-field story-fs-field');
+    fsBox.append(fs.el, el('p', 'story-hint', STORY.fullscreen.note));
+    body.append(fsBox);
+  }
+
   // ── 게임 중에만: 기록 목록으로, 마지막 카드 ──
   let closed = false;
   const close = () => {
     if (closed) return;
     closed = true;
+    fs?.dispose();
     shade.remove();
     onClose?.();
   };

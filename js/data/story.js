@@ -22,8 +22,18 @@ export const STORY = {
     nameLabel: '이름(별명도 좋아요)',
     namePlaceholder: '1~12자',
     lookTitle: '견습 사서의 모습',
-    looks: { a: '모습 하나', b: '모습 둘' },
-    lookOf: (name) => name + '의 모습',
+    // 견습 사서 두 모습의 이름과 한 줄 소개(2026-10-07 새로 지음, 교사 확인 필요). 저장 값은 그대로 a·b다.
+    // 이름은 성별을 가리지 않고 옷과 든 것으로만 부른다. 화면에는 게임 속 3D 인물(2D 기기에서는 승인된 그림)과 함께 보인다.
+    looks: {
+      a: { name: '녹청 저고리', line: '두루마리를 옆에 끼고 서가 사이를 가볍게 오가는 사서' },
+      b: { name: '흰 두루마기', line: '둥근 안경을 쓰고 붓과 책을 늘 챙겨 다니는 사서' },
+    },
+    lookChosen: '고른 모습',
+    lookOf: (name, lookName) => name + '의 모습: ' + lookName,
+    changeLookTitle: (name) => "'" + name + "' 기록의 모습 바꾸기",
+    changeLookNote: '바꾼 모습은 게임 속 사서와 앞으로 받을 결과 카드에 쓰여요.',
+    changeLookApply: '이 모습으로 바꾸기',
+    changeLookCancel: '그대로 두기',
     create: '새 기록 만들기',
     nameEmpty: '이름을 한 글자 이상 써 주세요.',
     nameLong: (max) => '이름은 ' + max + '자까지 쓸 수 있어요.',
@@ -45,6 +55,13 @@ export const STORY = {
     settings: '설정',
     credits: '출처',
     saveFailed: '이 기기에 저장되지 않아요. 이번 창에서만 이어집니다',
+  },
+
+  // ── 전체 화면(시작 화면, 게임 중 위 띠, 설정이 함께 쓴다). 지금 상태에 따라 이름이 바뀐다 ──
+  fullscreen: {
+    on: '전체 화면',
+    off: '전체 화면 끄기',
+    note: '전체 화면은 기억해 두지 않아요. 켤 때마다 이 단추를 눌러 주세요.',
   },
 
   // ── 처음 켜는 기기: 이어폰 안내와 박자 맞추기(spec 15) ──

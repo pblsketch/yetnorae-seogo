@@ -16,6 +16,12 @@
 //  - (상태 주입) 기록 화면에서 결과 카드 다시 받기: 마친 관마다 판 카드, 서고 완성이면 마지막 카드, 내려받을 때마다 지금의 기록으로
 //    다시 그림(모습을 바꾸면 새 그림, 덤을 마친 기록이면 덤 줄이 바뀜), 마친 관이 없는 기록에는 단추 없음(음성 사례)
 //  - 3D와 강제 2D, 1366×768과 844×390. 콘솔 오류·바깥 요청·점수 말 없음, 화면 넘침·48px 미만 단추 없음
+//  - 모습 고르기: 새 이름(옛 '모습 하나·둘'이 아님), 라디오 묶음(누르기·화살표 키, aria-checked), 고른 표시(체크와 글),
+//    3D면 게임 속 3D 인물 미리보기(비어 있지 않음, 고른 칸만 돌고 고르지 않은 칸은 멈춤, 움직임 줄이기면 돌지 않음),
+//    강제 2D면 승인된 그림. 기록 목록의 작은 그림(3D 정지 그림 / 2D 그림), '모습 바꾸기' 상자(그대로 두기는 바꾸지 않음)
+//  - 전체 화면: 시작 화면·위 띠·설정의 단추(이름표, 48px), 누르면 전체 화면(document.fullscreenElement), 이름이 바뀜,
+//    exitFullscreen으로 나가도 이름이 따라옴, 전체 화면 중 창 크기가 바뀌면 3D 그림판·2D 그림 판이 따라 커짐,
+//    전체 화면을 쓸 수 없는 브라우저(fullscreenEnabled = false)에서는 단추가 아예 없음(음성 사례)
 // 음성 사례: 점검 도우미(미션 대조, 순서 대조, 점수 말 찾기, 배치 검사)가 실제 실패를 잡는지도 본다.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,6 +31,12 @@ import { defaultData, defaultProgress, SAVE_KEY } from '../js/core/save.js';
 import { WING_TABLE, ROUTING, BOSS_TABLE } from '../js/data/song-table.js';
 import { CONCEPTS, SINGER_GROUPS } from '../js/data/concepts.js';
 import { PLAY_WING_IDS } from '../js/data/wings.js';
+import { STORY } from '../js/data/story.js';
+
+const LOOK_NAMES = { a: STORY.start.looks.a.name, b: STORY.start.looks.b.name };
+const LOOK_LINES = { a: STORY.start.looks.a.line, b: STORY.start.looks.b.line };
+const OLD_LOOK_LABELS = ['모습 하나', '모습 둘'];
+const FS = STORY.fullscreen;
 
 // spec 0절의 미션 문장(제품 데이터에서 가져오지 않고 명세에서 옮겨 적는다)
 const MISSION_SPEC = '먹안개가 서고를 삼키기 전에, 흩어진 노래들을 제자리로 돌려보내 다시 불리게 하라.';
@@ -234,6 +246,173 @@ async function createRecord(page, name, appearance) {
   await click(page, '.story-create');
 }
 
+// ───────── 모습 고르기 ─────────
+// 캔버스 그림의 지문: 칠해진 픽셀 수와 간단한 해시(같은 그림인지 비교)
+function canvasPrint(sel) {
+  const c = document.querySelector(sel);
+  if (!c || !c.width || !c.height) return null;
+  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+  let n = 0;
+  let h = 0;
+  for (let i = 3; i < d.length; i += 4) {
+    if (d[i] > 10) n++;
+    h = (h * 31 + d[i - 3] + d[i - 2] * 7 + d[i - 1] * 13 + d[i]) >>> 0;
+  }
+  return { n, h, total: c.width * c.height };
+}
+const print = (page, sel) => ev(page, canvasPrint, sel);
+const canvasDrawn = (p) => !!p && p.n > p.total * 0.03;
+
+const pickerState = (page, scope) => ev(page, (sc) => {
+  const g = document.querySelector(sc + ' .story-looks');
+  if (!g) return null;
+  return {
+    role: g.getAttribute('role'),
+    render: g.dataset.render,
+    cards: [...g.querySelectorAll('.story-look')].map((c) => {
+      const r = c.getBoundingClientRect();
+      const img = c.querySelector('img.story-look-img');
+      const mark = c.querySelector('.story-look-mark');
+      return {
+        k: c.dataset.appearance, role: c.getAttribute('role'), checked: c.getAttribute('aria-checked'), tab: c.tabIndex,
+        name: c.querySelector('.story-look-name')?.textContent ?? '', line: c.querySelector('.story-look-line')?.textContent ?? '',
+        mark: mark && getComputedStyle(mark).display !== 'none' ? mark.textContent.trim() : '',
+        canvas: !!c.querySelector('canvas.story-look-canvas'), img: img?.getAttribute('src') ?? null, imgLoaded: (img?.naturalWidth ?? 0) > 0,
+        w: Math.round(r.width), h: Math.round(r.height),
+      };
+    }),
+    focused: document.activeElement?.dataset?.appearance ?? null,
+  };
+}, scope);
+
+// 새 기록의 모습 고르기를 살핀다. mode: '3d' | '2d'
+async function checkPicker(page, label, mode) {
+  const scope = '.story-start-new';
+  if (mode === '3d') await page.waitForFunction(() => [...document.querySelectorAll('.story-start-new .story-look-canvas')].every((c) => c.dataset.painted === 'true'), null, { timeout: 15000, polling: 100 });
+  let s = await pickerState(page, scope);
+  ok(same(s.cards.map((c) => c.name), [LOOK_NAMES.a, LOOK_NAMES.b]) && same(s.cards.map((c) => c.line), [LOOK_LINES.a, LOOK_LINES.b]), label + ': 모습마다 새 이름과 한 줄 소개 ' + JSON.stringify(s.cards.map((c) => c.name)));
+  const body = await ev(page, () => document.body.innerText);
+  ok(!OLD_LOOK_LABELS.some((w) => body.includes(w)), label + ": 음성 사례: 옛 이름 '모습 하나·둘'은 화면에 없다");
+  ok(s.role === 'radiogroup' && s.cards.every((c) => c.role === 'radio') && same(s.cards.map((c) => c.checked), ['true', 'false']) && same(s.cards.map((c) => c.tab), [0, -1]),
+    label + ': 라디오 묶음으로 알린다(처음은 녹청 저고리, 고른 카드에만 Tab이 멈춤) ' + JSON.stringify(s.cards.map((c) => [c.role, c.checked, c.tab])));
+  ok(s.cards[0].mark.includes('고른 모습') && s.cards[1].mark === '', label + ": 고른 카드에만 체크와 '고른 모습' 글(색만으로 알리지 않음)");
+  ok(s.cards.every((c) => c.w >= 120 && c.h >= 48), label + ': 카드 하나가 통째로 큰 누를 자리 ' + JSON.stringify(s.cards.map((c) => [c.w, c.h])));
+  if (mode === '3d') {
+    ok(s.render === '3d' && s.cards.every((c) => c.canvas && !c.img), label + ': 3D 기기에서는 3D 미리보기 캔버스(그림 대신)');
+    const a0 = await print(page, scope + ' .story-look[data-appearance="a"] canvas');
+    const b0 = await print(page, scope + ' .story-look[data-appearance="b"] canvas');
+    ok(canvasDrawn(a0) && canvasDrawn(b0), label + ': 3D 미리보기가 비어 있지 않다 ' + JSON.stringify([a0?.n, b0?.n, a0?.total]));
+    await page.waitForTimeout(700);
+    const a1 = await print(page, scope + ' .story-look[data-appearance="a"] canvas');
+    const b1 = await print(page, scope + ' .story-look[data-appearance="b"] canvas');
+    ok(a1.h !== a0.h, label + ': 고른 카드의 인물은 천천히 돈다(그림이 바뀐다)');
+    ok(b1.h === b0.h, label + ': 고르지 않은 카드는 멈춰 있다');
+  } else {
+    ok(s.render === '2d' && s.cards.every((c) => !c.canvas && c.img && c.imgLoaded) && s.cards.every((c) => c.img.includes('sprite/student-' + c.k)),
+      label + ': 2D 기기에서는 승인된 그림을 같은 이름으로 ' + JSON.stringify(s.cards.map((c) => [c.img?.slice(-30), c.imgLoaded])));
+  }
+  // 키보드: 고른 카드에서 화살표로 옮기면 고름도 따라간다
+  await page.locator(scope + ' .story-look[aria-checked="true"]').focus();
+  await page.keyboard.press('ArrowRight');
+  s = await pickerState(page, scope);
+  ok(same(s.cards.map((c) => c.checked), ['false', 'true']) && s.focused === 'b' && same(s.cards.map((c) => c.tab), [-1, 0]), label + ': 오른쪽 화살표로 흰 두루마기를 고른다(초점도 옮김)');
+  await page.keyboard.press('ArrowLeft');
+  s = await pickerState(page, scope);
+  ok(same(s.cards.map((c) => c.checked), ['true', 'false']) && s.focused === 'a', label + ': 왼쪽 화살표로 되돌린다');
+  await page.keyboard.press('Space');
+  s = await pickerState(page, scope);
+  ok(same(s.cards.map((c) => c.checked), ['true', 'false']), label + ': 음성 사례: 고른 카드를 다시 눌러도 고름이 풀리지 않는다');
+  await page.locator(scope + ' .story-look[data-appearance="b"]').click();
+  s = await pickerState(page, scope);
+  ok(same(s.cards.map((c) => c.checked), ['false', 'true']) && s.cards[1].mark.includes('고른 모습'), label + ': 누르면 그 카드를 고른다');
+  if (mode === '3d') {
+    await page.waitForTimeout(300);
+    const a2 = await print(page, scope + ' .story-look[data-appearance="a"] canvas');
+    await page.waitForTimeout(500);
+    const a3 = await print(page, scope + ' .story-look[data-appearance="a"] canvas');
+    ok(canvasDrawn(a2) && a2.h === a3.h, label + ': 고름이 풀린 카드는 3/4 자세로 멈춘다');
+  }
+  await page.locator(scope + ' .story-look[data-appearance="a"]').click();
+}
+
+// 기록 목록의 작은 그림
+const thumbState = (page) => ev(page, () => [...document.querySelectorAll('.story-record .story-record-thumb')].map((i) => {
+  const src = i.getAttribute('src') ?? '';
+  return { k: i.dataset.appearance, render: i.dataset.render, src: src.startsWith('data:') ? src.slice(0, 22) : src.replace(/^.*\/assets\//, 'assets/'), loaded: i.naturalWidth > 0, alt: i.alt };
+}));
+
+// '모습 바꾸기' 상자: to를 고르고 apply면 바꾸기, 아니면 그대로 두기
+async function changeLook(page, sel, to, apply = true) {
+  await page.locator(sel + ' .story-record-look').click();
+  await waitSel(page, '.story-look-change');
+  await page.locator(`.story-look-change .story-look[data-appearance="${to}"]`).click();
+  await page.locator('.story-look-change ' + (apply ? '.story-look-apply' : '.story-look-cancel')).click();
+  await waitGone(page, '.story-look-change');
+}
+
+// ───────── 전체 화면 ─────────
+const fsState = (page, sel) => ev(page, (s) => {
+  const b = document.querySelector(s);
+  if (!b) return null;
+  const r = b.getBoundingClientRect();
+  return { label: b.getAttribute('aria-label'), text: b.textContent.trim(), state: b.dataset.fullscreen, w: r.width, h: r.height, icon: b.querySelector('path')?.getAttribute('d') ?? '', fs: !!document.fullscreenElement, root: document.fullscreenElement === document.documentElement };
+}, sel);
+const waitFs = (page, on) => page.waitForFunction((v) => !!document.fullscreenElement === v, on, { timeout: 10000, polling: 50 });
+
+// 단추를 눌러 전체 화면에 들어간다. 이름과 그림이 따라 바뀌는지 본다. visibleText: 단추에 이름 글이 보이는 화면인지
+async function enterFullscreenAndCheck(page, label, sel, { visibleText = true } = {}) {
+  const s0 = await fsState(page, sel);
+  ok(!!s0 && s0.label === FS.on && s0.state === 'off' && (!visibleText || s0.text === FS.on), label + ': 전체 화면 단추에 이름이 있다 ' + JSON.stringify(s0 && { label: s0.label, text: s0.text }));
+  ok(!!s0 && s0.w >= 47.5 && s0.h >= 47.5, label + ': 전체 화면 단추가 48px 이상 ' + JSON.stringify(s0 && [Math.round(s0.w), Math.round(s0.h)]));
+  await page.locator(sel).click();
+  await waitFs(page, true);
+  await page.waitForFunction((a) => document.querySelector(a.sel)?.dataset.fullscreen === 'on', { sel }, { timeout: 5000, polling: 50 }).catch(() => {});
+  const s1 = await fsState(page, sel);
+  ok(s1.fs && s1.root, label + ': 누르면 전체 화면이 된다(document.fullscreenElement = 문서 뿌리)');
+  ok(s1.label === FS.off && s1.state === 'on' && (!visibleText || s1.text === FS.off) && s1.icon !== s0.icon, label + ": 이름과 그림이 '전체 화면 끄기'로 바뀐다 " + JSON.stringify({ label: s1.label, text: s1.text }));
+}
+// exitFullscreen(Esc·시스템 뒤로 가기 몸짓과 같은 fullscreenchange 사건)으로 나오면 단추 이름이 따라 돌아오는지
+async function exitFullscreenAndCheck(page, label, sel) {
+  await ev(page, () => document.exitFullscreen());
+  await waitFs(page, false);
+  await page.waitForFunction((a) => document.querySelector(a.sel)?.getAttribute('aria-label') === a.on, { sel, on: FS.on }, { timeout: 5000, polling: 50 });
+  const s = await fsState(page, sel);
+  ok(!s.fs && s.label === FS.on && s.state === 'off', label + ': 바깥에서 전체 화면을 끄면(Esc·뒤로 가기와 같은 사건) 단추 이름이 따라 돌아온다');
+}
+// 전체 화면 중 창 크기가 바뀌면(전체 화면이 실제로 창을 키우는 것과 같은 일) 세계가 따라 커지고, 나오면 되돌아온다.
+// 점검 브라우저(headless)는 전체 화면이 되어도 창 크기가 그대로라 크기를 점검 도구가 바꾼다.
+const worldSize = (page) => ev(page, () => {
+  const c = document.querySelector('canvas.world-canvas');
+  const b = document.querySelector('.board');
+  const r = b?.getBoundingClientRect();
+  return { canvas: c ? [c.width, c.height, c.clientWidth, c.clientHeight] : null, board: r ? [Math.round(r.width), Math.round(r.height)] : null, iw: innerWidth, ih: innerHeight };
+});
+async function checkWorldResize(page, label, base, big) {
+  const before = await worldSize(page);
+  await page.setViewportSize(big);
+  await page.waitForFunction((w) => {
+    const c = document.querySelector('canvas.world-canvas');
+    const b = document.querySelector('.board');
+    return c ? c.clientWidth === w && c.width >= w : b ? Math.round(b.getBoundingClientRect().height) === innerHeight || Math.round(b.getBoundingClientRect().width) === innerWidth : false;
+  }, big.width, { timeout: 10000, polling: 50 });
+  const during = await worldSize(page);
+  const grew = during.canvas ? during.canvas[2] === big.width && during.canvas[3] === big.height && during.canvas[0] / during.canvas[2] === before.canvas[0] / before.canvas[2]
+    : during.board[0] > before.board[0] && during.board[1] > before.board[1];
+  ok(grew, label + ': 전체 화면 중 창이 커지면 ' + (during.canvas ? '3D 그림판' : '2D 그림 판') + '이 따라 커진다 ' + JSON.stringify({ before, during }));
+  await page.setViewportSize(base);
+  // 그리기 판 크기는 ResizeObserver가 다음 그리기 때 맞춘다(소프트웨어 그리기에서는 큰 화면 한 장이 느려 조금 걸린다)
+  await page.waitForFunction((want) => {
+    if (innerWidth !== want.iw) return false;
+    const c = document.querySelector('canvas.world-canvas');
+    const b = document.querySelector('.board');
+    if (c) return JSON.stringify([c.width, c.height, c.clientWidth, c.clientHeight]) === JSON.stringify(want.canvas);
+    const r = b?.getBoundingClientRect();
+    return !!r && JSON.stringify([Math.round(r.width), Math.round(r.height)]) === JSON.stringify(want.board);
+  }, before, { timeout: 10000, polling: 100 }).catch(() => {});
+  const after = await worldSize(page);
+  ok(same(after.canvas ?? after.board, before.canvas ?? before.board), label + ': 창이 돌아오면 원래 크기로 ' + JSON.stringify(after));
+}
+
 async function skipFirstRun(page, label) {
   await waitSel(page, '.story-firstrun[data-step="earphone"]');
   const t1 = await text(page, '.story-firstrun');
@@ -352,6 +531,13 @@ try {
     const credits = await ev(page, async () => !!(await import('/js/registry.js')).registry.screens.credits);
     ok((await ev(page, () => !!document.querySelector('.story-open-credits'))) === credits, '출처 화면 문은 출처 화면이 등록됐을 때만 보인다');
 
+    // 모습 고르기(3D 미리보기)와 시작 화면의 전체 화면 단추
+    await checkPicker(page, '3D 1366', '3d');
+    await enterFullscreenAndCheck(page, '시작 화면', '.story-open-fullscreen');
+    ly = await layout(page, '.story-start');
+    ok(ly.length === 0, "시작 화면: '전체 화면 끄기' 이름에서도 배치 문제 없음 " + JSON.stringify(ly));
+    await exitFullscreenAndCheck(page, '시작 화면', '.story-open-fullscreen');
+
     // 이름 검사(음성 사례)
     await createRecord(page, '   ');
     ok((await text(page, '.story-msg'))?.includes('한 글자') && !(await saved(page))?.slots?.length && Object.keys((await saved(page))?.slots ?? {}).length === 0, '빈 이름은 만들지 않고 알린다');
@@ -378,6 +564,19 @@ try {
     ok(j.first.includes('선대 사서의 첫 노래') && j.first.includes('태산이 높다 하되') && j.clues === 0, '일지: 선대 사서의 첫 노래, 아직 단서 없음 ' + JSON.stringify(j));
     await click(page, '.play-panel .play-panel-close');
     ok(!(await ev(page, () => !!document.querySelector('.story-boss-door'))), '음성 사례: 다섯 관을 마치기 전에는 보스 문이 없다');
+
+    // 게임 중 위 띠의 전체 화면 단추: 들어가기, 세계 그림판 크기 따라가기, 나오기. 설정의 항목도 같은 상태를 보인다
+    await enterFullscreenAndCheck(page, '3D 위 띠', '.story-hud-fullscreen');
+    await checkWorldResize(page, '3D 위 띠', VIEWPORTS.chromebook, { width: 1600, height: 900 });
+    await exitFullscreenAndCheck(page, '3D 위 띠', '.story-hud-fullscreen');
+    await click(page, '.story-hud-settings');
+    await waitSel(page, '.story-settings');
+    await enterFullscreenAndCheck(page, '설정', '.story-settings .story-settings-fullscreen');
+    const hudSynced = await page.waitForFunction((off) => document.querySelector('.story-hud-fullscreen')?.getAttribute('aria-label') === off, FS.off, { timeout: 5000, polling: 50 }).then(() => true, () => false);
+    ok(hudSynced, '설정에서 켜면 위 띠 단추 이름도 함께 바뀐다(fullscreenchange)');
+    ok((await saved(page))?.device && !JSON.stringify((await saved(page)).device).toLowerCase().includes('fullscreen'), '전체 화면은 저장하지 않는다(기기 설정에 없음)');
+    await exitFullscreenAndCheck(page, '설정', '.story-settings .story-settings-fullscreen');
+    await closeSettings(page);
 
     // 게임 중 설정: 글자 크기, 움직임 줄이기, 소리 끄기
     await openSettingsAndCheck(page, '게임 중', '.story-hud-settings');
@@ -416,6 +615,15 @@ try {
     ok(re.scale === '1.3' && re.reduce, '다시 열어도 글자 크기와 움직임 줄이기가 적용된다 ' + JSON.stringify(re));
     ly = await layout(page, '.story-start');
     ok(ly.length === 0, '글자 크기 1.3 시작 화면 배치 문제 없음 ' + JSON.stringify(ly));
+    await page.waitForFunction(() => (document.querySelector('.story-record-thumb')?.naturalWidth ?? 0) > 0, null, { timeout: 10000, polling: 100 });
+    const th = await thumbState(page);
+    ok(th.length === 1 && th[0].k === 'b' && th[0].render === '3d' && th[0].src.startsWith('data:image/png') && th[0].loaded && th[0].alt.includes(LOOK_NAMES.b),
+      '3D 기록 목록의 작은 그림은 게임 속 3D 인물의 정지 그림이다 ' + JSON.stringify(th));
+    await page.waitForFunction(() => [...document.querySelectorAll('.story-start-new .story-look-canvas')].every((c) => c.dataset.painted === 'true'), null, { timeout: 15000, polling: 100 });
+    const calm0 = await print(page, '.story-start-new .story-look[aria-checked="true"] canvas');
+    await page.waitForTimeout(800);
+    const calm1 = await print(page, '.story-start-new .story-look[aria-checked="true"] canvas');
+    ok(canvasDrawn(calm0) && calm0.h === calm1.h, '움직임 줄이기면 고른 카드의 인물도 돌지 않고 3/4 자세로 서 있다');
     await click(page, '.story-record .story-record-open');
     await page.waitForFunction(() => document.querySelector('.play')?.dataset.place === 'hyangga', null, { timeout: 15000, polling: 100 });
     ok(!(await ev(page, () => !!document.querySelector('.story-entrance, .story-firstrun'))), '이어 하면 입구와 박자 맞추기를 다시 보지 않고, 판 중인 관(향가관)으로 이어 간다');
@@ -438,7 +646,18 @@ try {
     // 모습 바꾸기(기록 목록에서), 지우기 확인 한 번
     await menu(page, '.story-go-home');
     await waitStart(page);
-    await click(page, '.story-record .story-record-look');
+    await changeLook(page, '.story-record', 'a', false);
+    ok((await record(page)).appearance === 'b' && (await thumbState(page))[0]?.k === 'b', "음성 사례: '모습 바꾸기'에서 다른 모습을 골라도 '그대로 두기'면 바뀌지 않는다");
+    await page.locator('.story-record .story-record-look').click();
+    await waitSel(page, '.story-look-change');
+    await page.waitForFunction(() => [...document.querySelectorAll('.story-look-change .story-look-canvas')].every((c) => c.dataset.painted === 'true'), null, { timeout: 15000, polling: 100 });
+    const dlg = await pickerState(page, '.story-look-change');
+    ok(dlg.render === '3d' && same(dlg.cards.map((c) => c.checked), ['false', 'true']) && same(dlg.cards.map((c) => c.name), [LOOK_NAMES.a, LOOK_NAMES.b]) && canvasDrawn(await print(page, '.story-look-change .story-look[data-appearance="b"] canvas')),
+      "'모습 바꾸기' 상자: 같은 이름과 3D 미리보기, 지금 모습이 골라져 있다 " + JSON.stringify(dlg.cards.map((c) => c.checked)));
+    ok((await layout(page, '.story-look-shade')).length === 0, "'모습 바꾸기' 상자 배치 문제 없음(글자 크기 1.3)");
+    await page.locator('.story-look-change .story-look[data-appearance="a"]').click();
+    await page.locator('.story-look-change .story-look-apply').click();
+    await waitGone(page, '.story-look-change');
     await page.waitForFunction(() => document.querySelector('.story-record .story-record-thumb')?.dataset.appearance === 'a', null, { timeout: 5000, polling: 100 });
     ok((await record(page)).appearance === 'a', '기록 목록에서 모습을 바꾸면 저장된다');
     await click(page, '.story-record .story-record-delete');
@@ -470,6 +689,7 @@ try {
     await page.evaluate(`window.__solve = ${solveMeasure.toString()}`);
     let ly = await layout(page, '.story-start');
     ok(ly.length === 0, '2D 휴대폰: 시작 화면 배치 문제 없음 ' + JSON.stringify(ly));
+    await checkPicker(page, '2D 844', '2d');
     await openSettingsAndCheck(page, '2D 휴대폰', '.story-open-settings');
     await page.locator('.story-settings input[data-setting="slashMode"]').check();
     await closeSettings(page);
@@ -512,6 +732,12 @@ try {
     await closeSettings(page);
     ly = await layout(page, '.play-hud');
     ok(ly.length === 0, '2D 휴대폰: 글자 크기 1.3에서도 관 안의 위 띠 배치 문제 없음 ' + JSON.stringify(ly));
+    // 좁은 위 띠에서는 전체 화면 단추가 그림만 보이고 이름은 읽어 주기(aria-label)로 남는다
+    await enterFullscreenAndCheck(page, '2D 휴대폰 위 띠', '.story-hud-fullscreen', { visibleText: false });
+    ly = await layout(page, '.play-hud');
+    ok(ly.length === 0, '2D 휴대폰: 전체 화면 중(글자 크기 1.3) 위 띠 배치 문제 없음 ' + JSON.stringify(ly));
+    await checkWorldResize(page, '2D 휴대폰', VIEWPORTS.phone, { width: 1000, height: 460 });
+    await exitFullscreenAndCheck(page, '2D 휴대폰 위 띠', '.story-hud-fullscreen');
     ok((await bodyScoreWords(page)).length === 0, '2D: 점수 말이 화면에 없다');
     ok(game.errors.length === 0, '2D 처음부터: 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
     ok(game.external.length === 0, '2D 처음부터: 바깥 요청 없음');
@@ -538,6 +764,34 @@ try {
     await waitSel(page, '.story-entrance');
     ok(true, '저장 없이도 새 기록으로 입구까지 간다');
     ok(game.errors.length === 0, '저장 불가: 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
+    await game.close();
+    sessions.pop();
+  }
+
+  // ══════════ 전체 화면을 쓸 수 없는 브라우저 ══════════
+  console.log('— 전체 화면을 쓸 수 없는 브라우저(iPhone Safari처럼): 단추가 없다');
+  {
+    const game = await openGame(server.url, { viewport: VIEWPORTS.phone, seed: seedAllDone() });
+    sessions.push(game);
+    const { page, context } = game;
+    // 점검 도구에서만: 이 브라우저가 문서 전체 화면을 못 쓰는 것처럼 꾸민다
+    await context.addInitScript(() => {
+      for (const k of ['fullscreenEnabled', 'webkitFullscreenEnabled']) Object.defineProperty(Document.prototype, k, { configurable: true, get: () => false });
+    });
+    await page.reload();
+    await waitStart(page);
+    const st = await ev(page, () => ({ enabled: document.fullscreenEnabled, start: !!document.querySelector('.story-open-fullscreen, .story-fs') }));
+    ok(st.enabled === false && !st.start, '음성 사례: 전체 화면을 쓸 수 없으면 시작 화면에 전체 화면 단추가 없다 ' + JSON.stringify(st));
+    await click(page, '.story-open-settings');
+    await waitSel(page, '.story-settings');
+    ok(!(await ev(page, () => !!document.querySelector('.story-settings .story-fs'))), '음성 사례: 설정에도 전체 화면 항목이 없다');
+    await closeSettings(page);
+    await click(page, '.story-record .story-record-open');
+    await page.waitForFunction(() => !!document.querySelector('.story-hud-settings'), null, { timeout: 20000, polling: 100 });
+    ok(!(await ev(page, () => !!document.querySelector('.story-hud-fullscreen, .play-hud .story-fs'))), '음성 사례: 게임 중 위 띠에도 전체 화면 단추가 없다');
+    const ly = await layout(page, '.play-hud');
+    ok(ly.length === 0, '전체 화면 단추가 없는 위 띠 배치 문제 없음 ' + JSON.stringify(ly));
+    ok(game.errors.length === 0, '전체 화면 없음: 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
     await game.close();
     sessions.pop();
   }
@@ -772,8 +1026,11 @@ try {
     ok(await ev(page, () => !!document.querySelector('.story-cards')), '카드를 닫으면 카드 고르기 상자로 돌아온다');
     await closePicker(page);
 
+    // 2D 기록 목록의 작은 그림은 승인된 그림이다
+    const th2 = await thumbState(page);
+    ok(th2.length === 3 && th2.every((t) => t.render === '2d' && t.src === 'assets/img/sprite/student-' + t.k + '.webp' && t.loaded), '2D 기록 목록의 작은 그림은 승인된 그림 ' + JSON.stringify(th2.map((t) => t.src)));
     // 지금의 기록으로 다시 그린다: 기록 화면에서 모습을 바꾸고 다시 내려받으면 그림이 바뀐다(실제 조작, 상태 주입 없음)
-    await click(page, '.story-record[data-id="s-cards"] .story-record-look');
+    await changeLook(page, '.story-record[data-id="s-cards"]', 'b');
     await page.waitForFunction(() => document.querySelector('.story-record[data-id="s-cards"] .story-record-thumb')?.dataset.appearance === 'b', null, { timeout: 5000, polling: 100 });
     await openPicker(page, 's-cards');
     await click(page, '.story-cards .story-card-pick[data-wing="goryeo"]');

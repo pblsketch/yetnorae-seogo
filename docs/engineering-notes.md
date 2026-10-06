@@ -49,6 +49,25 @@
 - `tests/node_modules`는 이 저장소의 Playwright 1.63.0 설치다(`tests/package.json`, `package-lock.json`). 점검은 `channel: 'chrome'`으로 기기에 설치된 Chrome을 열므로 Playwright 브라우저 내려받기(`npx playwright install`)가 필요 없다.
 - 3D 점검은 `--use-angle=swiftshader`로 GPU 없이 그리고, 2D 점검은 `--disable-webgl --disable-webgl2 --disable-3d-apis`로 연다. 제품에는 2D를 강제하는 스위치가 없다.
 
+### 점검 브라우저에서는 전체 화면이 되어도 창 크기가 그대로다
+- 증상: 점검에서 전체 화면 단추를 누르면 `document.fullscreenElement`는 생기지만 `innerWidth`·그림판 크기가 바뀌지 않는다. Playwright의 `keyboard.press('Escape')`로는 전체 화면이 풀리지 않는다.
+- 까닭: headless Chrome은 전체 화면 상태만 바꾸고 화면 크기는 점검 도구가 정한 viewport를 지킨다. 키보드 흉내는 브라우저 자체의 Esc 처리까지 가지 않는다.
+- 대응: `check-story`는 전체 화면 중에 `page.setViewportSize`로 창을 키워(실제 기기에서 전체 화면이 하는 일) 3D 그림판·2D 그림 판이 따라 커지는지 보고, 나올 때는 `document.exitFullscreen()`을 부른다(Esc·뒤로 가기 몸짓과 같은 `fullscreenchange`가 난다). 큰 화면에서 SwiftShader 한 장이 느려 그림판 크기는 조금 늦게 따라오므로 고정 시간 대신 크기가 맞을 때까지 기다린다.
+- 확인: `node tests/check-story.mjs`의 '전체 화면 중 창이 커지면 …' 줄.
+
+### 전체 화면 단추 이름이 한 박자 늦게 바뀐다
+- 증상: 설정에서 전체 화면을 켠 직후 위 띠 단추의 이름을 읽으면 아직 '전체 화면'이다.
+- 까닭: `document.fullscreenElement`는 바로 바뀌지만 `fullscreenchange` 사건은 다음 그리기 단계에서 난다. 다른 단추들은 그 사건을 듣고 바뀐다.
+- 대응: 점검은 이름이 바뀔 때까지 기다린다(동기 `waitForFunction`).
+
+### `#app`만 전체 화면으로 띄우면 회전 안내가 가려진다
+- 까닭: 회전 안내(`.rotate-overlay`)와 카드 내려받기 고리는 body에 붙는다. 전체 화면 요소의 바깥은 전체 화면 동안 보이지 않는다. 회전 안내를 `#app` 안에 넣으면 세로일 때 `#app.inert`가 안내까지 읽어 주기에서 숨긴다.
+- 대응: 문서 뿌리(`document.documentElement`)를 띄운다(`js/world/screen.js`의 `toggleFullscreen`).
+
+### 시작 화면의 모습 미리보기는 WebGL 그림판을 하나 더 쓴다
+- 까닭: 시작 화면에는 세계가 없으므로 모습 미리보기(`js/world/portrait.js`)가 작은 그림판을 따로 만든다. 3D 인물의 재질·기하는 모듈 안에서 나눠 쓰고 참조 수로 버린다.
+- 대응: 시작 화면을 치울 때(`renderStart`의 `dispose`, `showStart`가 다시 그릴 때) 인물을 먼저 버리고 그림판을 `dispose`·`forceContextLoss`로 닫는다. 세계가 뜰 때 WebGL 그림판은 하나뿐이다. 프레임마다 다시 그리는 것은 고른 카드 하나뿐이고 움직임 줄이기면 바뀔 때만 그린다.
+
 ## 같이 고쳐야 하는 짝
 
 한쪽만 고치면 조용히 어긋나거나 점검이 실패한다.
