@@ -2208,7 +2208,7 @@
       "generator": "tools/fonts/build_fonts.py — fontTools 부분 글꼴, 굵기 400 고정, 모든 OpenType 기능(옛한글 ljmo·vjmo·tjmo·ccmp 포함) 유지, 글꼴 이름을 Yetnorae Text로 바꿈",
       "license": "SIL Open Font License 1.1(상업 이용·수정·재배포 가능, 수정본은 원래 이름을 쓰지 않음). 라이선스 전문: assets/fonts/OFL.txt",
       "commercialUse": true,
-      "notes": "글자 3115자, 글리프 4516개"
+      "notes": "글자 3117자, 글리프 4518개"
     },
     {
       "path": "assets/fonts/yetnorae-text-700.woff2",
@@ -2217,7 +2217,7 @@
       "generator": "tools/fonts/build_fonts.py — fontTools 부분 글꼴, 굵기 700 고정, 모든 OpenType 기능(옛한글 ljmo·vjmo·tjmo·ccmp 포함) 유지, 글꼴 이름을 Yetnorae Text로 바꿈",
       "license": "SIL Open Font License 1.1(상업 이용·수정·재배포 가능, 수정본은 원래 이름을 쓰지 않음). 라이선스 전문: assets/fonts/OFL.txt",
       "commercialUse": true,
-      "notes": "글자 3115자, 글리프 4516개"
+      "notes": "글자 3117자, 글리프 4518개"
     },
     {
       "path": "assets/audio/voice/anminga/0.mp3",
