@@ -1454,3 +1454,16 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - **생성 기록 더하기**(`assets/audio/voice/manifest.json`의 `clips[]`): `lineText`(한 번에 읽힌 줄 글), `cut`(`asr`·`energy`·`whole`), `lineGainDb`, `lineAsr`·`lineAsrMatch`(그 줄 받아쓰기와 일치 비율). `ttsSpeed`는 1, `stretch`는 1로 고정이다(빨리 읽히거나 줄이지 않는다).
 - **점검(`tests/check-voice.mjs`) 더하기**: 모든 노래에 `tempo`가 있는지(조각이 없어도 늘 본다), 기록의 `tempo`가 노래 데이터와 같은지, `stretch`·`ttsSpeed`가 1을 넘지 않는지, `lineText`가 그 음보 글을 담는지, `cut`이 있는지.
 - **목소리 후보**: `tools/voice/voices.json`에 가2·나2를 더했다(가·나는 그대로 둔다). 같은 결(30대 차분한 중간 높이 여성, 50대 따뜻하고 낮은 남성)을 한국어 설명과 한국어 기준 문장으로 다시 설계했고, 지시 꼬리표(`[calm]`)는 쓰지 않는다.
+
+## 추가 제안(T28) — 노래마다 목소리 배정과 낭송 조각
+
+사용자가 낭송 목소리를 노래의 화자에 맞춰 둘로 나누어 승인했다(`docs/approvals.md` '낭송 목소리'). 10절의 조각 이름, 11절의 목록 모양, 게임 엔진은 그대로다. 위 '추가 제안(T27)'의 '승인된 목소리'와 '생성 기록'은 이 절로 바꾸고 더한다.
+
+- **승인 배정**: `tools/voice/voices.json`의 `approved`는 `{ default: 후보 id, bySong: { 노래 id: 후보 id } }`다. `bySong`에 없는 노래는 `default` 목소리다. 지금은 여성 화자가 분명한 13편이 `narrator-a2`, 나머지 32편이 `narrator-b2`다. 예전 모양(후보 id 글 하나)도 읽으며 그때는 모든 노래가 그 목소리다. `bySong`의 노래 id는 노래 데이터에 있어야 하고, 목소리는 `candidates`에 있어야 한다.
+- **기준 음성 고정**: 승인한 후보에는 `referenceSha256`(기준 음성 WAV의 sha256)과 `voiceDesignId`를 적는다. 도구는 설계 캐시(`tools/voice_cache/ref/`, git 제외)가 없으면 `assets/raw/voice-ref/<후보 id>-reference.wav`(git 제외 백업)에서 되살리고, 해시가 다르거나 백업도 없으면 다시 설계하지 않고 멈춘다(같은 seed로 다시 설계해도 같은 목소리라는 보장이 없다).
+- **생성 기록 바꿈**(`assets/audio/voice/manifest.json`): `generator.voice`·`generator.referenceSha256` 하나 대신 `generator.voices: { 후보 id: { label, designModel, designSeed, designId, referenceSha256, instruction, referenceText, direction, ttsSpeed } }`와 `generator.assignment`(만들 때의 승인 배정)를 둔다. `clips[]`마다 `voice`(그 조각을 읽은 후보 id)를 더한다.
+- **자산 목록 조각**(`assets/manifest.parts/voice.json`): 항목마다 `generator`에 그 조각의 목소리와 기준 음성 해시 앞 12자리를 적는다.
+- **점검(`tests/check-voice.mjs`) 바꿈**: 승인 배정이 노래 데이터·후보와 맞는지, 조각마다 기록의 `voice`가 그 노래의 배정과 같은지, `generator.voices`에 그 목소리와 기준 음성 해시가 있고 `voices.json`에 적은 승인 해시와 같은지 본다.
+- **도구 더하기**: 실제 조각은 승인 배정대로만 만든다(`--voice`는 견본·빠르기 재기에만). `--max-usd`(기본 3)를 넘을 요청은 보내지 않고 멈춘다. 실제 조각을 만든 뒤 '듣기 대신 점검'으로 받아쓰기 일치가 0.6 아래인 줄과 음절 비율로 자른(`cut: 'energy'`) 조각을 알린다.
+- **자르기 되짚기**: 받아쓰기 낱말 시각이 엉뚱하면(여러 낱말을 한 덩어리로 듣는 등) 음보 하나가 줄 대부분을 삼키고 다른 음보가 0.1초 남짓이 된다. 받아쓰기로 자른 조각이 0.15초보다 짧거나, 조각 길이의 몫이 음절 수 몫의 0.35배보다 작거나, 두 음절 이상인 조각이 2.5배보다 크면 그 줄은 음절 비율로 다시 자른다(`cut: 'energy'`, 들어 볼 조각).
+- **빠르기**: 노래 데이터의 `tempo`는 승인 배정된 목소리로 그 노래의 모든 줄을 읽혀 잰 자연 빠르기(`--write-tempo`)다.

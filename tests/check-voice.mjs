@@ -5,6 +5,9 @@
 // 2) 조각마다 길이가 박자 칸(60 / 그 노래의 빠르기 초) 안에 드는지. 길이는 MP3 프레임 머리를 직접 읽어 잰다(빠르고 ffmpeg가 필요 없다)
 //    조각은 줄(장·행·줄·구)을 한 번에 읽힌 소리를 음보 경계에서 자른 것이어야 하고, 빠르게 줄이거나(stretch) 빨리 읽히면 안 된다
 // 3) 생성 기록(assets/audio/voice/manifest.json): 출처 Fish Audio, 유료 모델, 승인된 목소리, 사용권, 조각마다 글·길이·칸·sha256이 실제와 같은지
+//    목소리는 노래마다 승인 배정(tools/voice/voices.json approved: { default, bySong })대로여야 한다. 조각마다 기록한 voice가
+//    그 노래의 배정과 같고, 생성 기록의 목소리 목록(generator.voices)에 그 목소리의 기준 음성 해시가 있으며,
+//    voices.json 후보에 승인한 기준 음성 해시(referenceSha256)가 있으면 그것과 같아야 한다(T28)
 // 4) 자산 목록 조각(assets/manifest.parts/voice.json): 조각마다 항목 하나, kind voice, 출처·사용권·상업 이용
 // 조각이 하나도 없으면: VOICE_OPTIONAL=1일 때만 '아직 없음'으로 넘어가고(종료 0), 아니면 실패한다.
 // 음성 사례: 임시 폴더에 가짜 노래·조각을 만들어, 빠진 조각·남는 조각·칸 넘침·해시·글 어긋남·목록 누락·무료 모델을 잡는지 본다.
@@ -103,11 +106,34 @@ export function judgeTempo(songs) {
   return problems;
 }
 
-// ── 판정(실제 저장소와 음성 사례가 함께 쓴다) ──
-// songs: 노래 데이터, approved: 승인된 목소리 id(없으면 null)
-// 돌려주는 값: { clipCount, expectedCount, problems: [글], rows: [{ path, sec, slot }] }
-export function judgeVoice({ root: base, songs, approved }) {
+// ── 승인 배정 ──
+// approved: { default: 후보 id, bySong: { 노래 id: 후보 id } } 또는 예전 모양(후보 id 글 하나 — 모든 노래가 그 목소리)
+export function voiceFor(approved, songId) {
+  if (!approved) return null;
+  if (typeof approved === 'string') return approved;
+  return approved.bySong?.[songId] ?? approved.default ?? null;
+}
+
+// 승인 배정 자체가 이상한 곳: 노래 데이터에 없는 노래 id, 후보에 없는 목소리
+export function judgeApproval(approved, songs, candidates = null) {
   const problems = [];
+  if (!approved || typeof approved === 'string') return problems;
+  const ids = new Set(songs.map((s) => s.id));
+  const unknown = Object.keys(approved.bySong ?? {}).filter((id) => !ids.has(id));
+  if (unknown.length) problems.push('승인 배정(approved.bySong)에 노래 데이터에 없는 노래 id: ' + unknown.join(', '));
+  if (!nonEmpty(approved.default)) problems.push('승인 배정에 나머지 노래의 목소리(approved.default)가 없다');
+  if (candidates) {
+    const bad = [...new Set([approved.default, ...Object.values(approved.bySong ?? {})])].filter((v) => v && !(v in candidates));
+    if (bad.length) problems.push('승인 배정에 후보에 없는 목소리: ' + bad.join(', '));
+  }
+  return problems;
+}
+
+// ── 판정(실제 저장소와 음성 사례가 함께 쓴다) ──
+// songs: 노래 데이터, approved: 승인 배정(없으면 null), pinned: { 후보 id: 승인한 기준 음성 sha256 }
+// 돌려주는 값: { clipCount, expectedCount, problems: [글], rows: [{ path, sec, slot }] }
+export function judgeVoice({ root: base, songs, approved, pinned = {} }) {
+  const problems = judgeApproval(approved, songs);
   const rows = [];
   const voiceRoot = path.join(base, VOICE_DIR);
   const expected = new Map();   // 경로 → { song, text, slot }
@@ -161,10 +187,15 @@ export function judgeVoice({ root: base, songs, approved }) {
     if (!nonEmpty(g.model)) problems.push('생성 기록: generator.model이 없다');
     else if (/-free$/.test(g.model)) problems.push('생성 기록: 무료 모델(' + g.model + ')은 상업 이용이 안 된다');
     if (!nonEmpty(g.plan)) problems.push('생성 기록: generator.plan(요금제)이 없다');
-    if (!nonEmpty(g.voice)) problems.push('생성 기록: generator.voice(목소리)가 없다');
-    else if (!approved) problems.push('승인된 목소리가 없다(tools/voice/voices.json의 approved)');
-    else if (g.voice !== approved) problems.push(`생성 기록의 목소리(${g.voice})가 승인된 목소리(${approved})와 다르다`);
-    if (!nonEmpty(g.referenceSha256)) problems.push('생성 기록: 기준 음성 해시(generator.referenceSha256)가 없다');
+    if (!approved) problems.push('승인된 목소리가 없다(tools/voice/voices.json의 approved)');
+    const gv = g.voices && typeof g.voices === 'object' ? g.voices : null;
+    if (!gv || !Object.keys(gv).length) problems.push('생성 기록: 목소리 목록(generator.voices)이 없다');
+    else {
+      for (const [v, info] of Object.entries(gv)) {
+        if (!nonEmpty(info?.referenceSha256)) problems.push(`생성 기록: 목소리 ${v}의 기준 음성 해시(referenceSha256)가 없다`);
+        else if (pinned[v] && info.referenceSha256 !== pinned[v]) problems.push(`생성 기록: 목소리 ${v}의 기준 음성 해시가 승인한 값(voices.json의 referenceSha256)과 다르다`);
+      }
+    }
     const clips = Array.isArray(rec.clips) ? rec.clips : [];
     const byPath = new Map();
     for (const c of clips) {
@@ -176,6 +207,11 @@ export function judgeVoice({ root: base, songs, approved }) {
       const c = byPath.get(p);
       const exp = expected.get(p);
       if (!c) { problems.push('생성 기록에 없는 조각: ' + p); continue; }
+      if (approved) {
+        const want = voiceFor(approved, exp.song.id);
+        if (c.voice !== want) problems.push(`${p}: 기록의 목소리(${c.voice ?? '없음'})가 승인된 목소리 배정(${want})과 다르다`);
+      }
+      if (gv && c.voice && !gv[c.voice]) problems.push(`${p}: 목소리 ${c.voice}가 생성 기록의 목소리 목록(generator.voices)에 없다`);
       if (c.text !== exp.text) problems.push(`${p}: 기록의 글 "${c.text}"이 노래 데이터의 오늘 소리 "${exp.text}"와 다르다`);
       if (c.sha256 !== m.hash) problems.push(p + ': sha256이 기록과 다르다');
       if (typeof c.duration !== 'number' || (m.sec !== null && Math.abs(c.duration - m.sec) > RECORD_TOL)) problems.push(`${p}: 기록의 길이(${c.duration})가 잰 길이(${m.sec?.toFixed(3)})와 다르다`);
@@ -252,14 +288,14 @@ function makeFixture() {
       fs.mkdirSync(path.join(dir, path.dirname(c.path)), { recursive: true });
       fs.writeFileSync(path.join(dir, c.path), buf);
       const lineText = voiceClips(song).filter((x) => x.unit === c.unit && x.line === c.line).map((x) => x.text).join(' ');
-      clips.push({ path: c.path, songId: song.id, text: c.text, duration: mp3Duration(buf), slotSec: slot, tempo: tempoOf(song),
+      clips.push({ path: c.path, songId: song.id, voice: 'narrator-a', text: c.text, duration: mp3Duration(buf), slotSec: slot, tempo: tempoOf(song),
         ttsSpeed: 1, stretch: 1, lineText, cut: song.genre === 'hyangga' ? 'whole' : 'asr', sha256: sha256(buf) });
       parts.push({ path: c.path, kind: 'voice', source: 'Fish Audio TTS API', license: '유료 이용 상업 허용', commercialUse: true });
     });
   }
   const rec = {
     version: 1, source: 'Fish Audio', license: '유료 이용 상업 허용', commercialUse: true,
-    generator: { model: 's2.1-pro', plan: '유료 API', voice: 'narrator-a', referenceSha256: 'ab' }, clips,
+    generator: { model: 's2.1-pro', plan: '유료 API', voices: { 'narrator-a': { referenceSha256: 'ab' } } }, clips,
   };
   const write = () => {
     fs.writeFileSync(path.join(dir, VOICE_DIR, 'manifest.json'), JSON.stringify(rec));
@@ -276,7 +312,7 @@ function selfTest() {
     const fx = makeFixture();
     try { return f(fx); } finally { fs.rmSync(fx.dir, { recursive: true, force: true }); }
   };
-  const run = (fx, approved = 'narrator-a') => judgeVoice({ root: fx.dir, songs: fx.songs, approved }).problems;
+  const run = (fx, approved = 'narrator-a', pinned = {}) => judgeVoice({ root: fx.dir, songs: fx.songs, approved, pinned }).problems;
   const has = (problems, word) => problems.some((p) => p.includes(word));
 
   same((fx) => {
@@ -313,6 +349,31 @@ function selfTest() {
     check(judgeTempo([{ id: 'x', tempo: 0.5 }, { id: 'y', tempo: '50' }]).length === 2, '이상한 빠르기(너무 느림·글)를 잡는다');
   });
   same((fx) => { check(has(run(fx, null), '승인된 목소리가 없다'), '승인 전 목소리로 만든 조각을 잡는다'); check(has(run(fx, 'narrator-b'), '승인된 목소리'), '승인하지 않은 목소리를 잡는다'); });
+  // 노래마다 목소리 배정(T28)
+  const mixed = { default: 'narrator-a', bySong: { 'gaga-hyangga': 'narrator-b' } };
+  same((fx) => {
+    check(run(fx, { default: 'narrator-a', bySong: {} }).length === 0, '배정 모양(default·bySong)의 승인도 읽는다');
+    check(has(run(fx, mixed), '승인된 목소리 배정(narrator-b)'), '배정과 다른 목소리로 만든 노래(향가만 b인데 a로 만듦)를 잡는다');
+    for (const c of fx.rec.clips) if (c.songId === 'gaga-hyangga') c.voice = 'narrator-b';
+    fx.rec.generator.voices['narrator-b'] = { referenceSha256: 'cd' };
+    fx.write();
+    const p = run(fx, mixed);
+    check(p.length === 0, '노래마다 배정대로 만든 조각 묶음은 통과한다' + (p.length ? ' — ' + p.join('; ') : ''));
+    check(has(run(fx, 'narrator-a'), '승인된 목소리 배정(narrator-a)'), '한 목소리 승인인데 다른 목소리가 섞이면 잡는다');
+    check(has(run(fx, mixed, { 'narrator-b': 'ef' }), '승인한 값'), '기준 음성 해시가 승인한 값과 다른 목소리를 잡는다');
+    check(run(fx, mixed, { 'narrator-a': 'ab', 'narrator-b': 'cd' }).length === 0, '기준 음성 해시가 승인한 값과 같으면 통과한다');
+    delete fx.rec.generator.voices['narrator-b'];
+    fx.write();
+    check(has(run(fx, mixed), '목소리 목록(generator.voices)에 없다'), '목소리 목록에 없는 목소리로 만든 조각을 잡는다');
+  });
+  same((fx) => { delete fx.rec.generator.voices; fx.write(); check(has(run(fx), '목소리 목록(generator.voices)이 없다'), '목소리 목록이 없는 생성 기록을 잡는다'); });
+  same((fx) => { delete fx.rec.clips[0].voice; fx.write(); check(has(run(fx), '기록의 목소리(없음)'), '목소리를 기록하지 않은 조각을 잡는다'); });
+  same((fx) => {
+    check(has(run(fx, { default: 'narrator-a', bySong: { 'eopneun-norae': 'narrator-b' } }), '노래 데이터에 없는 노래 id'), '승인 배정의 없는 노래 id를 잡는다');
+    check(judgeApproval({ default: 'narrator-a', bySong: { 'gaga-sijo': 'narrator-zz' } }, fx.songs, { 'narrator-a': {} }).some((p) => p.includes('후보에 없는 목소리')), '승인 배정의 후보에 없는 목소리를 잡는다');
+    check(voiceFor('narrator-a', 'x') === 'narrator-a' && voiceFor(mixed, 'gaga-hyangga') === 'narrator-b' && voiceFor(mixed, 'gaga-sijo') === 'narrator-a' && voiceFor(null, 'x') === null,
+      '노래마다 배정된 목소리를 고른다(예전 모양 글 하나도)');
+  });
   same((fx) => { fx.parts.pop(); fx.write(); check(has(run(fx), '자산 목록에 없는 조각'), '자산 목록에서 빠진 조각을 잡는다'); });
   same((fx) => { fx.parts[0].commercialUse = false; fx.write(); check(has(run(fx), 'commercialUse'), '상업 이용 표시가 없는 항목을 잡는다'); });
   same((fx) => { fs.rmSync(path.join(fx.dir, VOICE_DIR, 'manifest.json')); check(has(run(fx), '생성 기록을 읽을 수 없다'), '생성 기록이 없으면 잡는다'); });
@@ -340,12 +401,26 @@ async function main() {
   console.log('\n[1] 실제 낭송 조각 ' + VOICE_DIR);
   const { songs } = await import('../js/data/songs/index.js');
   let approved = null;
-  try { approved = JSON.parse(fs.readFileSync(path.join(root, 'tools/voice/voices.json'), 'utf8')).approved ?? null; } catch { /* 없으면 승인 없음 */ }
+  let candidates = {};
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(root, 'tools/voice/voices.json'), 'utf8'));
+    approved = cfg.approved ?? null;
+    candidates = cfg.candidates ?? {};
+  } catch { /* 없으면 승인 없음 */ }
+  const pinned = Object.fromEntries(Object.entries(candidates).filter(([, c]) => nonEmpty(c.referenceSha256)).map(([k, c]) => [k, c.referenceSha256]));
+  const ap = judgeApproval(approved, songs, candidates);
+  check(ap.length === 0, '승인 배정(tools/voice/voices.json approved)이 노래 데이터·후보와 맞는다');
+  for (const p of ap) console.log('      - ' + p);
+  if (approved && typeof approved === 'object') {
+    const count = {};
+    for (const s of songs) count[voiceFor(approved, s.id)] = (count[voiceFor(approved, s.id)] ?? 0) + 1;
+    console.log('      배정: ' + Object.entries(count).map(([v, n]) => `${v} ${n}편`).join(' · '));
+  }
   const tp = judgeTempo(songs);
   check(tp.length === 0, `노래 ${songs.length}편 모두 노래마다 낭송 빠르기(tempo)가 있다`);
   for (const p of tp.slice(0, 12)) console.log('      - ' + p);
   if (tp.length > 12) console.log('      … 그 밖에 ' + (tp.length - 12) + '개');
-  const r = judgeVoice({ root, songs, approved });
+  const r = judgeVoice({ root, songs, approved, pinned });
   if (r.clipCount === 0) {
     const v = emptyVerdict(process.env);
     check(v.ok, v.msg + ` (노래 ${songs.length}편, 만들 조각 ${r.expectedCount}개)`);
