@@ -1,9 +1,12 @@
 // 작품 방 「십 년을 경영하야」 3D 장면. 방 안에서만 쓰는 작은 Three.js 장면이다(그림자·후처리 없음).
-// - 초가 세 칸(앞이 트인 방 셋)과 마당. 칸에 들인 물건은 작은 저폴리 모양으로 보인다.
-// - 처음에는 초가를 가까이 본다. pullBack()이면 카메라가 물러나며 산들이 솟아 병풍처럼 초가를 둘러싼다.
+// - 초가삼간: 막돌 기단, 둥근 기둥, 흙벽과 칸막이, 장판, 볏짚 초가지붕(gfx 꾸러미, js/world/gfx/t37-scenery.js).
+//   칸에 들인 물건은 작은 모양으로 보인다. 마당가에 소나무와 매화.
+// - 처음에는 초가를 가까이 본다. pullBack()이면 카메라가 물러나며 수묵 산 병풍(먹으로 그린 산 판)이 솟아 초가를 둘러싸고,
+//   시냇물이 마당을 휘감으며 달이 뜬다(강산).
 // - 칸 단추(DOM)는 부르는 쪽이 만들고, 이 장면이 칸 자리를 화면에 비춰 단추 위치를 맞춘다.
-// 그리기 호출: 땅·기단·뒷벽·칸막이·기둥·지붕·강·달·산 아홉 + 물건 여섯 = 열다섯 이하.
+// 그리기 호출: 풍경 역할 열 남짓 + 강·달·달무리·산 병풍 + 물건 여섯 = 스물다섯 이하.
 import { TOKENS, mixHex } from '../world/palette.js';
+import { createScenery, disposeGroupGeometry } from '../world/gfx/t37-scenery.js';
 
 const ROOM_W = 2.3;                          // 칸 너비(1 = 1m)
 const ROOM_X = [-ROOM_W, 0, ROOM_W];         // 칸 가운데
@@ -14,7 +17,7 @@ const ROOMS_H = HUT.base + HUT.wall + 0.25;      // 기단부터 칸 위까지(�
 const NEAR_TARGET = { x: 0, y: ROOMS_H / 2, z: 0 };
 const FAR = { pos: [0, 11, 31], target: [0, 2.2, -3] };
 const PULL_SEC = 2.4;
-const MOUNTAINS = 16;
+const MOUNTAINS = 11;
 
 const C = {
   ground: TOKENS.hanji,
@@ -67,43 +70,80 @@ export function create3D({ THREE, container, reduceMotion }) {
     return m;
   }
 
-  // ── 땅과 초가 ──
-  const ground = mesh(new THREE.CircleGeometry(60, 32), C.ground, 'sijo-room-ground');
-  ground.rotation.x = -Math.PI / 2;
-  const base = mesh(new THREE.BoxGeometry(HUT.w + 0.8, HUT.base, HUT.d + 0.6), C.base, 'sijo-room-base');
-  base.position.set(0, HUT.base / 2, 0);
-  const back = mesh(new THREE.BoxGeometry(HUT.w, HUT.wall, 0.14), C.wall, 'sijo-room-back');
-  back.position.set(0, HUT.base + HUT.wall / 2, -HUT.d / 2 + 0.1);
-
-  const sideXs = [-1.5, -0.5, 0.5, 1.5].map((k) => k * ROOM_W);
-  const walls = new THREE.InstancedMesh(geo(new THREE.BoxGeometry(0.14, HUT.wall, HUT.d - 0.2)), mat(C.wall), sideXs.length);
-  walls.name = 'sijo-room-walls';
-  const pillars = new THREE.InstancedMesh(geo(new THREE.CylinderGeometry(0.12, 0.14, HUT.wall + 0.2, 8)), mat(C.wood), sideXs.length);
-  pillars.name = 'sijo-room-pillars';
+  // ── 땅과 초가(gfx 꾸러미) ──
+  // 가까이 본 초가가 화면을 꽉 채우므로 흙벽·장판·기단은 무늬 없이 빛만 받게 그린다(무늬 읽기가 가장 비싸다). 지붕은 볏짚 결을 남긴다
+  const sc = createScenery(THREE, { untextured: ['plaster', 'floor', 'stone'] });
+  sc.materials.setDancheong(1);
+  const kb = sc.kit.builder();
+  sc.groundDisc(kb, { x: 0, z: -2, r: 46, color: mixHex(TOKENS.hanjiDeep, '#c9c3a2', 0.5), rings: 4 });
+  sc.thatchedHut(kb, { x: 0, z: 0, bays: 3, bayW: ROOM_W, depth: HUT.d, wall: HUT.wall, base: HUT.base, open: true, roofColor: '#c8ab72' });
+  // 마당가: 소나무 둘, 매화 하나, 장독 몇, 돌
+  sc.kit.paperTree(kb, { x: -6.4, z: -1.8, h: 4.6, kind: 'pine', seed: 2, layers: 2 });
+  sc.kit.paperTree(kb, { x: 6.6, z: -2.4, h: 4.2, kind: 'pine', seed: 5, layers: 1 });
+  sc.kit.paperTree(kb, { x: -5.2, z: 2.2, h: 3.0, kind: 'blossom', seed: 7, layers: 1 });
+  for (const [x, z, r] of [[5.2, -0.6, 0.32], [5.75, -0.9, 0.26], [5.5, -0.2, 0.22]]) {
+    kb.add('stone', sc.kit.cylinder(r * 0.75, r * 0.7, r * 1.4, 10), { p: [x, r * 0.7, z], color: '#5a4a3e', ao: 0.3 });
+    kb.add('stone', sc.kit.cylinder(r * 0.55, r * 0.9, r * 0.25, 10), { p: [x, r * 1.5, z], color: '#4e4036', ao: 0 });
+  }
+  sc.rock(kb, { x: -3.6, z: 2.6, s: 0.4, seed: 1, color: '#9f998d' });
+  // 싸리 울타리: 마당 앞을 반달꼴로 두르고, 가운데는 사립문 자리로 비운다
+  for (let i = 0; i <= 44; i++) {
+    const a = Math.PI * (0.06 + 0.88 * (i / 44));
+    const x = Math.cos(a) * 7.4;
+    const z = Math.sin(a) * 5.2 + 0.4;
+    if (Math.abs(x) < 0.9) continue;
+    kb.box('wood', 0.07, 0.95 + (i % 3) * 0.1, 0.07, { p: [x, 0.5, z], r: [0, 0, i % 2 ? 0.05 : -0.05], color: '#7a6a56', ao: 0 });
+  }
+  kb.add('plain', new THREE.PlaneGeometry(1.4, 7).rotateX(-Math.PI / 2).toNonIndexed(), { p: [0, 0.01, 6.2], color: '#e2d6b6', ao: 0 });
+  const hutGroup = sc.build(kb, 'sijo-room-hut');
+  scene.add(hutGroup);
   const M = new THREE.Matrix4();
-  sideXs.forEach((x, i) => {
-    walls.setMatrixAt(i, M.makeTranslation(x, HUT.base + HUT.wall / 2, 0));
-    pillars.setMatrixAt(i, M.makeTranslation(x, HUT.base + HUT.wall / 2 + 0.1, HUT.d / 2 - 0.1));
-  });
-  walls.frustumCulled = false;
-  pillars.frustumCulled = false;
-  scene.add(walls, pillars);
-
-  // 초가지붕: 반구를 눌러 둥근 볏짚 지붕 모양으로
-  const roof = mesh(new THREE.SphereGeometry(1, 20, 6, 0, Math.PI * 2, 0, Math.PI / 2), C.thatch, 'sijo-room-roof');
-  roof.scale.set(HUT.w / 2 + 0.9, 1.5, HUT.d / 2 + 0.8);
-  roof.position.set(0, HUT.base + HUT.wall - 0.05, 0);
 
   // ── 강산(처음에는 숨어 있다) ──
-  const river = mesh(new THREE.RingGeometry(10, 11.6, 48, 1, Math.PI * 0.1, Math.PI * 0.8), C.river, 'sijo-room-river');
+  // 시냇물: 마당 앞을 휘감아 흐르는 띠(무늬가 흘러간다)
+  const waterTex = sc.waterTexture();
+  const riverMat = new THREE.MeshBasicMaterial({ map: waterTex, color: 0xffffff });
+  mats.push(riverMat);
+  const river = new THREE.Mesh(geo(new THREE.RingGeometry(9, 10.8, 64, 1, Math.PI * 1.08, Math.PI * 0.84)), riverMat);
+  {
+    const rp = river.geometry.attributes.position;
+    const ru = river.geometry.attributes.uv;
+    for (let i = 0; i < rp.count; i++) {
+      const r = Math.hypot(rp.getX(i), rp.getY(i));
+      ru.setXY(i, (r - 10) / 1.8, (Math.atan2(rp.getY(i), rp.getX(i)) * r) / 3);
+    }
+  }
+  river.name = 'sijo-room-river';
+  // 징검다리: 시내를 건너는 길목의 돌(시내와 함께 나타난다)
+  const steppingMat = new THREE.MeshLambertMaterial({ color: '#a29c90' });
+  mats.push(steppingMat);
+  const stepping = new THREE.InstancedMesh(geo(new THREE.CylinderGeometry(0.42, 0.5, 0.18, 7)), steppingMat, 4);
+  [[-0.25, 9.2], [0.3, 9.85], [-0.2, 10.5], [0.25, 11.15]].forEach(([x, z], i) => stepping.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(x, 0.07, z), new THREE.Quaternion(), new THREE.Vector3(1, 1, 0.8))));
+  stepping.visible = false;
+  scene.add(stepping);
   river.rotation.x = -Math.PI / 2;
   river.position.y = 0.02;
   river.visible = false;
-  const moon = mesh(new THREE.CircleGeometry(1.3, 24), C.moon, 'sijo-room-moon');
-  moon.position.set(9, 9.5, -26);
+  scene.add(river);
+  const moon = mesh(new THREE.CircleGeometry(1.3, 32), C.moon, 'sijo-room-moon');
+  moon.material = new THREE.MeshBasicMaterial({ color: C.moon });
+  mats.push(moon.material);
+  moon.position.set(8, 13.2, -30);
   moon.visible = false;
-  const mountains = new THREE.InstancedMesh(geo(new THREE.ConeGeometry(1, 1, 7, 1)), mat(C.mountain), MOUNTAINS);
-  mountains.geometry.computeVertexNormals();
+  const haloMat = new THREE.MeshBasicMaterial({ color: '#fbf3dc', transparent: true, opacity: 0.5, depthWrite: false });
+  mats.push(haloMat);
+  const halo = new THREE.Mesh(geo(new THREE.CircleGeometry(2.6, 32)), haloMat);
+  halo.position.z = -0.1;
+  moon.add(halo);
+  // 강산: 먹으로 그린 산 판(수묵 산 무늬의 가운데 줄)을 병풍처럼 둘러 세운다. 판마다 먹 짙기가 다르다(가까울수록 짙게)
+  const mountainGeo = geo(new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0));
+  {
+    const uv = mountainGeo.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 0.5 + 0.1 * (i % 2), 1 / 3 + uv.getY(i) * (1 / 3 - 0.004));
+  }
+  const mountainMat = new THREE.MeshBasicMaterial({ map: sc.textures.get('mountains'), transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  mats.push(mountainMat);
+  const mountains = new THREE.InstancedMesh(mountainGeo, mountainMat, MOUNTAINS);
   mountains.name = 'sijo-room-mountains';
   mountains.userData.rise = 0;
   mountains.visible = false;
@@ -115,8 +155,10 @@ export function create3D({ THREE, container, reduceMotion }) {
     const a = (-100 + 200 * t) * (Math.PI / 180);  // 0이 바로 뒤
     const r = 19 + 2 * Math.cos(a) + (i % 2) * 1.5;
     const h = 5 + 2 * Math.cos(a) + (i % 3) * 0.9;
-    return { x: Math.sin(a) * r, z: -Math.cos(a) * r, h, w: 4.4 + (i % 3) * 0.7, rot: i * 0.7 };
+    return { x: Math.sin(a) * r, z: -Math.cos(a) * r, h: h * 1.6, w: 8.5 + (i % 3) * 1.2, rot: Math.atan2(-Math.sin(a) * r, Math.cos(a) * r) + (i % 2 ? 0.08 : -0.08) };
   });
+  const tone = new THREE.Color();
+  peaks.forEach((p, i) => mountains.setColorAt(i, tone.set(i % 3 === 0 ? '#ffffff' : i % 3 === 1 ? '#d9d6d0' : '#b8b4ac')));
   const Q = new THREE.Quaternion();
   const S = new THREE.Vector3();
   const P = new THREE.Vector3();
@@ -126,15 +168,17 @@ export function create3D({ THREE, container, reduceMotion }) {
     const v = Math.max(0.001, k);
     peaks.forEach((p, i) => {
       Q.setFromAxisAngle(UP, p.rot);
-      S.set(p.w, p.h * v, p.w);
-      P.set(p.x, (p.h * v) / 2, p.z);
+      S.set(p.w, p.h * v, 1);
+      P.set(p.x, -0.6, p.z);
       mountains.setMatrixAt(i, M.compose(P, Q, S));
     });
     mountains.instanceMatrix.needsUpdate = true;
     mountains.visible = k > 0;
     river.visible = k > 0;
+    stepping.visible = k > 0;
     moon.visible = k > 0;
     river.scale.setScalar(0.6 + 0.4 * k);
+    mountainMat.opacity = Math.min(1, k * 1.6);
   }
   setRise(0);
 
@@ -156,7 +200,10 @@ export function create3D({ THREE, container, reduceMotion }) {
   const TOKEN_Y = { na: 0.52, dal: 1.25, cheongpung: 1.15, gold: 0.16, robe: 0.48, guest: 0.5 };
 
   // 칸·집 밖 배치를 모양으로 보인다
+  // 그릴 것이 바뀐 때만 그린다(가만히 있는 장면을 매 프레임 다시 그리지 않는다: 느린 기기와 SwiftShader에서 화면 반응을 지킨다)
+  let dirty = true;
   function setItems(hut) {
+    dirty = true;
     for (const [id, m] of Object.entries(tokens)) {
       const room = hut.rooms.indexOf(id);
       const out = hut.outside.indexOf(id);
@@ -205,6 +252,7 @@ export function create3D({ THREE, container, reduceMotion }) {
   }
 
   function applyCamera() {
+    dirty = true;
     const k = ease(state.pull);
     camera.position.lerpVectors(state.near.pos, farPos, k);
     target.lerpVectors(state.near.target, farTarget, k);
@@ -257,13 +305,18 @@ export function create3D({ THREE, container, reduceMotion }) {
     if (state.disposed) return;
     state.raf = requestAnimationFrame(frame);
     const dt = state.last ? Math.min(0.1, (now - state.last) / 1000) : 0;
+    state.prev = state.last || now;
     state.last = now;
+    if (state.pulling && !state.paused && !reduceMotion()) waterTex.offset.y -= dt * 0.15;
     if (state.pulling && !state.paused) {
-      state.pull = Math.min(1, state.pull + dt / PULL_SEC);
+      // 물러나기는 실제 시간으로 잰다(프레임이 느려도 PULL_SEC 안에 끝난다. 프레임 간격은 0.5초까지만 센다)
+      state.pull = Math.min(1, state.pull + Math.min(0.5, (now - (state.prev ?? now)) / 1000) / PULL_SEC);
       applyCamera();
       if (state.pull >= 1) settle();
     }
     placeSlots();
+    if (!dirty) return;
+    dirty = false;
     renderer.render(scene, camera);
   }
 
@@ -305,6 +358,8 @@ export function create3D({ THREE, container, reduceMotion }) {
       ro.disconnect();
       for (const g of geos) g.dispose();
       for (const m of mats) m.dispose();
+      disposeGroupGeometry(hutGroup);
+      sc.dispose();
       renderer.dispose();
       canvas.remove();
     },

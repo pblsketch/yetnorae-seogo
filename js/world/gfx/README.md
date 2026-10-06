@@ -169,3 +169,13 @@ jom.rig = 'bug'; jom.designHeight = 0.62; jom.shadow = [0.8, 1.0]; jom.stride = 
 - `roofStone`·`roofStoneGeometry`(네 귀가 들린 오목한 돌·기와 지붕), `stoneLantern`(석등), `softSpot`(먹안개 번짐 무늬), `mural()`(관 그림 자산 `texture/<관>`을 먹빛 걸이 단 단청 판으로, 없으면 단청 칠).
 - `deferred(짓기)`: 관에 들어간 뒤 두 번째 프레임에 짓는다. `materials.fresh(역할)`은 색을 따로 바꿀 새 재질(시조관 지붕).
 - 수(SwiftShader, 1366×768, 점검 페이지 첫 화면): 그리기 호출 향가관 27, 고려가요관 27, 시조관 23. 비용 요령은 `docs/engineering-notes.md`의 '관 건축을 gfx 꾸러미로 짓자…'.
+
+## 작품 방·보스 풍경(t37-scenery.js)
+
+작품 방 다섯과 보스 장면이 함께 쓰는 풍경 꾸러미다. `createScenery(THREE, { unlit })`가 무늬·재질·소품 틀을 한 벌 만들고, 꾸러미에 없는 역할 넷(`thatch` 볏짚, `water` 흐르는 시냇물, `ink` 먹 번짐 땅·산, `plain` 무늬 없는 땅, `mist` 안개 띠)을 더한다. 꾸러미 builder가 역할 이름으로 재질을 찾으므로 `sc.kit.builder()`에 그대로 넣으면 된다.
+
+- 소품: `hipRoof`(오목한 모임지붕 `giwa`, 둥근 초가지붕 `thatch`), `thatchedHut`(초가 n칸, `open`이면 앞이 트인 칸), `pavilion`(정자), `rock`, `stream`(시내 띠와 물가 돌), `groundDisc`(가장자리가 한지 바탕으로 녹는 땅), `mountainMass`(높이 면 산 덩이와 그 높이 함수), `inkRanges`(수묵 먼 산 두 줄, `inkBackdrop`의 가벼운 꼴), `mistBand`.
+- `unlit`: 밤 장면처럼 넓은 면이 많고 빛의 결이 작은 곳은 역할을 빛 없는 꼴(MeshBasic + 같은 무늬 + 먹빛 걸이)로 그린다.
+- 방마다 `sc.materials.setDancheong(값)`을 따로 둔다(방은 세계와 다른 재질 묶음을 쓴다).
+- 넓은 땅은 무늬 없는 `plain`으로 그린다. SwiftShader에서 비스듬히 보이는 넓은 면의 무늬 읽기가 가장 비쌌다(「상춘곡」 방에서 무늬 땅을 빼자 약 1.5배).
+- 보스의 좀·좀 대왕·선대 사서는 `figures.js`의 `createFigure`로 만든다(조립법이 있으면 3D 인물로 나온다, 방의 학생은 `createCharacter`). 종이 카드일 때 선대 사서는 갇힌 동안 `material.userData.ink`를 0으로 두어 먹빛이고, 풀려나면 1로 돌아온다(그 값이 없으면 빛깔 바꾸기만 건너뛴다).
