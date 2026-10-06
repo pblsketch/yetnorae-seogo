@@ -8,6 +8,7 @@ import {
   advance, applyEvent, createState, linkProgress, linkedRooms, litGaps, popProgress, slot3D,
 } from './goryeo-state.js';
 import { createWingGfx } from '../gfx/t35-wing.js';
+import { fogDisc } from '../gfx/t39-perf.js';
 import { buildGoryeoArt } from './goryeo-art.js';
 
 const CORD_SEGMENTS = 14;
@@ -445,7 +446,7 @@ export function create3D(ctx) {
   // ── 먹안개 ──
   const fogTex = track(fogTexture(THREE));
   const fogMat = track(new THREE.MeshBasicMaterial({ map: fogTex, color: C.fog, transparent: true, opacity: 0.55, depthWrite: false }));
-  const fogGeo = track(new THREE.PlaneGeometry(1, 1));
+  const fogGeo = track(fogDisc(THREE));   // 둥글게 자른 판: 투명한 네 귀를 칠하지 않는다(gfx/t39-perf.js)
   const FOG = [
     { p: [-3.5, 0.2, -0.5], s: 6, flat: true }, { p: [2.5, 0.25, 1.5], s: 6.5, flat: true }, { p: [-1, 0.3, 3.5], s: 5.5, flat: true },
     { p: [4, 0.2, -1.5], s: 5, flat: true }, { p: [-4.5, 0.25, 3], s: 5, flat: true },

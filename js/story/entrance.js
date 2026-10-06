@@ -12,6 +12,7 @@ const E = STORY.entrance;
 
 function frame(host, manifest, step) {
   const root = el('section', 'story-entrance story-scene');
+  root.dataset.worldCover = '';   // 입구 장면이 세계를 덮는 동안 세계 바탕은 그리지 않는다(world.js '가림')
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-label', E.place);
   root.dataset.step = step;

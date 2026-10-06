@@ -13,6 +13,7 @@ import {
 } from './hyangga-shared.js';
 import { create2D as createBoard } from './hyangga-board.js';
 import { createWingGfx } from '../gfx/t35-wing.js';
+import { fogDisc } from '../gfx/t39-perf.js';
 import { buildHyanggaArt } from './hyangga-art.js';
 
 export { REACTION_EVENTS } from './hyangga-shared.js';
@@ -265,7 +266,7 @@ export function create3D(ctx) {
   const fogTex = keep(new THREE.CanvasTexture(fogCanvas()));
   fogTex.colorSpace = THREE.SRGBColorSpace;
   const fogMat = keep(new THREE.MeshBasicMaterial({ map: fogTex, color: TOKENS.meokFog, transparent: true, depthWrite: false, opacity: state.fog ? 0.6 : 0 }));
-  const fogGeo = keep(new THREE.PlaneGeometry(1, 1));
+  const fogGeo = keep(fogDisc(THREE));   // 둥글게 자른 판: 투명한 네 귀를 칠하지 않는다(gfx/t39-perf.js)
   const FOG = [[-3.6, 0.6, -0.4, 3.4, 1.4], [-0.6, 0.8, -0.6, 3.2, 1.6], [-5.2, 1.4, -3, 2.6, 1.6], [0.8, 1.6, -3.6, 3, 1.5],
     [-2.4, 2.6, -1.4, 3.6, 1.5], [-2, 4.1, -1.8, 4.2, 1.6], [3.4, 0.9, -1.2, 3, 1.3], [-4.4, 0.7, 2.2, 2.6, 1.1]];
   const fog = new THREE.InstancedMesh(fogGeo, fogMat, FOG.length);

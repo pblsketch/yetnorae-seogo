@@ -10,6 +10,10 @@
 // 칠은 단청 값 0에서 먹빛이고 값이 오르면 돌아온다(재질 묶음의 먹빛 걸이).
 import { TOKENS, mixHex } from './palette.js';
 import { WOOD } from './gfx/kit.js';
+import { splitByX } from './gfx/t39-perf.js';
+
+// 관 자리 사이 경계(x). 길게 합친 무리를 이 경계로 나눠 화면 밖 구간을 그리지 않는다(t39-perf.js splitByX)
+const chunkEdges = (slotXs) => slotXs.slice(0, -1).map((x, i) => (x + slotXs[i + 1]) / 2);
 
 const PAINT = '#5d6f62';    // 뇌록(가라앉은 녹색)
 const ACCENT = '#7d4a3c';   // 석간주(가라앉은 붉은 흙색)
@@ -137,13 +141,16 @@ export function buildCorridorGallery(THREE, kit, L) {
   gallery.box('wood', 0.24, height, 0.24, { p: [C.x1 + 0.1, height / 2, C.z1 - 0.1], color: WOOD.pillar });
 
   kit.glowCards(gallery, glows);
-  return gallery.build('corridor-gallery');
+  return splitByX(THREE, gallery.build('corridor-gallery'), chunkEdges(slotXs));
 }
 
 // 언제나 보이는 바깥(관 안에서도): 마당, 관 자리 바닥돌과 길, 종이 나무, 수묵 병풍, 먼 산
-export function buildCorridorGrounds(THREE, kit, L) {
+// opts.screens: gfx/t39-perf.js createInkScreens. 주면 관 뒤 수묵 병풍의 한지·산을 한 번에 칠하는 판으로 짓는다(없으면 kit.inkScreen).
+export function buildCorridorGrounds(THREE, kit, L, opts = {}) {
   const { corridor: C, wallZ, slotXs, doorHalf, slotZ, wingHalf } = L;
   const grounds = kit.builder();
+  // 꾸밈 겹(관 사이 종이 나무, 먼 수묵 산): 화질 단계 '가장 가볍게'에서 숨기므로 따로 모은다(scene3d.js, quality.js)
+  const decor = kit.builder();
   // ── 언제나 보이는 바깥: 마당, 관 자리 바닥돌과 길, 나무, 먼 산 ──
   // 마당(북쪽, 관 바닥보다 조금 낮게)과 회랑 앞(남쪽, 기단 아래)
   // 넓은 마당 바닥면은 두지 않는다: 관 화면의 절반을 덮어 SwiftShader에서 프레임이 1/3로 떨어졌다(점검의 '멈춘 단추' 판정이 흔들림).
@@ -161,22 +168,27 @@ export function buildCorridorGrounds(THREE, kit, L) {
     // 관 사이 마당의 종이 나무(관 둘레를 액자처럼 두른다)
     const mid = sx + 8;
     if (i < slotXs.length - 1) {
-      kit.paperTree(grounds, { x: mid, z: slotZ - 4.5, h: 3.8, kind: i % 2 ? 'blossom' : 'pine', seed: i + 1, layers: 2 });
-      kit.paperTree(grounds, { x: mid + 0.4, z: slotZ + 2.5, h: 2.8, kind: i % 2 ? 'pine' : 'blossom', seed: i + 11, layers: 2 });
+      kit.paperTree(decor, { x: mid, z: slotZ - 4.5, h: 3.8, kind: i % 2 ? 'blossom' : 'pine', seed: i + 1, layers: 2 });
+      kit.paperTree(decor, { x: mid + 0.4, z: slotZ + 2.5, h: 2.8, kind: i % 2 ? 'pine' : 'blossom', seed: i + 11, layers: 2 });
     }
     // 관 뒤 수묵 병풍(위에서 내려다보는 관 카메라에 보이는 배경 막)과 그 양옆 소나무
-    kit.inkScreen(grounds, { x: sx, z: slotZ - wingHalf - 4.5, panels: 8, panelW: 2.3, height: 4.4 });
-    kit.paperTree(grounds, { x: sx - 10.5, z: slotZ - wingHalf - 3.5, h: 4.6, kind: 'pine', seed: i * 7 + 3, layers: 2 });
+    const screen = { x: sx, z: slotZ - wingHalf - 4.5, panels: 8, panelW: 2.3, height: 4.4 };
+    if (opts.screens) opts.screens.add(kit, grounds, screen);
+    else kit.inkScreen(grounds, screen);
+    kit.paperTree(decor, { x: sx - 10.5, z: slotZ - wingHalf - 3.5, h: 4.6, kind: 'pine', seed: i * 7 + 3, layers: 2 });
   });
   // 서쪽 입구 바깥 나무
-  kit.paperTree(grounds, { x: C.x0 - 3.5, z: -3.5, h: 5, kind: 'pine', seed: 41 });
-  kit.paperTree(grounds, { x: C.x0 - 5, z: 2.5, h: 4, kind: 'blossom', seed: 42 });
+  kit.paperTree(decor, { x: C.x0 - 3.5, z: -3.5, h: 5, kind: 'pine', seed: 41 });
+  kit.paperTree(decor, { x: C.x0 - 5, z: 2.5, h: 4, kind: 'blossom', seed: 42 });
   // 먼 산(수묵 병풍): 관 뒤 멀리
-  kit.inkBackdrop(grounds, { x0: -120, x1: 220, z: slotZ - 30, height: 18, depthGap: 10 });
+  kit.inkBackdrop(decor, { x0: -120, x1: 220, z: slotZ - 30, height: 18, depthGap: 10 });
   const group = grounds.build('corridor-grounds');
+  const decorGroup = decor.build('corridor-decor');
   // 바깥은 관 모형 다음에 그린다(불투명끼리 renderOrder가 크면 나중에). 관 바닥이 덮은 자리는 깊이 검사로 건너뛰어
   // 넓은 마당을 겹쳐 칠하지 않는다. 마당이 가장 마지막.
-  for (const m of group.children) if (!m.material.transparent) m.renderOrder = m.name.endsWith('-ground') ? 2 : 1;
+  if (opts.screens) group.add(opts.screens.build('corridor-grounds-screens'));
+  for (const m of [...group.children, ...decorGroup.children]) if (!m.material.transparent) m.renderOrder = m.name.endsWith('-ground') ? 2 : 1;
+  group.add(decorGroup);
   return group;
 }
 

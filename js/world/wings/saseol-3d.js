@@ -14,6 +14,7 @@ import { createTextures } from '../gfx/textures.js';
 import { createMaterials, addInkHook } from '../gfx/materials.js';
 import { createKit, WOOD } from '../gfx/kit.js';
 import { cheapFilter, createBakedMaterials, createLightBaker, createT36Props, T36_COLORS } from '../gfx/t36-props.js';
+import { fogDisc } from '../gfx/t39-perf.js';
 import {
   AREAS, LANTERN_COUNT, STAIR_STEPS, createModel, lanternStorey, taffy, unrollReach,
 } from './saseol-model.js';
@@ -481,7 +482,7 @@ export function create3D(ctx) {
     [0.2, 1.1, 1.6, 7, 1.5], [-1.5, 3.8, -4.6, 7, 3], [8.6, 1.0, 1.0, 4.5, 1.6],
   ];
   const fogMat = new THREE.MeshBasicMaterial({ color: TOKENS.meokFog, map: tex(canvasTex(THREE, fogCanvas())), transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide });
-  const fog = keep(new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), fogMat, FOG.length));
+  const fog = keep(new THREE.InstancedMesh(fogDisc(THREE, 0.49), fogMat, FOG.length));   // 둥글게 자른 판(gfx/t39-perf.js)
   fog.name = 'saseol-fog';
   FOG.forEach(([x, y, z, w, h], i) => fog.setMatrixAt(i, M4.compose(V.set(x, y, z), Q.identity(), SC.set(w, h, 1))));
 

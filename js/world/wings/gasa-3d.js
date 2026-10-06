@@ -12,6 +12,7 @@ import { createTextures } from '../gfx/textures.js';
 import { createMaterials } from '../gfx/materials.js';
 import { createKit, WOOD } from '../gfx/kit.js';
 import { cheapFilter, createBakedMaterials, createLightBaker, createT36Props, makeSteppingStoneGeo, T36_COLORS } from '../gfx/t36-props.js';
+import { fogDisc } from '../gfx/t39-perf.js';
 import { createCorridor } from './gasa-corridor.js';
 import {
   GATE_Z, SEG_LEN, SHELF, BONUS, RETURNED, BASKET, ROOM_DOOR, NEXT_DOOR, WAITING, titleOf, createWingState, popAmount,
@@ -134,7 +135,7 @@ export function create3D(ctx) {
   const fogTex = new THREE.CanvasTexture(fogCanvas());
   ownTextures.push(fogTex);
   const fogMat = new THREE.MeshBasicMaterial({ map: fogTex, color: TOKENS.meokFog, transparent: true, opacity: 0.45, depthWrite: false });
-  const fog = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), fogMat, FOG_COUNT);
+  const fog = new THREE.InstancedMesh(fogDisc(THREE), fogMat, FOG_COUNT);   // 둥글게 자른 판(gfx/t39-perf.js)
   fog.name = 'gasa-fog';
   fog.frustumCulled = false;
   root.add(fog);

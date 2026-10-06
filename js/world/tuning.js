@@ -15,4 +15,6 @@ export const TUNING = {
   arriveAnchorRadius: 1.5,   // 3D: 이 거리 안에 멈추면 그 자리에 도착한 것으로 본다(m)
   arriveAnchorRadius2D: 7,   // 2D: 같은 기준(그림 판 높이의 %)
   measureOffset: [0, 4.2, 9.5],  // 3D 반반 틀: 관 모형이 카메라 자리를 주지 않을 때 재기 초점에서 카메라까지(x, y, z m)
+  // 화질 단계(quality.js): 장면이 바뀐 뒤 settleSec은 버리고, windowSec 평균이 lowFps 아래면 한 단계 내린다. hitchSec 넘는 프레임은 셈에서 뺀다
+  quality: { lowFps: 18, windowSec: 5, settleSec: 2.5, hitchSec: 0.25 },
 };

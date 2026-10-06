@@ -12,10 +12,15 @@
 //   getWingHandle()                       지금 관 모형의 손잡이(등록된 관 모형이면 normalizeWing으로 맞춘 모양). 회랑이면 null
 //   setDancheong(id, level)               관마다 먹빛(0)~단청(1)
 //   getMode()                             '3d' | '2d'
+//   getQuality()                          지금 화질 단계 { tier, name, pixelScale, decor, software, antialias } (quality.js)
 //   openRoom(el) / closeRoom()            작품 방 무대(README '연결 결정(F3)'). 여는 동안 이동 조작이 멈추고 학생·카메라를 움직이지 않는다.
 //                                         3D면 세계의 다른 것을 모두 숨기고 원점의 빈 무대에 { THREE, root, camera }를 돌려준다.
 //                                         그리기는 세계가 프레임마다 el의 자리·크기에만 한다. 2D면 null. closeRoom()이면 모두 되돌린다
 //   dispose()
+//
+// 가림: mount에 넘긴 container 안에 data-world-cover 속성이 있는(hidden이 아닌) 요소가 있으면 세계가 화면에 가려진 것으로 보고
+// 그리기와 관 모형 update를 건너뛴다(단청 돌아오기 같은 값 바꾸기만 계속한다). 그 요소가 사라지면 다음 프레임부터 다시 그린다.
+// 화면을 꽉 덮는 겹(보스, 입구·엔딩 장면, 판 카드, 수첩·일지·도감 창)이 이 속성을 단다.
 //
 // 사건: 사건 버스의 diorama:* 사건을 지금 관 모형의 react로 넘기고, wing:state로 관 문을 열고 닫는다.
 // 화면 방향(orientation:*, audio:*)과 움직임 줄이기(settings:reduce-motion)는 screen.js·motion.js가 맡는다.
@@ -31,6 +36,7 @@ import { getDancheong, onDancheong, setDancheongLevel } from './palette.js';
 import { createScene3D } from './scene3d.js';
 import { installScreen, isPaused, onPauseChange } from './screen.js';
 import { TUNING } from './tuning.js';
+import { createQualityMeter, qualityInfo } from './quality.js';
 
 export { reduceMotion, setDeviceReduceMotion, particleScale } from './motion.js';
 export { getDancheong } from './palette.js';
@@ -51,19 +57,33 @@ function el(tag, className) {
   return e;
 }
 
+// 세계를 꽉 덮는 겹이 있는지(머리글 '가림')
+const COVER = '[data-world-cover]:not([hidden])';
+function coveredNow() {
+  return !!w.coverRoot?.querySelector(COVER);
+}
+
 function loop(now) {
   if (!w) return;
   w.raf = requestAnimationFrame(loop);
-  const dt = Math.min(0.1, Math.max(0, (now - (w.last ?? now)) / 1000));
+  const raw = Math.max(0, (now - (w.last ?? now)) / 1000);
+  const dt = Math.min(0.1, raw);
   w.last = now;
-  if (isPaused() || document.hidden) return;
+  if (isPaused() || document.hidden) { w.meter.reset(); return; }
   for (const [id, t] of [...w.tweens]) {
     t.time += dt;
     const k = Math.min(1, t.time / TUNING.dancheongRestoreSeconds);
     setDancheongLevel(id, t.from + (1 - t.from) * k);
     if (k >= 1) w.tweens.delete(id);
   }
+  const covered = coveredNow();
+  if (covered !== w.covered) {
+    w.covered = covered;
+    w.meter.reset();
+  }
+  if (covered) return;
   w.host.frame(dt, w.split || w.room ? { x: 0, y: 0 } : w.controls.moveVector());
+  w.meter.add(raw);
 }
 
 function restoreDancheong(id) {
@@ -142,16 +162,20 @@ export function mount(container, opts = {}) {
   offs.push(() => fine?.removeEventListener('change', syncPointer));
   if (isPaused()) controls.setEnabled(false);
 
-  w = { root, view, panel, host, assets, controls, offs, split: false, room: false, raf: 0, last: null, tweens: new Map() };
+  // 화질 단계(quality.js): 3D에서만 프레임을 재어 오래 느리면 한 단계씩 낮춘다
+  const meter = createQualityMeter({ enabled: host.mode === '3d' });
+  w = { root, view, panel, host, assets, controls, offs, split: false, room: false, raf: 0, last: null, tweens: new Map(), coverRoot: container, covered: false, meter };
   w.raf = requestAnimationFrame(loop);
   return api;
 }
 
 export function enterWing(wingId) {
+  w?.meter.reset();
   return w ? w.host.enterWing(wingId) : false;
 }
 
 export function enterCorridor() {
+  w?.meter.reset();
   w?.host.enterCorridor();
 }
 
@@ -168,6 +192,7 @@ export function openSplit(panelEl) {
   w.host.clearTarget();
   w.host.resize();
   w.host.setMeasureFocus(true);
+  w.meter.reset();
   return w.panel;
 }
 
@@ -179,6 +204,7 @@ export function closeSplit() {
   w.controls.setEnabled(!isPaused() && !w.room);
   w.host.setMeasureFocus(false);
   w.host.resize();
+  w.meter.reset();
 }
 
 // 작품 방 무대를 연다. el: 방 칸(작품 방의 ctx.container). 3D면 { THREE, root, camera }, 2D면 null.
@@ -190,6 +216,7 @@ export function openRoom(el) {
   w.controls.setContext(null);
   w.controls.setEnabled(false);
   w.host.clearTarget();
+  w.meter.reset();
   return w.host.beginRoom?.(el) ?? null;
 }
 
@@ -198,6 +225,7 @@ export function closeRoom() {
   w.room = false;
   w.root.classList.remove('is-room');
   w.host.endRoom?.();
+  w.meter.reset();
   w.controls.setEnabled(!isPaused() && !w.split);
 }
 
@@ -215,6 +243,11 @@ export function setDancheong(wingId, level) {
 
 export function getMode() {
   return w ? w.host.mode : detectMode();
+}
+
+// 지금 화질 단계(머리글). 세계가 없으면 단계 값만.
+export function getQuality() {
+  return { ...qualityInfo(), ...(w?.host.getRenderInfo?.() ?? {}) };
 }
 
 // 흔들림. 움직임 줄이기면 하지 않고 false를 돌려준다.
@@ -242,6 +275,7 @@ export function dispose() {
   if (!w) return;
   closeRoom();
   cancelAnimationFrame(w.raf);
+  w.meter.dispose();
   w.offs.forEach((off) => off());
   w.controls.dispose();
   w.host.dispose();
@@ -251,6 +285,6 @@ export function dispose() {
 }
 
 const api = {
-  mount, enterWing, enterCorridor, setContext, openSplit, closeSplit, openRoom, closeRoom, getRoomState, setDancheong, getDancheong, getMode, dispose,
+  mount, enterWing, enterCorridor, setContext, openSplit, closeSplit, openRoom, closeRoom, getRoomState, setDancheong, getDancheong, getMode, getQuality, dispose,
   shake, moveTo, getPlace, getPlayer, getMarker, getCamera, resetCamera, getAnchors, getWingHandle, getThree, getStats, toScreen,
 };

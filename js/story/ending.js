@@ -36,6 +36,7 @@ export function runEnding({ host, session, manifest, signal } = {}) {
   return new Promise((resolve) => {
     const P = session.progress;
     const root = el('section', 'story-ending story-scene');
+    root.dataset.worldCover = '';   // 엔딩은 화면 전체를 덮는다: 세계 바탕은 그리지 않는다(world.js '가림')
     root.setAttribute('role', 'dialog');
     root.setAttribute('aria-label', N.place);
     const backdrop = el('div', 'story-backdrop');

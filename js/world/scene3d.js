@@ -8,11 +8,12 @@ import { TOKENS, dancheongColor, getDancheong, meanDancheong, mixHex } from './p
 import { paperDollCanvas } from './sprites.js';
 import { TUNING } from './tuning.js';
 import { createTextures } from './gfx/textures.js';
-import { createMaterials } from './gfx/materials.js';
 import { createKit } from './gfx/kit.js';
 import { createCharacter, FIGURE_HEIGHT } from './gfx/figures.js';
 import { applyRenderSettings, createLightRig, setFog } from './gfx/lighting.js';
 import { buildCorridorGallery, buildCorridorGrounds } from './corridor-art.js';
+import { addRigLight, createInkScreens, createRigLitMaterials, mipNearest, softwareRendering } from './gfx/t39-perf.js';
+import { onQualityChange, qualityInfo } from './quality.js';
 
 // 배치(1 = 1m). 회랑은 x축을 따라 뻗고, 관 자리는 회랑 북쪽(-z)에 순서대로 놓인다.
 const SLOT_GAP = 16;
@@ -117,8 +118,13 @@ function signBoards() {
 export function createScene3D({ view, assets, appearance = 'a', getWingModule, reduceMotion, onArrive }) {
   const canvas = document.createElement('canvas');
   canvas.className = 'world-canvas';
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, TUNING.pixelRatioMax));
+  // 소프트웨어 그리기(GPU를 못 쓰는 기기)에서는 MSAA가 프레임 시간의 약 3분의 1이라 끈다(gfx/t39-perf.js)
+  const software = softwareRendering();
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !software, powerPreference: 'low-power' });
+  // 픽셀 비율 = min(기기 비율, 1.5) × 화질 단계 몫(quality.js)
+  const basePixelRatio = Math.min(window.devicePixelRatio || 1, TUNING.pixelRatioMax);
+  let quality = qualityInfo();
+  renderer.setPixelRatio(basePixelRatio * quality.pixelScale);
   applyRenderSettings(renderer, THREE);
   view.prepend(canvas);
 
@@ -129,8 +135,11 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
 
   // 회랑 건축(gfx 꾸러미). grounds(마당·나무·병풍·먼 산)는 언제나 보이고 바로 짓는다.
   // gallery(회랑 벽·처마·서가)는 회랑에서만 보이고 무거우므로 처음 회랑을 그릴 때 짓는다(관에서 시작하면 첫 화면이 늦지 않게).
+  // 회랑·바깥은 꼭짓점 빛 재질(빛 묶음과 같은 램버트 빛을 꼭짓점에서 계산)과 밉맵 한 장 안 거르기로 그린다(gfx/t39-perf.js)
   const gfxTextures = createTextures(THREE);
-  const gfxMaterials = createMaterials(THREE, gfxTextures);
+  const gfxTex = mipNearest(THREE, gfxTextures);
+  const gfxMaterials = createRigLitMaterials(THREE, gfxTex);
+  const inkScreens = createInkScreens(THREE, gfxMaterials, gfxTex);
   const kit = createKit(THREE, { materials: gfxMaterials });
   const artLayout = { corridor: CORRIDOR, wallZ: WALL_Z, slotXs: WINGS.map((_, i) => slotX(i)), doorHalf: DOOR_HALF, slotZ: SLOT_Z, wingHalf: WING_HALF };
   const art = { grounds: null, gallery: null, groundsAdded: false };
@@ -138,11 +147,12 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   // 첫 화면(관 들어가기 글 등)이 늦어지지 않게 한다.
   function addGroundsLater() {
     if (art.grounds) return;
-    art.grounds = buildCorridorGrounds(THREE, kit, artLayout);
+    art.grounds = buildCorridorGrounds(THREE, kit, artLayout, { screens: inkScreens });
     const attach = () => {
       if (disposed || art.groundsAdded) return;
       art.groundsAdded = true;
       scene.add(art.grounds);
+      applyDecor();
       if (room) { art.grounds.visible = false; room.hidden.push(art.grounds); }
     };
     Promise.resolve().then(() => renderer.compileAsync(art.grounds, camera, scene)).then(attach, attach);
@@ -157,7 +167,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   const doorState = new Map(WINGS.map((w) => [w.id, w.id === 'entrance' ? 'open' : 'locked']));
   const doorList = [];
   WINGS.forEach((w, i) => { for (let p = 0; p < DOOR_PARTS; p++) doorList.push(doorBox(i, p, doorState.get(w.id), getDancheong(w.id))); });
-  const doorMaterial = new THREE.MeshLambertMaterial({ map: gfxTextures.get('wood') });
+  const doorMaterial = addRigLight(new THREE.MeshBasicMaterial({ map: gfxTextures.get('wood') }), gfxMaterials.light);
   const doors = instancedBoxes(doorMaterial, doorList);
   scene.add(doors);
   const signs = signBoards();
@@ -299,6 +309,19 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
     camera.lookAt(camLook);
   }
 
+  // 화질 단계: 픽셀 비율과 꾸밈 겹(관 사이 종이 나무·먼 수묵 산, corridor-art.js의 'corridor-decor')
+  function applyDecor() {
+    const decor = art.grounds?.getObjectByName('corridor-decor');
+    if (decor) decor.visible = quality.decor;
+  }
+  const offQuality = onQualityChange((q) => {
+    quality = q;
+    renderer.setPixelRatio(basePixelRatio * q.pixelScale);
+    applyDecor();
+    resize();
+    if (room) fitRoomView();
+  });
+
   function resize() {
     const w = Math.max(1, view.clientWidth);
     const h = Math.max(1, view.clientHeight);
@@ -397,6 +420,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
     scene.background.set(c);
     setFog(scene, inCorridor ? 'corridor' : 'wing', c);
     gfxMaterials.setDancheong(level);
+    gfxMaterials.setPreset(inCorridor ? 'corridor' : 'wing');
     lights.setPreset(inCorridor ? 'corridor' : 'wing');
     // 관 카메라는 회랑 벽 위에 서므로, 관 안에서는 회랑 건축(처마·벽)을 숨긴다
     if (art.gallery) art.gallery.visible = inCorridor;
@@ -619,16 +643,19 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
       children: room ? room.root.children.length : 0,
       wingHidden: room ? !!wingRoot && !wingRoot.visible : false,
     }),
+    getRenderInfo: () => ({ pixelRatio: renderer.getPixelRatio(), software, antialias: !software }),
     getStats: () => ({
       drawCalls: renderer.info.render.calls,
       triangles: renderer.info.render.triangles,
       frames,
       pixelRatio: renderer.getPixelRatio(),
       shadows: renderer.shadowMap.enabled,
+      quality: quality.tier,
     }),
     toScreen,
     dispose() {
       disposed = true;
+      offQuality();
       ro.disconnect();
       if (art.grounds && !art.groundsAdded) scene.add(art.grounds);   // 아래 traverse가 함께 치운다
       endRoom();
@@ -639,6 +666,8 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
         mats.forEach((m) => { m.map?.dispose?.(); m.dispose?.(); });
       });
       kit.dispose();
+      inkScreens.dispose();
+      gfxMaterials.dispose();
       gfxTextures.dispose();
       doll.dispose();
       renderer.dispose();
