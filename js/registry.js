@@ -15,6 +15,7 @@ import * as playScreen from './play/play-screen.js';
 import * as bossScreen from './boss/boss.js';
 import { notebookScreen, journalScreen, collectionScreen } from './play/screens.js';
 import * as startScreen from './story/start.js';
+import * as creditsScreen from './ui/credits.js';
 
 export const registry = {
   wings: {},    // 관 id → 관 모형 모듈 { create3D, create2D }
@@ -46,3 +47,4 @@ registry.screens.collection = collectionScreen;
 // 시작 화면(앱 흐름의 첫 장면, T18)
 registry.screens.start = startScreen;
 registry.screens.boss = bossScreen;
+registry.screens.credits = creditsScreen;

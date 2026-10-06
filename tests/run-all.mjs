@@ -41,6 +41,9 @@ const files = [
   'check-boss.mjs',
   'check-story.mjs',
   'check-voice.mjs',
+  'check-fonts.mjs',
+  'check-credits.mjs',
+  'check-review-doc.mjs',
 ];
 
 fs.mkdirSync(path.join(here, 'shots'), { recursive: true });
