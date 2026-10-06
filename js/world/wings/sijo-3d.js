@@ -1,11 +1,13 @@
-// 시조관 3D 모형(spec 3.1·6·8·14·17). 저폴리 디오라마를 코드로 조립한다.
-// 그리기 호출을 아끼려고 같은 모양은 InstancedMesh 하나로 그린다:
-//   고정 상자 · 기둥 · 반응 상자(창방·계단·등불) · 지붕 · 책 · 이름표(글자 그림 한 장) · 먹안개 → 모두 일곱 번.
+// 시조관 3D 모형(spec 3.1·6·8·14·17). 반응하는 부분은 InstancedMesh로 그린다:
+//   고정 상자 · 기둥 · 반응 상자(창방·계단·등불) · 지붕 · 책 · 이름표(글자 그림 한 장) · 먹안개 → 일곱 번.
+// 둘레 건축(돌 기단, 난간, 공포, 차양, 계단탑 기둥·보, 기와 담장, 소나무)은 sijo-art.js가 gfx 꾸러미로 두 번째 프레임에 짓는다(역할마다 한 번).
 // 재질은 먹빛에서 시작해 세계 바탕의 단청 값(palette.js)에 맞춰 단청색으로 돌아온다. 그림자는 쓰지 않는다.
 import { TOKENS, dancheongColor, getDancheong, mixHex, onDancheong } from '../palette.js';
 import {
   AREAS, BINDABLE, FEET, FINAL_STEPS, MAX_STEPS, MENTOR_LABEL, ROOM_LABEL, STOREYS, createSijoModel,
 } from './sijo-model.js';
+import { createWingGfx } from '../gfx/t35-wing.js';
+import { buildSijoArt, buildSijoRoof } from './sijo-art.js';
 
 // ── 배치(1 = 1m, 원점은 관 바닥 가운데, +z가 카메라 쪽) ──
 const F = [1.2, 2.4, 3.6];                 // 초장·중장·종장 마루 높이(누각처럼 들어 올린 정자)
@@ -61,6 +63,8 @@ export function create3D(ctx) {
   const group = new THREE.Group();
   group.name = 'sijo-diorama';
   root.add(group);
+  const gfx = createWingGfx(THREE, { assets: ctx.assets, wingId });
+  const art = gfx.deferred(() => buildSijoArt(gfx, { F, SH, P, PILLAR_X, FRONT_Z, BACK_Z, ST }));
   const disposables = [];
   const keep = (x) => { disposables.push(x); return x; };
 
@@ -73,7 +77,7 @@ export function create3D(ctx) {
   const qZ = (a) => new THREE.Quaternion().setFromAxisAngle(V(0, 0, 1), a);
 
   function instanced(name, geo, mat, count) {
-    const mesh = new THREE.InstancedMesh(keep(geo), keep(mat), count);
+    const mesh = new THREE.InstancedMesh(geo === gfx.bevelBox() ? geo : keep(geo), keep(mat), count);
     mesh.name = name;
     mesh.frustumCulled = false;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -107,7 +111,6 @@ export function create3D(ctx) {
   F.forEach((y, s) => {
     box([P.x, y - 0.07, P.z], [P.hx * 2 + 0.3, 0.14, P.hz * 2 + 0.3], C.floor);
     box([P.x, y + 0.4, FRONT_Z + 0.06], [P.hx * 2 - 0.2, 0.05, 0.05], C.wood);          // 난간대
-    if (s > 0) box([P.x, y - 0.2, P.z], [P.hx * 2 + 0.5, 0.1, P.hz * 2 + 0.5], C.eave);  // 아래층 처마판
   });
   box([P.x, F[2] + SH - 0.04, P.z], [P.hx * 2 + 0.3, 0.1, P.hz * 2 + 0.3], C.wood);
   // 계단참: 층마다 둘(오른쪽 중간참, 왼쪽 마루 입구참) → 3장 6구
@@ -116,10 +119,6 @@ export function create3D(ctx) {
     box([(ST.x1 + ST.rx1) / 2, mid - 0.06, (ST.zf + ST.zb) / 2], [ST.rx1 - ST.x1, 0.12, ST.zf - ST.zb], C.floor, 'landing');
     box([(ST.lx0 + ST.x0) / 2, top - 0.06, (ST.zf + ST.zb) / 2], [ST.x0 - ST.lx0, 0.12, ST.zf - ST.zb], C.floor, 'landing');
   });
-  for (const z of [ST.zb + 0.05, ST.zf - 0.05]) {
-    box([ST.rx1 - 0.05, (F[2] - ST.rise) / 2, z], [0.1, F[2] - ST.rise, 0.1], C.wood);
-    box([ST.lx0 + 0.05, F[2] / 2, z], [0.1, F[2], 0.1], C.wood);
-  }
   // 칸(서가, 자리 셋): 정자 앞. 자리마다 녹청 받침판
   box([-1.5, 0.06, -1.5], [3.1, 0.12, 0.6], C.shelf);
   box([-1.5, 1.04, -1.5], [3.1, 0.08, 0.6], C.shelf);
@@ -158,14 +157,15 @@ export function create3D(ctx) {
   box([P.x - 0.3, F[2] + 0.05, P.z - 0.85], [0.7, 0.1, 0.7], C.cushion);
   box([P.x - 0.3, F[2] + 0.15, P.z - 0.2], [0.9, 0.3, 0.5], C.wood);
 
-  const fixedMesh = instanced('sijo-fixed', new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), fixed.length);
+  // 판은 모서리를 깎은 상자에 회벽 결(인스턴스 크기로 무늬 좌표를 잡는다)
+  const fixedMesh = instanced('sijo-fixed', gfx.bevelBox(), gfx.boxMaterial('plaster', { tile: 1.2 }), fixed.length);
   fixed.forEach((b, i) => setBox(fixedMesh, i, V(...b.p), V(...b.s)));
   fixedMesh.userData.tags = tags;
 
   // ── 기둥: 앞기둥 12(층마다 넷, 반응) + 뒷기둥 12 ──
   const pillarCount = STOREYS.length * FEET;
   const pillarGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 8);
-  const pillars = instanced('sijo-pillars', pillarGeo, new THREE.MeshLambertMaterial(), pillarCount * 2);
+  const pillars = instanced('sijo-pillars', pillarGeo, gfx.boxMaterial('wood', { tile: 1.6 }), pillarCount * 2);
   for (let s = 0; s < STOREYS.length; s++) {
     for (let c = 0; c < FEET; c++) {
       setBox(pillars, s * FEET + c, V(PILLAR_X[c], F[s] + SH / 2, FRONT_Z), V(0.18, SH, 0.18));
@@ -197,7 +197,7 @@ export function create3D(ctx) {
   const BEAM0 = 0;
   const STEP0 = STOREYS.length;
   const LANTERN = STEP0 + steps.length;
-  const reactive = instanced('sijo-reactive', new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), LANTERN + 1);
+  const reactive = instanced('sijo-reactive', gfx.bevelBox(), gfx.boxMaterial('stone', { tile: 1.0 }), LANTERN + 1);
   for (let s = 0; s < STOREYS.length; s++) setBox(reactive, BEAM0 + s, V(P.x, F[s] + SH - 0.32, FRONT_Z + 0.02), V(P.hx * 2 + 0.2, 0.12, 0.16));
   const finalIdx = [];
   const ghostIdx = [];
@@ -213,14 +213,12 @@ export function create3D(ctx) {
     return V(st.p[0], st.p[1] + st.s[1] / 2, st.p[2]);
   };
 
-  // ── 지붕(종장 위 우진각 지붕) ──
-  const roofGeo = new THREE.CylinderGeometry(0.3, 1, 1, 4, 1);
-  roofGeo.rotateY(Math.PI / 4);
-  const roofMat = keep(new THREE.MeshLambertMaterial());
-  const roof = new THREE.Mesh(keep(roofGeo), roofMat);
+  // ── 지붕(종장 위 모임지붕: 네 귀가 들린 기와지붕과 절병통). 색은 재질 색이 단청 값을 따른다 ──
+  const roof = buildSijoRoof(gfx, { x: P.x, z: P.z, y: F[2] + SH + 0.12, w: P.hx * 2 + 1.9, d: P.hz * 2 + 1.9 });
+  keep(roof.geometry);
+  const roofMat = keep(gfx.materials.fresh('roof'));
+  roof.material = roofMat;
   roof.name = 'sijo-roof';
-  roof.position.set(P.x, F[2] + SH + 0.4, P.z);
-  roof.scale.set((P.hx + 0.8) * Math.SQRT2, 0.9, (P.hz + 0.8) * Math.SQRT2);
   group.add(roof);
 
   // ── 책 자리 ──
@@ -234,7 +232,7 @@ export function create3D(ctx) {
   for (let i = 0; i < AREAS.returned; i++) holderAt('returned', i, V(6.0, 0.12 + BOOK_H / 2, 0.3 + i * 0.6), qY(-Math.PI / 2));
   const SEG_MAX = 8;
   const THREADS = BINDABLE.length * 2;
-  const books = instanced('sijo-books', new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), holders.length * SEG_MAX + THREADS);
+  const books = instanced('sijo-books', new THREE.BoxGeometry(1, 1, 1), gfx.boxMaterial('hanji', { tile: 0.6 }), holders.length * SEG_MAX + THREADS);
   books.userData.holders = Object.fromEntries(holders.map((h, n) => [h.area + ':' + h.index, n * SEG_MAX]));
   books.userData.segMax = SEG_MAX;
   const middleOf = (area) => holders.find((h) => h.area === area && h.index === 1);
@@ -349,7 +347,7 @@ export function create3D(ctx) {
 
   // ── 먹안개: 바닥에 깔린 반투명 판들 ──
   const FOG_N = 8;
-  const fogMat = keep(new THREE.MeshBasicMaterial({ color: TOKENS.meokFog, transparent: true, opacity: 0.45, depthWrite: false }));
+  const fogMat = keep(new THREE.MeshBasicMaterial({ map: gfx.softSpot(), color: TOKENS.meokFog, transparent: true, opacity: 0.45, depthWrite: false }));
   const fogMesh = instanced('sijo-fog', new THREE.CircleGeometry(0.5, 20), fogMat, FOG_N);
   const fogSpots = [[-4.2, 0.12, 1.8, 4.5], [-1.0, 0.16, 3.2, 5], [2.6, 0.14, 0.6, 4], [4.4, 0.1, 3.8, 3.5], [-4.4, 0.18, -1.0, 3.8], [0.4, 0.2, -0.2, 3.2], [3.6, 0.13, -4.6, 3.6], [-2.6, 0.11, 5.2, 4.2]];
   const flat = new THREE.Quaternion().setFromAxisAngle(V(1, 0, 0), -Math.PI / 2);
@@ -369,6 +367,7 @@ export function create3D(ctx) {
 
   // ── 색과 모양 새로 그리기 ──
   function refreshFixedColors() {
+    gfx.setDancheong(level);
     fixed.forEach((b, i) => fixedMesh.setColorAt(i, col.set(ink(b.c))));
     fixedMesh.instanceColor.needsUpdate = true;
     roofMat.color.set(ink(C.roof));
@@ -485,13 +484,16 @@ export function create3D(ctx) {
       if (model.react(name, detail)) refreshAll();
     },
     update(dt) {
+      art.tick(group);
       if (model.tick(dt, reduce())) refreshAll();
     },
     dispose() {
       offDancheong();
       root.remove(group);
+      art.dispose();
       for (const d of disposables) d.dispose?.();
       disposables.length = 0;
+      gfx.dispose();
     },
   };
 }

@@ -1,11 +1,14 @@
-// 고려가요관 3D 모형(spec 3.1·6·8·14·17). 저폴리 상자를 코드로 쌓고, 되풀이되는 것은 InstancedMesh 하나로 그린다.
-// 그리기 호출: 고정 상자 1, 움직이는 상자 1, 고리 1, 끈 1, 등불 1, 울림 1, 먹안개 1, 현판 1, 묶인 제목 0~2 → 8~10회.
+// 고려가요관 3D 모형(spec 3.1·6·8·14·17). 똑같은 방의 판(벽·창호지·문틀)은 InstancedMesh 하나(고정 상자)로 찍고,
+// 한옥 뼈대(기둥·공포·서까래·맞배 기와지붕·띠살 문·후렴 현판·툇마루·등롱 갓)는 goryeo-art.js가 gfx 꾸러미로 두 번째 프레임에 얹는다.
+// 그리기 호출: 고정 상자 1, 움직이는 상자 1, 고리 1, 끈 1, 등불 1, 울림 1, 먹안개 1, 현판 1, 묶인 제목 0~2, 건축 역할 11 → 19~21회.
 import { SONG_CATALOG } from '../../data/song-table.js';
 import { TOKENS, dancheongColor, getDancheong, mixHex, onDancheong } from '../palette.js';
 import {
   AREAS, FEET_PER_LINE, L3, MAX_LINKS, STANZA_ROOMS, TIMES,
   advance, applyEvent, createState, linkProgress, linkedRooms, litGaps, popProgress, slot3D,
 } from './goryeo-state.js';
+import { createWingGfx } from '../gfx/t35-wing.js';
+import { buildGoryeoArt } from './goryeo-art.js';
 
 const CORD_SEGMENTS = 14;
 const HOOK_COUNT = STANZA_ROOMS;
@@ -21,8 +24,6 @@ const C = {
   wood: TOKENS.meokSoft,
   woodLight: mixHex(TOKENS.hanjiDeep, TOKENS.meokSoft, 0.45),
   roof: TOKENS.meok,
-  floor: mixHex(TOKENS.hanjiDeep, TOKENS.meokFog, 0.25),
-  floorAlt: mixHex(TOKENS.hanjiDeep, TOKENS.meokFog, 0.32),
   ghost: mixHex(TOKENS.hanji, TOKENS.meokFog, 0.45),
   band: TOKENS.meok,
   gold: TOKENS.gold,
@@ -33,34 +34,6 @@ const C = {
 };
 
 const litColor = (level) => mixHex(TOKENS.hanji, TOKENS.gold, 0.3 + 0.45 * level);
-
-// 한지 결 자리표시 무늬(그림 자산 texture/goryeo가 오기 전까지)
-function placeholderTexture(THREE) {
-  const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#ffffff';
-  g.fillRect(0, 0, 128, 128);
-  let seed = 7;
-  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  g.strokeStyle = 'rgba(90, 86, 80, 0.10)';
-  g.lineWidth = 1;
-  for (let i = 0; i < 70; i++) {
-    const x = rnd() * 128;
-    const y = rnd() * 128;
-    const a = rnd() * Math.PI;
-    const l = 4 + rnd() * 10;
-    g.beginPath();
-    g.moveTo(x, y);
-    g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
-    g.stroke();
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  return t;
-}
 
 // 뿌연 둥근 얼룩(먹안개)
 function fogTexture(THREE) {
@@ -127,15 +100,14 @@ export function create3D(ctx) {
   const tags = {};
   const add = (p, s, c, r, tag) => { if (tag) tags[tag] = statics.length; statics.push({ p, s, c, r }); };
 
-  // 관 바닥(마루 널 8×8장. 한 장으로 깔면 결 무늬가 크게 늘어나 얼룩처럼 보인다)
-  for (let i = 0; i < 8; i++) {
-    for (let j = 0; j < 8; j++) add([-5.6 + i * 1.6, 0.005, -5.6 + j * 1.6], [1.58, 0.02, 1.58], (i + j) % 2 ? C.floor : C.floorAlt);
-  }
+  // 관 바닥판은 깔지 않는다(세계 바탕색이 마당이다. 넓은 면 하나가 소프트웨어 그리기에서 프레임을 크게 먹는다).
+  // 기단·툇마루·지붕·기둥은 goryeo-art.js가 짓는다.
+  const gfx = createWingGfx(THREE, { assets: ctx.assets, wingId });
+  const art = gfx.deferred(() => buildGoryeoArt(gfx, L3, STANZA_ROOMS));
 
   // 똑같은 연 방 일곱: 모두 같은 함수로 같은 모양을 찍는다
   const R = L3.room;
   const zr = (R.zFront + R.zBack) / 2;
-  const slope = Math.atan2(0.6, 1.0);
   for (let i = 0; i < STANZA_ROOMS; i++) {
     const x = L3.roomX(i);
     add([x, 0.1, zr], [R.w + 0.1, 0.2, R.d + 0.1], C.woodLight);                       // 바닥 단
@@ -145,18 +117,11 @@ export function create3D(ctx) {
     add([x - 0.425, 0.2 + R.h / 2, R.zFront], [0.35, R.h, 0.06], C.paper);              // 앞 창살벽
     add([x + 0.425, 0.2 + R.h / 2, R.zFront], [0.35, R.h, 0.06], C.paper);
     add([x, 1.38, R.zFront], [0.5, 0.36, 0.06], C.paper);                               // 문 위 벽
-    add([x - R.w / 2, 0.2 + R.h / 2, R.zFront], [0.1, R.h, 0.1], C.wood);               // 기둥
-    add([x + R.w / 2, 0.2 + R.h / 2, R.zFront], [0.1, R.h, 0.1], C.wood);
-    add([x, 1.8, zr + 0.5], [R.w + 0.3, 0.08, 1.17], C.roof, [slope, 0, 0]);    // 앞 지붕
-    add([x, 1.8, zr - 0.5], [R.w + 0.3, 0.08, 1.17], C.roof, [-slope, 0, 0]);    // 뒤 지붕
-    add([x, 2.12, zr], [R.w + 0.35, 0.1, 0.12], C.roof);                         // 용마루
     add([x, 1.52, R.zFront + 0.03], [R.w - 0.1, 0.06, 0.06], C.wood);                   // 고리 걸이 도리
   }
 
   // 복도(방 앞을 잇는 마루)와 등롱 기둥
   const CO = L3.corridor;
-  add([(CO.x0 + CO.x1) / 2, CO.top / 2, (CO.z0 + CO.z1) / 2], [CO.x1 - CO.x0, CO.top, CO.z1 - CO.z0], C.woodLight);
-  add([(CO.x0 + CO.x1) / 2, CO.top + 0.03, CO.z1], [CO.x1 - CO.x0, 0.06, 0.06], C.wood);
   for (let g = 0; g < LAMP_LANTERNS; g++) add([L3.gapX(g), 0.6, L3.lanternZ], [0.07, 1.0, 0.07], C.wood);
 
   // 작품 방 「정석가」: 더 큰 방, 문기둥(주홍)·인방(녹청)은 누를 수 있는 문이라 단청색
@@ -171,9 +136,6 @@ export function create3D(ctx) {
   add([D.x - 0.47, 0.2 + D.h / 2, D.zFront + 0.02], [0.12, D.h, 0.12], C.ju, null, 'roomDoorPost');
   add([D.x + 0.47, 0.2 + D.h / 2, D.zFront + 0.02], [0.12, D.h, 0.12], C.ju);
   add([D.x, 1.78, D.zFront + 0.02], [1.08, 0.16, 0.14], C.nok, null, 'roomDoorLintel');
-  add([D.x, 2.05, dz + 0.55], [D.w + 0.4, 0.08, 1.3], C.roof, [slope, 0, 0]);
-  add([D.x, 2.05, dz - 0.55], [D.w + 0.4, 0.08, 1.3], C.roof, [-slope, 0, 0]);
-  add([D.x, 2.36, dz], [D.w + 0.45, 0.1, 0.12], C.roof);
 
   // 칸·덤 서가 틀
   for (const area of ['shelf', 'bonus']) {
@@ -218,23 +180,24 @@ export function create3D(ctx) {
   add([ND.x, 1.1, ND.z + 0.55], [0.14, 2.2, 0.14], C.ju);
   add([ND.x, 2.25, ND.z], [0.18, 0.16, 1.4], C.nok);
 
-  const wingTex = ctx.assets?.texture?.('texture/' + wingId) ?? track(placeholderTexture(THREE));
-  const staticMat = track(new THREE.MeshLambertMaterial({ map: wingTex }));
+  // 판은 모서리를 깎은 상자에 회벽 결(인스턴스 크기로 무늬 좌표를 잡는다). 관 그림 자산은 현판·단청 띠에만 쓴다(goryeo-art.js)
+  const staticMat = gfx.boxMaterial('plaster', { tile: 1.2 });
   const staticGeo = track(new THREE.BoxGeometry(1, 1, 1));
-  const staticMesh = new THREE.InstancedMesh(staticGeo, staticMat, statics.length);
+  const staticMesh = new THREE.InstancedMesh(gfx.bevelBox(), staticMat, statics.length);
   staticMesh.name = 'goryeo-static';
   staticMesh.frustumCulled = false;
   staticMesh.userData.tags = tags;
   staticMesh.userData.base = statics.map((b) => b.c);
   group.add(staticMesh);
   function paintStatics() {
+    gfx.setDancheong(level);
     statics.forEach((b, i) => setBox(staticMesh, i, b));
     staticMesh.instanceMatrix.needsUpdate = true;
     staticMesh.instanceColor.needsUpdate = true;
   }
 
   // ── 움직이는 상자: 책등, 묶음 실, 금박, 삐져나온 모양, 바구니 행선지 표, 작품 방 문짝 ──
-  const dynMat = track(new THREE.MeshLambertMaterial());
+  const dynMat = gfx.boxMaterial('hanji', { tile: 0.6 });
   const dynMesh = new THREE.InstancedMesh(staticGeo, dynMat, DYNAMIC_MAX);
   dynMesh.name = 'goryeo-dynamic';
   dynMesh.frustumCulled = false;
@@ -412,7 +375,7 @@ export function create3D(ctx) {
   }
 
   // ── 등불: 방마다 음보 구슬 셋(두드리기), 틈마다 등롱(후렴 울림), 접힌 경계의 빛줄기 ──
-  const lampGeo = track(new THREE.BoxGeometry(1, 1, 1));
+  const lampGeo = track(new THREE.CylinderGeometry(0.5, 0.5, 1, 8));
   const lampMat = track(new THREE.MeshBasicMaterial());
   const lamps = new THREE.InstancedMesh(lampGeo, lampMat, LAMP_BEADS + LAMP_LANTERNS + LAMP_SEAMS);
   lamps.name = 'goryeo-lamps';
@@ -597,6 +560,7 @@ export function create3D(ctx) {
       paintFog();
     },
     update(dt) {
+      art.tick(group);
       time += dt;
       const changed = advance(state, dt, reduce());
       if (changed) {
@@ -613,6 +577,9 @@ export function create3D(ctx) {
       root.remove(group);
       for (const d of disposables) d?.dispose?.();
       for (const m of [staticMesh, dynMesh, rings, cords, lamps, ripples, fog]) m.dispose?.();
+      art.group?.traverse((o) => { for (const x of o.userData.own ?? []) x.dispose?.(); });
+      art.dispose();
+      gfx.dispose();
     },
   };
 }

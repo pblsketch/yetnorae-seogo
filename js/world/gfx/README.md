@@ -138,3 +138,14 @@ RECIPES.mentor = (p) => {
 ## 점수 기록
 
 다듬기 전후 스크린숏과 10항목 점수는 `tests/shots/gfx-before/`, `tests/shots/gfx-after/`(커밋하지 않음)에 있다. 찍는 도구는 `tests/shots/gfx-capture.mjs`(같은 폴더, 커밋하지 않음)다.
+
+## 관 내부 층(`t35-wing.js`)
+
+향가관·고려가요관·시조관 모형은 세계의 그림 도구를 넘겨받지 않으므로(`ctx`에 없다) `createWingGfx(THREE, { assets, wingId })`로 관마다 무늬·재질·소품 틀을 하나씩 만든다. 꾸러미 함수는 그대로 쓰고, 다음만 덧붙인다.
+
+- **꼭짓점 빛 재질**: 빛을 받는 역할(wood, paint, plaster, roof, stone, floor, paper, books, lantern, foliage)을 `MeshBasicMaterial` + 꼭짓점 빛(`LIGHT_PRESETS.wing`과 같은 반구광·주광·보조광) + 먹빛 걸이로 바꿔 쓴다. 평평한 면에서는 램버트와 같은 색이고 SwiftShader에서 훨씬 싸다. 관 안에서만 쓰므로 빛 묶음이 'wing'일 때를 기준으로 한다. 무늬는 `LinearMipmapNearest`로 거른다.
+- `boxMaterial(무늬, { tile })`: 크기를 바꾼 상자 인스턴스에 무늬가 늘어나지 않게 인스턴스 크기로 무늬 좌표를 잡는 재질(꼭짓점 빛 포함, 먹빛 걸이 없음 — 인스턴스 색이 이미 먹빛→단청으로 칠해져 있다). `bevelBox()`는 모서리를 깎은 단위 상자.
+- `transformed(b, 행렬)`: 꾸러미 소품 함수를 돌리거나 축척을 바꿔 넣는다(지붕 뒷면, 옆을 보는 담, 반 크기 한옥 뼈대).
+- `roofStone`·`roofStoneGeometry`(네 귀가 들린 오목한 돌·기와 지붕), `stoneLantern`(석등), `softSpot`(먹안개 번짐 무늬), `mural()`(관 그림 자산 `texture/<관>`을 먹빛 걸이 단 단청 판으로, 없으면 단청 칠).
+- `deferred(짓기)`: 관에 들어간 뒤 두 번째 프레임에 짓는다. `materials.fresh(역할)`은 색을 따로 바꿀 새 재질(시조관 지붕).
+- 수(SwiftShader, 1366×768, 점검 페이지 첫 화면): 그리기 호출 향가관 27, 고려가요관 27, 시조관 23. 비용 요령은 `docs/engineering-notes.md`의 '관 건축을 gfx 꾸러미로 짓자…'.
