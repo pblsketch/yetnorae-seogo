@@ -8,8 +8,8 @@ const ft = (text) => ({ original: text, reading: text });
 // 시조·사설시조 장, 가사 행: 음보 글자 목록과 풀이
 const unit = (feet, gloss) => ({ feet: feet.map(ft), gloss });
 
-// 고려가요 연: 줄마다 음보 목록과 풀이
-const stanza = (lines) => ({ lines: lines.map(([feet, gloss]) => ({ feet: feet.map(ft), gloss })) });
+// 고려가요 연: 줄마다 음보 목록과 풀이. 셋째 값(kind)이 있으면 그 줄의 음보를 모두 박 밖 음보(여음·후렴)로 표시한다.
+const stanza = (lines) => ({ lines: lines.map(([feet, gloss, kind]) => ({ feet: feet.map((t) => (kind ? { ...ft(t), kind } : ft(t))), gloss })) });
 
 // 향가 구
 const gu = (n, reading) => ({
@@ -63,7 +63,7 @@ function goryeo(id, title, roles) {
   const st = (n) => stanza([
     [['해금 켜는', '시험', '줄이로다'], '시험 연 ' + n + ' 첫 줄'],
     [['차카타', '파하가', '나다라'], '시험 연 ' + n + ' 둘째 줄'],
-    [['다로', '다로', '다로리'], '뜻 없는 소리'],
+    [['다로', '다로', '다로리'], '뜻 없는 소리', 'yeoeum'],
   ]);
   return {
     ...common(id, title, 'goryeo'),

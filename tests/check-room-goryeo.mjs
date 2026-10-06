@@ -14,6 +14,7 @@ import { startServer } from './lib/server.mjs';
 import { openGame, assert, VIEWPORTS } from './lib/browser.mjs';
 import { songs } from '../js/data/songs/index.js';
 import { room } from '../js/data/rooms-goryeo.js';
+import { joinFeet } from '../js/core/song-shape.js';
 
 const PAGE = 'tests/pages/room-goryeo.html';
 const BUDGET = 60;
@@ -22,7 +23,8 @@ const SCORE_WORDS = ['점수', '정답', '오답', '등급', '순위', '실패',
 const song = songs.find((s) => s.id === room.songId);
 const echoSong = songs.find((s) => s.id === room.echo.songId);
 const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
-const lineText = (l) => l.feet.map((f) => f.original).join(' ');
+// 줄 원문: 음보를 빈칸으로 잇되 낱말 안에서 나눈 음보(joined)는 붙인다(방이 보이는 글과 같다)
+const lineText = (l) => joinFeet(l.feet, 'original');
 const squash = (s) => String(s ?? '').replace(/\s+/g, '');
 
 // ── 검사 함수 ──

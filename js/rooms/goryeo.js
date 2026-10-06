@@ -14,6 +14,7 @@
 import { room as DATA } from '../data/rooms-goryeo.js';
 import { songs as REGISTERED } from '../data/songs/index.js';
 import { buildGrid as baseBuildGrid } from '../core/rhythm.js';
+import { joinFeet } from '../core/song-shape.js';
 import { createAssets } from '../world/assets.js';
 import { createRoom3D } from './goryeo-3d.js';
 import { createRoom2D } from './goryeo-2d.js';
@@ -47,7 +48,8 @@ function abortError() {
   return new DOMException('작품 방을 나갔다', 'AbortError');
 }
 
-const lineOriginal = (line) => line.feet.map((f) => f.original).join(' ');
+// 줄 원문: 음보를 빈칸으로 잇되 낱말 안에서 나눈 음보(joined)는 붙인다
+const lineOriginal = (line) => joinFeet(line.feet, 'original');
 
 // 후렴이 줄 전체를 덮는 줄(「서경별곡」의 '위 두어렁셩…' 줄)과, 줄 안에 끼어든 여음 음보
 function refrainMarks(song) {
@@ -84,7 +86,7 @@ function lineView(song, unit, index, { yeoeum = null, repeated = false, pair = n
   }
   const orig = el('p', 'rg-orig');
   line.feet.forEach((f, i) => {
-    if (i > 0) orig.append(' ');
+    if (i > 0 && !f.joined) orig.append(' ');
     const span = el('span', 'rg-foot' + (yeoeum?.has(i) ? ' is-yeoeum' : ''), f.original);
     orig.append(span);
   });

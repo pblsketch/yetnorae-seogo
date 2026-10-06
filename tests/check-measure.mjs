@@ -266,7 +266,8 @@ try {
     ok(same(folds, Array.from({ length: s.units.length - 1 }, (_, i) => i)), genre + ': 실제 단위 경계에서만 접혔다(diorama:fold ' + JSON.stringify(folds) + ')');
     const lights = await events(page, 'diorama:pillar-light');
     const keys = new Set(lights.map((d) => d.unit + '|' + (d.line ?? '-') + '|' + (d.foot ?? '-')));
-    const total = genre === 'hyangga' ? s.units.length : (genre === 'goryeo' ? s.units.flatMap((u) => u.lines.flatMap((l) => l.feet)).length : s.units.flatMap((u) => u.feet).length);
+    // 고려가요는 박에 드는 음보만 기둥 불을 켠다(여음·후렴·되풀이 머리는 두드리지 않는다)
+    const total = genre === 'hyangga' ? s.units.length : (genre === 'goryeo' ? s.units.flatMap((u) => u.lines.flatMap((l) => l.feet.filter((f) => !f.kind))).length : s.units.flatMap((u) => u.feet).length);
     ok(keys.size === total, genre + ': 박마다 기둥 불(diorama:pillar-light) ' + keys.size + '/' + total);
     if (genre === 'hyangga') {
       ok(lights.every((d) => d.foot === null && d.line === undefined || d.foot === null), '향가: 기둥 불의 foot은 null');
@@ -342,6 +343,66 @@ try {
     ok(r.shake && !r.slash && r.lights === 0, '빗금: 음보 경계가 아닌 곳은 흔들리기만 하고 기록이 없다');
     await ev(page, () => window.__m.state.controller.abort());
     await waitResult(page);
+  }
+
+  console.log('— 고려가요 여음·후렴: 표시, 박 없음, 빗금의 답이 아님(추가 제안 T31)');
+  {
+    // 박에만 치고 여음·후렴 칸은 치지 않는다: 놓친 박이 없어 다시 듣지도, 빗금을 권하지도 않는다
+    const gs = song('gasiri');
+    await openM(page, { songId: 'gasiri', wing: 'goryeo', skipOffbeat: true });
+    await ev(page, () => window.__solveFold());
+    await waitStep(page, 'tap');
+    const marks = await ev(page, () => [...document.querySelectorAll('.measure .m-text .m-foot.is-offbeat')].map((e) => ({
+      mark: e.dataset.mark, label: e.querySelector('.m-mark')?.textContent ?? null, border: getComputedStyle(e).borderTopStyle,
+    })));
+    ok(marks.length > 0 && marks.every((m) => ['yeoeum', 'refrain', 'repeat'].includes(m.mark)) && marks.some((m) => m.label === '여음') && marks.some((m) => m.label === '후렴'), '두루마리에 여음·후렴 이름표가 보인다 ' + JSON.stringify(marks.slice(0, 4)));
+    ok(marks.every((m) => m.border !== 'none' && m.border !== ''), '여음·후렴은 색만이 아니라 테두리 모양으로도 구분된다');
+    await page.click('.measure .m-listen');
+    await page.waitForFunction(() => document.querySelector('.measure')?.dataset.step !== 'tap', null, { timeout: 120000 });
+    const plays = await ev(page, () => window.__m.auto.plays);
+    const segCount = gs.units.reduce((n, u) => n + u.lines.length, 0);
+    ok(plays.length === segCount, '여음·후렴을 치지 않아도 다시 듣는 줄이 없다(낭송 ' + plays.length + '/' + segCount + '줄, 후렴 줄도 들려준다)');
+    ok(!(await ev(page, () => !!document.querySelector('.measure .m-suggest:not([hidden])'))), '여음·후렴 때문에 빗금 권유가 뜨지 않는다');
+    const lights = await events(page, 'diorama:pillar-light');
+    const offbeatLit = lights.filter((d) => gs.units[d.unit]?.lines?.[d.line]?.feet?.[d.foot]?.kind);
+    ok(offbeatLit.length === 0, '여음·후렴 칸에는 기둥 불이 켜지지 않는다');
+    await ev(page, (i) => window.__solveAction(i), actionInfo('refrain-link', gs));
+    await waitStep(page, 'sheet');
+    const sheetText = await ev(page, () => document.querySelector('.measure .m-sheet')?.textContent ?? '');
+    ok(sheetText.includes('[줄마다 세 음보]') && sheetText.includes('[여음·후렴이 있다]'), '감정서: [줄마다 세 음보] [여음·후렴이 있다] — ' + sheetText);
+    await page.click('.measure .m-finish');
+    const { result } = await waitResult(page);
+    ok(deepEqual(result, deriveSheet(gs, 'refrain-link')), '박에만 쳐도 감정서는 노래 모양 그대로');
+  }
+  {
+    // 음성 사례: 박 칸을 일부러 놓치면(skip) 놓친 박으로 세어 다시 듣는다 — 위 점검이 '아무 것도 세지 않는' 것이 아님을 보인다
+    await openM(page, { songId: 'gasiri', wing: 'goryeo', skipOffbeat: true, skip: 1 });
+    await ev(page, () => window.__solveFold());
+    await waitStep(page, 'tap');
+    await page.click('.measure .m-listen');
+    await page.waitForFunction(() => document.querySelector('.measure')?.dataset.step !== 'tap', null, { timeout: 120000 });
+    const plays = await ev(page, () => window.__m.auto.plays);
+    ok(same(plays[0], plays[1]), '음성 사례: 박을 하나 놓치면 그 줄을 다시 듣는다 ' + JSON.stringify(plays.slice(0, 3)));
+    await ev(page, () => window.__m.state.controller.abort());
+    await waitResult(page);
+  }
+  {
+    // 빗금: 여음·후렴·되풀이 말은 누를 수 없고(답이 아님), 후렴 줄은 처음부터 마친 줄이다
+    await openM(page, { songId: 'seogyeong-byeolgok', wing: 'goryeo', slash: true });
+    await ev(page, () => window.__solveFold());
+    await waitStep(page, 'tap');
+    const r = await ev(page, () => {
+      const off = [...document.querySelectorAll('.measure .m-text .m-foot.is-offbeat')];
+      return { off: off.length, buttons: off.reduce((n, e) => n + e.querySelectorAll('button.m-word').length, 0), metricButtons: document.querySelectorAll('.measure .m-text .m-foot:not(.is-offbeat) button.m-word').length };
+    });
+    ok(r.off > 0 && r.buttons === 0 && r.metricButtons > 0, '빗금: 여음·후렴·되풀이 말은 누를 수 없고 박 음보만 누른다 ' + JSON.stringify(r));
+    const r2 = await ev(page, () => window.__solveSlash());
+    ok(r2 === 'done', '빗금: 박 음보 끝에만 빗금을 그어도 두드리기를 마친다');
+    await ev(page, (i) => window.__solveAction(i), actionInfo('refrain-link', song('seogyeong-byeolgok')));
+    await waitStep(page, 'sheet');
+    await page.click('.measure .m-finish');
+    const { result } = await waitResult(page);
+    ok(deepEqual(result, deriveSheet(song('seogyeong-byeolgok'), 'refrain-link')) && same(result.tap.feet[0], [3, 0, 3, 0, 3, 0, 3, 0]), '빗금 감정서: 「서경별곡」 줄마다 세 음보(되풀이 머리·아즐가·후렴 줄 제외) ' + JSON.stringify(result.tap.feet[0]));
   }
 
   console.log('— 박을 세 번 놓치면 빗금 모드를 권한다');

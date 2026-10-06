@@ -63,6 +63,8 @@
 | 새 글 파일 | `tools/text/review-doc.mjs`의 `SOURCES`와 `tests/check-review-doc.mjs`의 `TEXT_FILES` | 교사 확인 문서에서 그 글이 빠지거나 점검이 실패한다 |
 | 노래 글(연 나눔·단위 수) | `js/data/rooms-goryeo.js`의 `finalUnit`·`echo`, `rooms-gasa.js`의 `unit`, `rooms-saseol`이 기대는 `nimi-oma` 중장의 `reversal.fromFoot` | 방이 엉뚱한 연을 보이거나 반전을 미리 드러낸다(`check-room-*`, `check-saseol`이 잡는다) |
 | 노래 데이터의 `tempo` | 그 노래의 낭송 조각 전부(다시 만들기) | `check-voice`가 기록의 칸과 지금 칸이 다르다고 실패 |
+| 고려가요 음보의 `kind`(여음·후렴·되풀이 머리) | 같은 노래 `features.refrains`의 구간, `tests/check-goryeo.mjs`의 `METRIC` | 검증기 `FORM`이나 `check-goryeo`가 실패한다. 구간만 고치면 두드릴 박에 여음이 남는다 |
+| 고려가요 음보 경계(나누는 자리) | 그 줄의 낭송 조각(캐시로 다시 자르기)과 `--write-tempo` | `check-voice`가 조각 수·글이 어긋난다고 실패 |
 | `assets/manifest.parts/*.json` | `node tools/manifest/build.mjs`로 `assets/manifest.json` 다시 합치기 | 게임이 새 그림·소리를 모르고 자리표시를 쓴다 |
 
 ## 소리·낭송
@@ -77,6 +79,12 @@
 - 증상: 캐시를 지운 뒤 낭송 도구가 '다시 설계하지 않고 멈춘다'며 끝난다.
 - 까닭: 목소리는 글 설명으로 설계한 것이라 같은 seed로 다시 설계해도 같은 목소리라는 보장이 없다. 그래서 승인한 두 목소리(`narrator-a2`, `narrator-b2`)는 기준 음성 WAV의 sha256(`voices.json`의 `referenceSha256`)으로 묶었다.
 - 대응: 설계 캐시(`tools/voice_cache/ref/`)가 없으면 도구가 `assets/raw/voice-ref/<후보 id>-reference.wav` 백업에서 되살린다. 백업이 없거나 해시가 다르면 멈춘다. 백업을 지우거나 덮지 않는다. 다른 기기에서 조각을 더 만들려면 이 백업을 사용자에게서 받아 같은 자리에 둔다.
+
+### 고려가요 음보를 낱말 안에서 나눴더니 낭송을 새로 사야 했다
+- 증상: '가시리잇고'를 '가시리 / 잇고'로 나누자 낭송 도구가 그 줄을 캐시에 없는 새 글로 보고 유료 요청을 하려 했다.
+- 까닭: 낭송 도구는 줄 글을 음보 `reading`을 빈칸으로 이어 만들고, 그 글의 해시로 캐시를 찾는다. 낱말 안에서 나누면 빈칸이 하나 생겨 다른 글이 된다.
+- 대응: 낱말 안에서 나눈 뒤 조각에 `joined: true`를 단다. 줄 글은 `joinFeet`처럼 그 앞을 붙여 이으므로 읽힐 글이 그대로이고, 캐시의 줄 소리를 받아쓰기 시각으로 다시 자르기만 한다. 띄어 쓴 곳의 나눔을 옮기는 것(예: 예전 '두어리마 / ᄂᆞᄂᆞᆫ'을 '두어리 / 마ᄂᆞᄂᆞᆫ'으로)은 빈칸이 사라져 그 줄만 새로 산다. 「청산별곡」의 '살어리 / 랏다'는 이 표시 전에 띄어 읽힌 글로 만들어 `joined`가 없다.
+- 확인: 낭송 도구 실행의 끝 줄 '이번에 쓴 돈'이 새로 산 줄만큼인지, 나눈 줄의 조각이 `cut: 'asr'`로 잘렸는지 보고 그 조각을 들어 본다.
 
 ### 빠르기를 바꾸면 조각을 다시 만들어야 한다
 - 까닭: 조각 하나의 길이는 그 노래의 박자 칸(60 / tempo초)을 넘으면 안 된다(`check-voice`는 칸 + 0.005초까지 허용). 노래의 `tempo`는 가장 긴 조각이 칸의 92%(`FILL`)에 들도록 계산한 자연 빠르기이고, 생성 기록은 만들 때의 `tempo`와 칸 길이를 적어 둔다. `check-voice`는 기록의 `tempo`가 노래 데이터와 같은지도 본다.

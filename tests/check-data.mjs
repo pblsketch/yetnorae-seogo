@@ -118,7 +118,7 @@ console.log('\n[5] 감정서와 낭송 조각 계산');
   check(deriveActionEvidence('aa-door', sijo).present === false, '시조에는 감탄사 표시가 없다');
   check(deriveActionEvidence('refrain-link', go).present === true && deriveActionEvidence('refrain-link', sijo).present === false, '후렴 고리: 고려가요 있음, 시조 없음');
   check(same(deriveActionEvidence('walk', gasa), { action: 'walk', applicable: true, steps: 4, stopsAtThree: false }) && deriveActionEvidence('walk', sijo).stopsAtThree === true, '걷기: 가사는 이어지고 시조는 세 장에서 멈춤');
-  check(same(deriveTapEvidence(hy10), { mode: 'gu', gu: 10 }) && same(deriveTapEvidence(go), { mode: 'lines', feet: [[3, 3, 3], [3, 3, 3]] }), '두드리기 증거: 향가는 구 수, 고려가요는 줄마다 음보 수');
+  check(same(deriveTapEvidence(hy10), { mode: 'gu', gu: 10 }) && same(deriveTapEvidence(go), { mode: 'lines', feet: [[3, 3, 0], [3, 3, 0]], refrains: 6 }), '두드리기 증거: 향가는 구 수, 고려가요는 줄마다 박에 드는 음보 수(여음 줄은 0)와 여음·후렴 음보 수');
   check(syllableCount('어른 님') === 3 && syllableCount('ᄒᆞᆫ 잔') === 2 && syllableCount('春風') === 2, '글자 수 세기(한글·옛한글·한자)');
   const clips = voiceClips(go);
   check(clips.length === 18 && clips[0].path === 'assets/audio/voice/fx-go-a/0-0-0.mp3' && voiceClips(hy10)[9].path === 'assets/audio/voice/fx-hy-10/9.mp3' && voiceClips(sijo)[8].path === 'assets/audio/voice/fx-sijo-b/2-0.mp3', '낭송 조각 경로 규칙');

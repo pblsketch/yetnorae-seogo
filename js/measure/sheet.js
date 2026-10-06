@@ -1,6 +1,6 @@
 // 감정서(spec 5.5): 모은 증거를 말로 옮긴다. 갈래 이름 칸은 없다.
 // 증거 객체의 모양은 js/data/README.md 6절이다. 이 파일은 보이는 글만 만든다.
-import { count } from './labels.js';
+import { count, L } from './labels.js';
 import { unitName } from './text.js';
 
 const MAX_LIST = 5;
@@ -15,10 +15,11 @@ function foldLine(sheet, unit) {
   return '[' + count(sheet.fold.units, unit) + ']';
 }
 
+// 두드리기 증거. 고려가요 줄은 박에 드는 음보만 센다(여음·후렴만 있는 줄은 빼고 센다).
 function tapLine(sheet, unit) {
   const t = sheet.tap;
   if (t.mode === 'gu') return '[' + unit + '마다 한 박, 모두 ' + count(t.gu, '박') + ']';
-  const list = t.mode === 'lines' ? t.feet.flat() : t.feet;
+  const list = t.mode === 'lines' ? t.feet.flat().filter((c) => c > 0) : t.feet;
   const per = t.mode === 'lines' ? '줄' : unit;
   if (list.length && list.every((c) => c === list[0])) return '[' + per + '마다 ' + count(list[0], '음보') + ']';
   if (list.length <= MAX_LIST) return '[' + per + '마다 음보 ' + list.join(' · ') + ']';
@@ -54,6 +55,7 @@ export function sheetLines(sheet, song, { neutral = false } = {}) {
   const out = [];
   if (sheet.fold) out.push({ kind: 'fold', text: foldLine(sheet, unit) });
   if (sheet.tap) out.push({ kind: 'tap', text: tapLine(sheet, unit) });
+  if (sheet.tap?.refrains > 0) out.push({ kind: 'tap', text: L.sheetRefrains });
   const actions = sheet.actions ?? (sheet.action ? [sheet.action] : []);
   for (const a of actions) out.push({ kind: 'action', action: a.action, text: actionLine(a, song, unit) });
   return out;

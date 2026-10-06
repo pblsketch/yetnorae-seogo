@@ -9,6 +9,7 @@
 // 놓친 지점은 그 앞뒤 단위를 다시 들려준다. 찾은 지점은 저장하지 않는다(나갔다 오면 2단계를 처음부터).
 import * as bus from '../core/events.js';
 import * as Rh from '../core/rhythm.js';
+import { joinFeet } from '../core/song-shape.js';
 import { conceptsOfGenre } from '../data/concepts.js';
 import { BOSS_TEXT as T } from '../data/boss-text.js';
 import { el, button, waitClick, abortError } from './dom.js';
@@ -20,7 +21,7 @@ export function remixLines(grid, songById) {
     const u = song?.units?.[seg.unit];
     let text = '';
     if (song?.genre === 'hyangga') text = u?.reading ?? '';
-    else if (song?.genre === 'goryeo') text = (u?.lines?.[seg.line]?.feet ?? []).map((f) => f.reading).join(' ');
+    else if (song?.genre === 'goryeo') text = joinFeet(u?.lines?.[seg.line]?.feet ?? [], 'reading');
     else text = (u?.feet ?? []).map((f) => f.reading).join(' ');
     return { seg: seg.index, fragment: seg.fragment, text };
   });

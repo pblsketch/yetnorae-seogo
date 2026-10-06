@@ -21,6 +21,7 @@ import { GENRES, GENRE_IDS, PLAY_WING_IDS, BOSS_PLACE_ID, wingById, wingOfGenre 
 import { CONCEPTS, CONCEPT_IDS, SINGER_GROUP_IDS, SINGER_CLASSES } from '../data/concepts.js';
 import {
   GASA_FOUR_FOOT_MIN_RATIO, HYANGGA_GU_COUNTS, HYANGGA_TEN_GROUPING,
+  OFFBEAT_KINDS, REFRAIN_FOOT_KINDS, isMetricFoot,
   deriveConcepts, feetCounts, finalFirstFootSyllables, songText, squash,
 } from './song-shape.js';
 
@@ -153,12 +154,61 @@ function validateRoles(roles, add) {
   return ok;
 }
 
-// 음보 하나: { original, reading }
-function checkFeet(feet, label, form) {
+// 음보 하나: { original, reading } — 고려가요만 { kind?, joined? }를 더 쓴다(추가 제안 T31)
+const FOOT_KEYS = ['original', 'reading'];
+const GORYEO_FOOT_KEYS = ['original', 'reading', 'kind', 'joined'];
+function checkFeet(feet, label, form, goryeo = false) {
   if (!Array.isArray(feet) || feet.length === 0) { form(label + '에 음보 표시가 없다'); return; }
+  const allowed = goryeo ? GORYEO_FOOT_KEYS : FOOT_KEYS;
   feet.forEach((f, i) => {
-    if (!isObj(f) || !isStr(f.original) || !isStr(f.reading)) form(label + ' ' + (i + 1) + '번째 음보에 original·reading이 없다');
+    const at = label + ' ' + (i + 1) + '번째 음보';
+    if (!isObj(f) || !isStr(f.original) || !isStr(f.reading)) { form(at + '에 original·reading이 없다'); return; }
+    for (const k of Object.keys(f)) if (!allowed.includes(k)) form(at + ': 약속에 없는 열쇠 ' + k + (goryeo ? '' : '(kind·joined는 고려가요에만 쓴다)'));
+    if (!goryeo) return;
+    if (f.kind !== undefined && !OFFBEAT_KINDS.includes(f.kind)) form(at + ': kind는 ' + OFFBEAT_KINDS.join('·') + ' 가운데 하나여야 한다');
+    if (f.joined !== undefined && f.joined !== true) form(at + ': joined는 true로만 쓴다');
+    if (f.joined === true && i === 0) form(at + ': 줄의 첫 음보는 앞 음보에 붙일(joined) 수 없다');
+    if (f.joined === true && (/^\s|\s$/.test(f.original) || /^\s|\s$/.test(f.reading))) form(at + ': 붙여 쓰는(joined) 음보는 앞뒤에 빈칸이 없어야 한다');
   });
+}
+
+// 고려가요 박 밖 음보(여음·후렴·되풀이 머리)와 features.refrains가 서로 맞는지(추가 제안 T31)
+//  - 여음·후렴 구간 안의 음보는 모두 그 kind로 표시되어 있다(박에서 빠진다)
+//  - kind가 여음·후렴인 음보는 같은 kind의 구간 안에 있다(표시와 구간이 어긋나지 않는다)
+//  - 되풀이 머리(repeat)는 구간에 들지 않고, 바로 뒤에 여음이 오며 그 뒤에 박에 드는 음보가 있다(뒤 음보를 앞당겨 부른 것)
+//  - 노래에 박에 드는 음보가 하나는 있다(전부 듣기만 하는 노래는 잴 수 없다)
+function checkOffbeat(song, units, refrains, form) {
+  const covered = new Map(); // 'u-l-f' → kind
+  for (const r of Array.isArray(refrains) ? refrains : []) {
+    if (!isObj(r) || !REFRAIN_FOOT_KINDS.includes(r.kind)) continue;
+    for (const g of Array.isArray(r.ranges) ? r.ranges : []) {
+      const feet = units[g?.unit]?.lines?.[g?.line]?.feet;
+      if (!Array.isArray(feet) || !isInt(g.from) || !isInt(g.to)) continue;
+      for (let i = g.from; i <= g.to && i < feet.length; i++) {
+        covered.set(g.unit + '-' + g.line + '-' + i, r.kind);
+        if (feet[i]?.kind !== r.kind) form((g.unit + 1) + '연 ' + (g.line + 1) + '줄 ' + (i + 1) + '번째 음보: ' + r.kind + ' 구간 안인데 음보 표시(kind)가 ' + (feet[i]?.kind ?? '없음') + '이다(여음·후렴은 박에서 빼고 표시한다)');
+      }
+    }
+  }
+  let metric = 0;
+  units.forEach((u, ui) => (Array.isArray(u?.lines) ? u.lines : []).forEach((l, li) => {
+    const feet = Array.isArray(l?.feet) ? l.feet : [];
+    feet.forEach((f, fi) => {
+      if (!isObj(f)) return;
+      if (isMetricFoot(f)) { metric++; return; }
+      const where = (ui + 1) + '연 ' + (li + 1) + '줄 ' + (fi + 1) + '번째 음보';
+      const key = ui + '-' + li + '-' + fi;
+      if (REFRAIN_FOOT_KINDS.includes(f.kind) && covered.get(key) !== f.kind) form(where + ': ' + f.kind + '로 표시했는데 features.refrains의 같은 kind 구간에 없다');
+      if (f.kind === 'repeat') {
+        if (covered.has(key)) form(where + ': 되풀이 머리(repeat)는 여음·후렴 구간에 넣지 않는다');
+        // 「서경별곡」 '긴히ᄯᆞᆫ 아즐가 긴힛ᄯᆞᆫ'처럼 원문 표기가 조금 다를 수 있어 글자는 맞대지 않고 모양만 본다
+        if (feet[fi + 1]?.kind !== 'yeoeum' || !feet.slice(fi + 2).some((x) => isObj(x) && isMetricFoot(x))) {
+          form(where + ': 되풀이 머리(repeat)는 바로 뒤에 여음이 오고, 그 뒤에 박에 드는 음보가 있어야 한다');
+        }
+      }
+    });
+  }));
+  if (metric === 0) form('박에 드는 음보가 하나도 없다(모두 여음·후렴으로 표시됨)');
 }
 
 function validateForm(song, f, form) {
@@ -188,7 +238,7 @@ function validateForm(song, f, form) {
         if (!Array.isArray(u?.lines) || u.lines.length === 0) { form((i + 1) + '연에 줄(lines)이 없다'); return; }
         if (u.feet !== undefined) form((i + 1) + '연: 고려가요는 음보를 줄마다 적는다');
         u.lines.forEach((l, j) => {
-          checkFeet(l?.feet, (i + 1) + '연 ' + (j + 1) + '줄', form);
+          checkFeet(l?.feet, (i + 1) + '연 ' + (j + 1) + '줄', form, true);
           if (!isStr(l?.gloss)) form((i + 1) + '연 ' + (j + 1) + '줄에 gloss가 없다');
         });
       });
@@ -205,6 +255,7 @@ function validateForm(song, f, form) {
           }
         }
       });
+      checkOffbeat(song, units, refrains, form);
       break;
     }
     case 'sijo':

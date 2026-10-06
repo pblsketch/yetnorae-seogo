@@ -1,6 +1,8 @@
 // 노래를 두루마리에 펼칠 조각(말)으로 나눈다. 화면과 상관없는 계산만 둔다.
 // 조각 하나 = 말 하나: { u(단위), l(줄, 고려가요만, 아니면 null), f(음보, 향가는 0), w(음보 안 말 번호), text,
-//                       footEnd(음보의 끝 말), kind: 'word' | 'gloss' }
+//                       footEnd(음보의 끝 말), kind: 'word' | 'gloss',
+//                       mark(박에 들지 않는 음보의 표시 'yeoeum'|'refrain'|'repeat', 아니면 null), markStart(같은 표시가 이어지는 첫 말),
+//                       joined(앞 음보와 한 낱말이라 띄우지 않는 첫 말) }
 // 원문·오늘 소리는 음보마다 말로 나누고, 풀이는 단위(고려가요는 줄)마다 말로 나눈다.
 // 향가는 구 하나를 음보 하나(f = 0)로 다룬다. 향찰처럼 띄어 쓰지 않은 글은 세 글자씩 끊어 말로 삼는다.
 import { genreById } from '../data/wings.js';
@@ -40,23 +42,25 @@ export function splitWords(text) {
   return out;
 }
 
-// 음보 목록(재생 순서): [{ u, l, f, original, reading }]
+// 음보 목록(재생 순서): [{ u, l, f, original, reading, mark, joined }]
+//  mark: 고려가요에서 박에 들지 않는 음보(여음·후렴·되풀이 머리)의 표시. 박에 드는 음보는 null.
 export function feetOf(song) {
   const out = [];
   arr(song?.units).forEach((unit, u) => {
-    if (song.genre === 'hyangga') out.push({ u, l: null, f: 0, original: unit.original, reading: unit.reading });
-    else if (song.genre === 'goryeo') arr(unit.lines).forEach((line, l) => arr(line.feet).forEach((ft, f) => out.push({ u, l, f, original: ft.original, reading: ft.reading })));
-    else arr(unit.feet).forEach((ft, f) => out.push({ u, l: null, f, original: ft.original, reading: ft.reading }));
+    if (song.genre === 'hyangga') out.push({ u, l: null, f: 0, original: unit.original, reading: unit.reading, mark: null, joined: false });
+    else if (song.genre === 'goryeo') arr(unit.lines).forEach((line, l) => arr(line.feet).forEach((ft, f) => out.push({ u, l, f, original: ft.original, reading: ft.reading, mark: ft.kind ?? null, joined: !!ft.joined })));
+    else arr(unit.feet).forEach((ft, f) => out.push({ u, l: null, f, original: ft.original, reading: ft.reading, mark: null, joined: false }));
   });
   return out;
 }
 
 // 두드리기 단위(rhythm.js buildGrid의 단위와 같은 순서): 향가는 구, 고려가요는 줄, 나머지는 장·행
+//  feet: 그 단위에서 박에 드는 음보 수(고려가요 후렴만 있는 줄은 0, 듣기만 한다)
 export function segmentsOf(song) {
   const out = [];
   arr(song?.units).forEach((unit, u) => {
     if (song.genre === 'hyangga') out.push({ u, l: null, feet: 1 });
-    else if (song.genre === 'goryeo') arr(unit.lines).forEach((line, l) => out.push({ u, l, feet: arr(line.feet).length }));
+    else if (song.genre === 'goryeo') arr(unit.lines).forEach((line, l) => out.push({ u, l, feet: arr(line.feet).filter((ft) => !ft?.kind).length }));
     else out.push({ u, l: null, feet: arr(unit.feet).length });
   });
   return out;
@@ -76,7 +80,7 @@ export function piecesOf(song, layer) {
   } else {
     for (const ft of feetOf(song)) {
       const words = splitWords(ft[layer] ?? ft.reading);
-      words.forEach((text, w) => out.push({ kind: 'word', u: ft.u, l: ft.l, f: ft.f, w, text, footEnd: w === words.length - 1 }));
+      words.forEach((text, w) => out.push({ kind: 'word', u: ft.u, l: ft.l, f: ft.f, w, text, footEnd: w === words.length - 1, mark: ft.mark, joined: w === 0 && ft.joined }));
     }
   }
   // 쪽을 나눌 수 있는 자리 표시
@@ -86,6 +90,11 @@ export function piecesOf(song, layer) {
     p.unitStart = !prev || prev.u !== p.u;
     p.lineStart = p.unitStart || prev.l !== p.l;
     p.footStart = p.lineStart || (p.kind === 'word' && prev.f !== p.f);
+    if (p.kind === 'word') {
+      p.mark = p.mark ?? null;
+      p.joined = !!p.joined && !p.lineStart;
+      p.markStart = !!p.mark && (p.lineStart || prev.mark !== p.mark);
+    }
   });
   return out;
 }

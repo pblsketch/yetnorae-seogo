@@ -6,7 +6,11 @@
 // 쪽 나누기: 지금 글 상자에 들어가는 만큼 단위를 담는다. 한 단위가 넘치면 음보(풀이는 말) 경계에서 나눈다.
 // 이어진 글줄에서는 다음 쪽 첫 말을 흐리게 함께 보여, 쪽 끝의 틈도 누를 수 있게 한다.
 // 꾸밈(불 켜짐, 빗금, 고리, 접힘)은 글자 배치를 바꾸지 않는 표시만 쓴다. 그래서 꾸밈을 바꿔도 쪽이 넘치지 않는다.
+// 고려가요의 여음·후렴·되풀이 머리(박에 들지 않는 음보)는 단위 덩이에서 이름표(글자)와 점선 테두리로 늘 표시한다.
+// 색에만 기대지 않는다. 이름표는 같은 표시가 이어지는 첫 음보(쪽이 그 가운데서 시작하면 쪽 첫 음보)에만 붙인다.
+// 낱말 안에서 나눈 음보(joined)는 앞 음보와 띄우지 않고 가는 경계선만 보인다.
 import { piecesOf } from './text.js';
+import { MARK_NAMES } from './labels.js';
 
 export function createTextView(area, { song, layer = 'original' } = {}) {
   let curLayer = layer;
@@ -25,7 +29,7 @@ export function createTextView(area, { song, layer = 'original' } = {}) {
   const interactiveGaps = () => mode.flow && mode.interactive === 'gap' && !isGloss();
 
   function makeWord(p, lookahead = false) {
-    const button = interactiveWords() && !lookahead;
+    const button = interactiveWords() && !lookahead && (!mode.wordFilter || mode.wordFilter(p));
     const el = document.createElement(button ? 'button' : 'span');
     if (button) el.type = 'button';
     el.className = 'm-word' + (lookahead ? ' is-lookahead' : '');
@@ -59,7 +63,7 @@ export function createTextView(area, { song, layer = 'original' } = {}) {
       p.append(makeWord(pieces[i]));
       if (i + 1 < pieces.length && (i + 1 < e || gaps)) {
         if (gaps) p.append(makeGap(i));
-        else p.append(' ');
+        else if (!pieces[i + 1].joined) p.append(' ');
       }
     }
     if (e < pieces.length && gaps) p.append(makeWord(pieces[e], true));
@@ -90,15 +94,24 @@ export function createTextView(area, { song, layer = 'original' } = {}) {
       }
       if (p.kind === 'word' && (first || p.footStart || !footEl)) {
         footEl = document.createElement('span');
-        footEl.className = 'm-foot';
+        footEl.className = 'm-foot' + (p.mark ? ' is-offbeat is-' + p.mark : '') + (p.joined ? ' is-joined' : '');
         footEl.dataset.u = p.u;
         footEl.dataset.l = p.l ?? '';
         footEl.dataset.f = p.f;
-        if (lineEl.childNodes.length) lineEl.append(' ');
+        if (p.mark) {
+          footEl.dataset.mark = p.mark;
+          if (p.markStart || first) {
+            const tag = document.createElement('span');
+            tag.className = 'm-mark';
+            tag.textContent = MARK_NAMES[p.mark] ?? p.mark;
+            footEl.append(tag);
+          }
+        }
+        if (lineEl.childNodes.length && !p.joined) lineEl.append(' ');
         lineEl.append(footEl);
       }
       const host = p.kind === 'word' ? footEl : lineEl;
-      if (host.childNodes.length) host.append(' ');
+      if ([...host.childNodes].some((n) => !(n.classList?.contains('m-mark')))) host.append(' ');
       host.append(makeWord(p));
     }
     return out;
@@ -235,7 +248,8 @@ export function createTextView(area, { song, layer = 'original' } = {}) {
       }
       show(k);
     },
-    // 보이는 방식과 누르기 처리를 바꾼다. { flow, interactive: 'gap'|'word'|null, grey, onGap, onWord, decorateWord, decorateGap }
+    // 보이는 방식과 누르기 처리를 바꾼다. { flow, interactive: 'gap'|'word'|null, grey, onGap, onWord, decorateWord, decorateGap,
+    //   wordFilter(조각) → 그 말을 누를 수 있게 할지(없으면 모두) }
     setMode(next) {
       mode = { flow: false, interactive: null, ...next };
       relayout();

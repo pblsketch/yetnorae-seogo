@@ -2,6 +2,8 @@
 // 갈래를 알려 주는 말(갈래 이름)은 쓰지 않는다. 판단은 학생이 꽂는 자리로 한다(spec 5.5).
 
 export const LAYERS = ['original', 'reading', 'gloss'];
+// 박에 들지 않는 음보의 이름표(두루마리에 늘 보인다). 낭송은 하지만 장구를 치지 않고 빗금도 긋지 않는다.
+export const MARK_NAMES = { yeoeum: '여음', refrain: '후렴', repeat: '되풀이' };
 export const LAYER_NAMES = { original: '원문', reading: '오늘 소리', gloss: '풀이' };
 
 export const L = {
@@ -20,10 +22,13 @@ export const L = {
   foldDone: '다 접었어요.',
   // 두드리기·빗금
   tapHint: '낭송을 들으며 소리 마디가 울릴 때마다 장구를 치세요.',
+  tapHintOffbeat: '소리 마디가 울릴 때마다 장구를 치세요. 여음·후렴·되풀이 표시가 붙은 곳은 치지 않아요.',
   listen: '낭송 듣기',
   drum: '장구',
   replay: '놓친 박이 있어요. 그 줄을 다시 들어요.',
+  listenOnly: '후렴 줄이에요. 장구는 쉬고 들어 보세요.',
   slashHint: '마디가 끝나는 말 뒤를 눌러 빗금을 그으세요. 서두르지 않아도 돼요.',
+  slashOffbeatHint: '마디가 끝나는 말 뒤를 눌러 빗금을 그으세요. 여음·후렴·되풀이 표시가 붙은 곳은 이미 나뉘어 있어요.',
   suggest: '박이 잘 안 맞나요? 빗금으로 재도 같은 증거가 모여요.',
   suggestYes: '빗금으로 할래요',
   suggestNo: '계속 칠래요',
@@ -35,6 +40,8 @@ export const L = {
   finish: '감정서 받기',
   preMeasured: '미리 잰 노래예요. 감정서가 채워져 있어요.',
   sheetTitle: '감정서',
+  // 감정서 줄: 두드리는 동안 두루마리에 표시된 여음·후렴(박에 들지 않는 소리)이 있었다
+  sheetRefrains: '[여음·후렴이 있다]',
   showScroll: '두루마리 보기',
   showSheet: '감정서 보기',
   // 첫 사용 안내

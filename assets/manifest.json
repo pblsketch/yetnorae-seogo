@@ -5034,10 +5034,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "가시리잇고"
+      "notes": "가시리"
     },
     {
       "path": "assets/audio/voice/gasiri/0-0-2.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "잇고"
+    },
+    {
+      "path": "assets/audio/voice/gasiri/0-0-3.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
@@ -5061,10 +5070,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "가시리잇고"
+      "notes": "가시리"
     },
     {
       "path": "assets/audio/voice/gasiri/0-1-2.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "잇고"
+    },
+    {
+      "path": "assets/audio/voice/gasiri/0-1-3.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
@@ -5142,10 +5160,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "가시리잇고"
+      "notes": "가시리"
     },
     {
       "path": "assets/audio/voice/gasiri/1-1-2.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "잇고"
+    },
+    {
+      "path": "assets/audio/voice/gasiri/1-1-3.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
@@ -5196,7 +5223,7 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "두어리마"
+      "notes": "두어리"
     },
     {
       "path": "assets/audio/voice/gasiri/2-0-2.mp3",
@@ -5205,7 +5232,7 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "나는"
+      "notes": "마나는"
     },
     {
       "path": "assets/audio/voice/gasiri/2-1-0.mp3",
@@ -5277,10 +5304,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "보내압노니"
+      "notes": "보내압"
     },
     {
       "path": "assets/audio/voice/gasiri/3-0-2.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "노니"
+    },
+    {
+      "path": "assets/audio/voice/gasiri/3-0-3.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
@@ -5304,10 +5340,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "도서 오소서"
+      "notes": "도서"
     },
     {
       "path": "assets/audio/voice/gasiri/3-1-2.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "오소서"
+    },
+    {
+      "path": "assets/audio/voice/gasiri/3-1-3.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
@@ -7725,10 +7770,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "세몰애 별헤"
+      "notes": "세몰애"
     },
     {
       "path": "assets/audio/voice/jeongseokga/1-0-2.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "별헤"
+    },
+    {
+      "path": "assets/audio/voice/jeongseokga/1-0-3.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
@@ -7752,10 +7806,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "세몰애 별헤"
+      "notes": "세몰애"
     },
     {
       "path": "assets/audio/voice/jeongseokga/1-1-2.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "별헤"
+    },
+    {
+      "path": "assets/audio/voice/jeongseokga/1-1-3.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
@@ -8049,10 +8112,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "텰릭을 말아"
+      "notes": "텰릭을"
     },
     {
       "path": "assets/audio/voice/jeongseokga/3-0-2.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "말아"
+    },
+    {
+      "path": "assets/audio/voice/jeongseokga/3-0-3.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
@@ -8076,10 +8148,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "텰릭을 말아"
+      "notes": "텰릭을"
     },
     {
       "path": "assets/audio/voice/jeongseokga/3-1-2.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "말아"
+    },
+    {
+      "path": "assets/audio/voice/jeongseokga/3-1-3.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
@@ -8418,7 +8499,16 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "그츠리잇가"
+      "notes": "그츠리"
+    },
+    {
+      "path": "assets/audio/voice/jeongseokga/5-2-2.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "잇가"
     },
     {
       "path": "assets/audio/voice/jeongseokga/5-3-0.mp3",
@@ -8490,7 +8580,16 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "그츠리잇가"
+      "notes": "그츠리"
+    },
+    {
+      "path": "assets/audio/voice/jeongseokga/5-5-2.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-b2(voice-design-1 seed 5309, 기준 음성 sha256 fa2edc5c7297) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "잇가"
     },
     {
       "path": "assets/audio/voice/mojukjirangga/0.mp3",
@@ -13035,10 +13134,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "그츠리잇가"
+      "notes": "그츠리"
     },
     {
       "path": "assets/audio/voice/seogyeong-byeolgok/1-2-4.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "잇가"
+    },
+    {
+      "path": "assets/audio/voice/seogyeong-byeolgok/1-2-5.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
@@ -13179,10 +13287,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "그츠리잇가"
+      "notes": "그츠리"
     },
     {
       "path": "assets/audio/voice/seogyeong-byeolgok/1-6-4.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "잇가"
+    },
+    {
+      "path": "assets/audio/voice/seogyeong-byeolgok/1-6-5.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
@@ -13323,10 +13440,19 @@
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
       "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
       "commercialUse": true,
-      "notes": "것고리이다"
+      "notes": "것고리"
     },
     {
       "path": "assets/audio/voice/seogyeong-byeolgok/2-10-4.mp3",
+      "kind": "voice",
+      "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
+      "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
+      "license": "Fish Audio 이용약관(2024-08-18 시행) \"Your Use of Services\" 조항: 유료 서비스(Paid Services) 이용자는 서비스를 상업적 용도로 쓸 수 있다. 유료 API(종량 과금) 모델로 만든 AI 합성 음성이며, 실제 사람의 목소리를 본뜨지 않고 글 설명만으로 설계한 목소리다. 출처 화면에 AI 합성 음성임을 밝힌다.",
+      "commercialUse": true,
+      "notes": "이다"
+    },
+    {
+      "path": "assets/audio/voice/seogyeong-byeolgok/2-10-5.mp3",
       "kind": "voice",
       "source": "Fish Audio TTS API(s2.1-pro) — AI 합성 낭송",
       "generator": "tools/voice/build_voice.py · 모델 s2.1-pro · 목소리 narrator-a2(voice-design-1 seed 2711, 기준 음성 sha256 ed75328556f7) · 유료 API",
