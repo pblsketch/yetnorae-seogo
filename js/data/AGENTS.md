@@ -26,6 +26,7 @@
 - 노래 id는 `SONG_CATALOG`에 있는 것만 쓴다. 영문 소문자·숫자·하이픈이다. 낯선 노래 자리 `sinheum-sijo`, `suneung-saseol`은 출제작을 고르기 전의 자리 이름이라 id는 그대로 두고 고른 작품 제목을 `title`에 쓴다.
 - 향가관 층 노래(`shelfFloors: [4, 8, 10]`)의 구 수는 그 층과 같다.
 - 형식 규칙: 시조 3장·장마다 4음보·종장 첫 음보 3음절, 사설시조 3장·종장 첫 음보 3음절·초장이나 중장이 4음보보다 김, 향가 4·8·10구(10구체는 `grouping: [4,4,2]`, 감탄사는 9구 `unit: 8`), 고려가요 연과 줄·줄마다 음보·후렴이나 여음 하나 이상, 가사 4행 이상·4음보 행 80% 이상. 글자 수는 오늘 소리로 센다.
+- **고려가요 음보 세기**(교사 결정): 여음·후렴은 음보에서 빼고, 음보는 낱말 안에서도 3·3·2로 나눈다. 박에 들지 않는 음보에는 `kind`(`yeoeum`·`refrain`·`repeat`)를, 낱말 안에서 나눈 뒤 조각에는 `joined: true`를 단다. 여음·후렴 음보의 `kind`와 `features.refrains` 구간은 하나하나 맞아야 한다(검증기 `FORM`). 3·3·2로 나뉘지 않는 줄을 억지로 세 음보로 맞추지 않는다. 나눈 근거와 자료가 갈리는 곳은 그 노래 `citationNote`의 '음보 세기'에 적는다. `kind`·`joined`는 고려가요 음보에만 쓴다.
 - `evidences`는 그 노래의 형식 표시와 단위에서 실제로 나오는 개념의 부분집합이고, 자기 갈래 개념만이다. 13개 개념 모두가 반드시 지나는 길(튜토리얼, 칸, 길 잃은 노래, 작품 방)의 서로 다른 노래 두 편 이상으로 먹이 될 수 있어야 한다. 노래나 `evidences`를 바꾸면 이 조건을 다시 확인한다.
 - 모든 노래에 `citation`과 `verification`이 있다. 교과서 수록 노래는 교과서 그대로 옮기고 `citation`에 "고등학교 공통국어2 교과서 수록본"처럼 쓴다. 출판사 이름은 어디에도 쓰지 않는다. 교과서 밖 원문·해독·풀이는 기억으로 쓰지 않고 찾은 자료에서 옮겨 출처를 적고 `pending`으로 둔다. 출처가 약한 자료(백과 위키, 카페 글)에서 옮겼으면 `citationNote`에 그 사실을 적는다. `verified`는 교과서 추출본과 글자 대조로 맞춘 교과서 노래, 또는 교사가 확인했다고 알려 준 노래에만 쓴다.
 - 교과서 대목 뒤에 이어 붙인 단위는 노래 끝에 모아 `beyondTextbook: true`와 `sourceNote`를 달고, 그 노래는 `pending`이다. 교과서 대목은 고치지 않는다.
@@ -38,6 +39,7 @@
 
 ## 구현 방식
 - 노래 글을 바꾸면 다른 곳의 번호도 따라 바뀐다. 함께 볼 곳: `rooms-goryeo.js`의 `finalUnit`·`echo`(「정석가」 마지막 연, 「서경별곡」 같은 연), `rooms-gasa.js`의 시어 `unit`과 머무는 곳 범위, 「님이 오마 하거늘」 중장의 `reversal.fromFoot`·`glossBefore`, `remix.js`의 `from`·`to`(예: 「찬기파랑가」 9~10구), 그 노래의 낭송 조각(단위·음보 수가 바뀌면 다시 만든다), 기념품 `phrase`.
+- 고려가요 음보 나눔이나 `kind`를 바꾸면 `tests/check-goryeo.mjs`의 `METRIC`(줄마다 박에 드는 음보 수)과 `JOINED_LINES`를 근거와 함께 고친다. 음보 경계가 바뀐 줄은 낭송을 다시 자른다. 낱말 안에서 나눌 때 `joined`를 달면 읽힐 줄 글이 그대로라 캐시로 자르기만 하고, 빈칸이 생기거나 사라지는 나눔은 그 줄 낭송을 새로 사야 한다.
 - 새 갈래 파일이나 새 글 파일을 더하면 `songs/index.js`에 등록하고, 글 파일이면 `tools/text/review-doc.mjs`의 `SOURCES`와 `tests/check-review-doc.mjs`의 `TEXT_FILES`에도 더한다.
 - 데이터를 고친 뒤 순서: `node tests/check-data.mjs` → 새 글자가 있으면 `python tools/fonts/build_fonts.py` → `node tools/text/review-doc.mjs` → `node tests/check-fonts.mjs`, `node tests/check-review-doc.mjs`, `node tests/check-credits.mjs`. 교과서 노래는 추출본이 있으면 `node tools/text/compare-textbook.mjs --only <id>`로 대조한다.
 - `README.md` 안의 예시 노래(`json example-song` 블록)는 `check-data`가 검증기로 돌려 본다. 약속을 바꾸면 이 예시도 맞게 고친다.

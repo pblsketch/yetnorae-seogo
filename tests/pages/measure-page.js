@@ -31,7 +31,8 @@ const engine = createAudioEngine({
 });
 engine.attachUnlock(document);
 
-const auto = { enabled: true, skip: 0, plays: [] };
+// skipOffbeat: 고려가요 여음·후렴 칸(박자 칸의 offbeat)은 치지 않는다(학생처럼 박에만 친다)
+const auto = { enabled: true, skip: 0, skipOffbeat: false, plays: [] };
 
 function drumTap() {
   const drum = document.querySelector('.measure .m-drum');
@@ -48,6 +49,7 @@ const wrappedEngine = new Proxy(engine, {
           onBeat: (b) => {
             opts.onBeat?.(b);
             if (!auto.enabled) return;
+            if (auto.skipOffbeat && grid.beats[b.beat]?.offbeat) return;
             if (auto.skip > 0) { auto.skip--; return; }
             drumTap();
           },
@@ -81,6 +83,8 @@ function open(o) {
   auto.plays.length = 0;
   auto.enabled = o.autoTap !== false;
   auto.skip = o.skip ?? 0;
+  auto.skipOffbeat = !!o.skipOffbeat;
+  auto.plays.length = 0;
   engine.setMuted(!!o.muted);
   engine.setSlashMode(!!o.slash);
   if (o.wing && o.wing !== 'entrance') world.enterWing(o.wing);

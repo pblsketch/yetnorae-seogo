@@ -38,6 +38,7 @@ import { interpretations as HYANGGA_INTERP } from '../js/data/rooms-hyangga.js';
 import { room as GORYEO_ROOM } from '../js/data/rooms-goryeo.js';
 import { roomSaseol } from '../js/data/rooms-saseol.js';
 import * as R from '../js/core/rhythm.js';
+import { joinFeet } from '../js/core/song-shape.js';
 
 // spec 0절의 미션 문장(제품 데이터에서 가져오지 않고 명세에서 옮겨 적는다)
 const MISSION_SPEC = '먹안개가 서고를 삼키기 전에, 흩어진 노래들을 제자리로 돌려보내 다시 불리게 하라.';
@@ -870,7 +871,7 @@ const REMIX_TEXT = REMIX_GRID.segments.map((seg) => {
   const s = song(seg.songId);
   const u = s.units[seg.unit];
   if (s.genre === 'hyangga') return u.reading;
-  if (s.genre === 'goryeo') return u.lines[seg.line].feet.map((f) => f.reading).join(' ');
+  if (s.genre === 'goryeo') return joinFeet(u.lines[seg.line].feet, 'reading');   // 낱말 안 나눔(joined)은 붙여 잇는다(보스 화면과 같은 글)
   return u.feet.map((f) => f.reading).join(' ');
 });
 

@@ -106,6 +106,32 @@
 .m-unit.is-cont { border-left-style: dashed; }
 .m-line { line-height: 1.75; }
 .m-foot { white-space: normal; }
+/* 박에 들지 않는 음보(고려가요 여음·후렴·되풀이 머리): 이름표 글자 + 점선 테두리 + 옅은 바탕. 색에만 기대지 않는다.
+   누를 수 없는 것이라 단청색을 쓰지 않는다. */
+.m-foot.is-offbeat {
+  padding: 0 4px;
+  border: 2px dotted var(--meok-soft);
+  border-radius: 10px;
+  background: var(--hanji-deep);
+  color: var(--meok-soft);
+}
+.m-foot.is-refrain { border-style: dashed; }
+.m-mark {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--meok-soft);
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: calc(12px * var(--text-scale));
+  font-weight: 700;
+  line-height: 1.4;
+  vertical-align: middle;
+  color: var(--meok);
+  background: var(--hanji);
+}
+/* 낱말 안에서 나눈 음보(3·3·2): 띄우지 않고 가는 경계선만 */
+.m-foot.is-joined { border-left: 1px dotted var(--meok-fog); padding-left: 1px; }
 .m-text.is-gloss { font-family: var(--font-ui); font-size: calc(16px * var(--text-scale)); }
 .m-text.is-gloss .m-line { line-height: 1.6; }
 

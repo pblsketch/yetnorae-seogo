@@ -154,8 +154,11 @@ const UNIT = { hyangga: '구', goryeo: '연', sijo: '장', saseol: '장', gasa: 
 const JANG = ['초장', '중장', '종장'];
 const ROLE = { tutorial: '튜토리얼', shelf: '칸', stray: '길 잃은 노래', room: '작품 방', bonus: '덤', unseen: '낯선 노래' };
 
+// 음보를 ' / '로 나눠 보인다. 고려가요의 박에 들지 않는 음보(여음·후렴·되풀이 머리)는 [여음 …]처럼 이름을 붙여 묶는다.
+// 낱말 안에서 나눈 음보(joined, 예: '가시리 / 잇고')도 ' / '로 나누어 보인다. 줄 끝에 박에 드는 음보 수를 적는다.
+const MARK = { yeoeum: '여음', refrain: '후렴', repeat: '되풀이' };
 function feetLine(feet, key) {
-  return (feet ?? []).map((f) => f?.[key] ?? '').join(' / ');
+  return (feet ?? []).map((f) => (f?.kind ? `[${MARK[f.kind] ?? f.kind} ${f?.[key] ?? ''}]` : f?.[key] ?? '')).join(' / ');
 }
 
 export function songBlock(s, ctx) {
@@ -199,7 +202,8 @@ export function songBlock(s, ctx) {
     } else if (s.genre === 'goryeo') {
       L.push(`- **${name}**${beyond}`);
       (u.lines ?? []).forEach((l, j) => {
-        L.push(`  - ${j + 1}줄 원문: ${feetLine(l.feet, 'original')}`);
+        const beats = (l.feet ?? []).filter((x) => !x?.kind).length;
+        L.push(`  - ${j + 1}줄 원문: ${feetLine(l.feet, 'original')} · ${beats ? '박 ' + beats + '개' : '듣기만 하는 줄(박 없음)'}`);
         L.push(`    - 오늘 소리: ${feetLine(l.feet, 'reading')}`);
         L.push(`    - 풀이: ${l.gloss}`);
       });

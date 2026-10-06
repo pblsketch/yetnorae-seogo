@@ -28,6 +28,26 @@ export function squash(text) {
   return String(text ?? '').normalize('NFC').replace(/\s+/g, '');
 }
 
+// ── 음보 표시(고려가요, js/data/README.md '추가 제안(T31)') ──
+// 고려가요 음보에는 박에 들지 않는 조각이 있다. 낭송은 하지만 두드리지 않고, 음보 수에도 세지 않는다.
+//  kind: 'yeoeum'(여음: 뜻 없는 소리) · 'refrain'(후렴) · 'repeat'(여음 앞에 미리 불러 두는 되풀이 머리)
+// joined: true면 앞 음보와 한 낱말이다(낱말 안에서 3·3·2로 나눈 곳, 예: '가시리 / 잇고'). 글을 이을 때 띄우지 않는다.
+export const OFFBEAT_KINDS = ['yeoeum', 'refrain', 'repeat'];
+export const REFRAIN_FOOT_KINDS = ['yeoeum', 'refrain'];
+
+// 박에 드는 음보인가(표시가 없으면 박에 든다)
+export const isMetricFoot = (f) => !f?.kind;
+
+// 음보들을 한 줄 글로 잇는다. joined인 음보 앞은 띄우지 않는다. layer: 'original' | 'reading'
+export function joinFeet(feet, layer = 'original') {
+  let out = '';
+  arr(feet).forEach((f, i) => {
+    if (i > 0 && !f?.joined) out += ' ';
+    out += f?.[layer] ?? '';
+  });
+  return out;
+}
+
 // 고려가요 연의 줄을 모두 펼친다: [{ unit, line, feet, gloss }]
 export function goryeoLines(song) {
   const out = [];
@@ -36,11 +56,17 @@ export function goryeoLines(song) {
 }
 
 // 단위마다 음보 수. 향가는 음보가 없으므로 null.
-// 고려가요는 [[줄마다 음보 수], …], 나머지는 [단위마다 음보 수].
+// 고려가요는 [[줄마다 박에 드는 음보 수], …](여음·후렴·되풀이 머리는 세지 않는다. 후렴만 있는 줄은 0), 나머지는 [단위마다 음보 수].
 export function feetCounts(song) {
   if (song?.genre === 'hyangga') return null;
-  if (song?.genre === 'goryeo') return arr(song.units).map((u) => arr(u?.lines).map((l) => arr(l?.feet).length));
+  if (song?.genre === 'goryeo') return arr(song.units).map((u) => arr(u?.lines).map((l) => arr(l?.feet).filter(isMetricFoot).length));
   return arr(song?.units).map((u) => arr(u?.feet).length);
+}
+
+// 고려가요에서 여음·후렴으로 표시한 음보 수(되풀이 머리는 빼고). 다른 갈래는 0.
+export function refrainFootCount(song) {
+  if (song?.genre !== 'goryeo') return 0;
+  return arr(song.units).reduce((n, u) => n + arr(u?.lines).reduce((m, l) => m + arr(l?.feet).filter((f) => REFRAIN_FOOT_KINDS.includes(f?.kind)).length, 0), 0);
 }
 
 // 노래의 한 층(layer) 글을 모두 이어 붙인다.
@@ -53,7 +79,7 @@ export function songText(song, layer) {
     } else if (song.genre === 'goryeo') {
       for (const l of arr(u?.lines)) {
         if (layer === 'gloss') parts.push(l?.gloss ?? '');
-        else parts.push(arr(l?.feet).map((f) => f?.[layer] ?? '').join(' '));
+        else parts.push(joinFeet(l?.feet, layer));
       }
     } else if (layer === 'gloss') {
       parts.push(u?.gloss ?? '');
@@ -117,7 +143,8 @@ export function deriveConcepts(song) {
     case 'goryeo': {
       if (n >= 2) out.add('goryeo-stanza');
       if (arr(f.refrains).length >= 1) out.add('goryeo-refrain');
-      const lines = counts.flat();
+      // 박에 드는 음보가 있는 줄만 센다(후렴만 있는 줄은 듣기만 하는 줄이다)
+      const lines = counts.flat().filter((c) => c > 0);
       if (lines.length && lines.filter((c) => c === 3).length / lines.length >= GORYEO_THREE_FOOT_MIN_RATIO) out.add('goryeo-3beat');
       break;
     }
@@ -156,10 +183,11 @@ export function deriveFoldEvidence(song) {
   return { units: arr(song?.units).length };
 }
 
-// 두드리기(빗금 모드도 같음): 향가는 구 수, 고려가요는 연마다 줄마다 음보 수, 나머지는 단위마다 음보 수
+// 두드리기(빗금 모드도 같음): 향가는 구 수, 고려가요는 연마다 줄마다 박에 드는 음보 수와 여음·후렴 음보 수,
+// 나머지는 단위마다 음보 수
 export function deriveTapEvidence(song) {
   if (song?.genre === 'hyangga') return { mode: 'gu', gu: arr(song.units).length };
-  if (song?.genre === 'goryeo') return { mode: 'lines', feet: feetCounts(song) };
+  if (song?.genre === 'goryeo') return { mode: 'lines', feet: feetCounts(song), refrains: refrainFootCount(song) };
   return { mode: 'feet', feet: feetCounts(song) };
 }
 

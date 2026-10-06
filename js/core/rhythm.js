@@ -1,7 +1,7 @@
 // 박자 엔진. 화면과 소리 판 없이 시각(초)만 다룬다. Node에서 바로 시험한다.
 // 노래의 낭송 조각을 일정한 박자 칸에 놓고, 탭을 판정 창으로 판정하고, 박자 보정값과 리믹스 지점을 계산한다.
 // 시각은 모두 '초'이고, 판정 창과 보정값만 'ms'다. 소리 판(audio.js)이 정한 시작 시각을 받아 칸을 연다(arm).
-import { voiceClipPath } from './song-shape.js';
+import { voiceClipPath, isMetricFoot } from './song-shape.js';
 
 // ── 조정 가능한 기본값(spec 5.3, 10.1, 15, 22) ──
 export const TAP_WINDOW_MS = 150;             // 두드리기 판정 창 ±ms(경계 포함)
@@ -34,12 +34,17 @@ export function tempoOf(song, opts = {}) {
 
 // 노래의 두드리기 단위 목록. 향가는 구, 고려가요는 줄, 나머지는 장·행.
 // 단위 하나 = [{ unit, line, foot, path }]
+// 고려가요의 여음·후렴·되풀이 머리(음보 kind)는 낭송 칸은 차지하지만 박이 아니다(offbeat: kind). 두드리기 판정 창을 열지 않는다.
 function tapUnits(song) {
   const out = [];
   arr(song?.units).forEach((u, unit) => {
     if (song.genre === 'hyangga') out.push({ unit, line: null, beats: [{ unit, line: null, foot: null, path: voiceClipPath(song.id, unit) }] });
     else if (song.genre === 'goryeo') {
-      arr(u?.lines).forEach((l, line) => out.push({ unit, line, beats: arr(l?.feet).map((_, foot) => ({ unit, line, foot, path: voiceClipPath(song.id, unit, line, foot) })) }));
+      arr(u?.lines).forEach((l, line) => out.push({ unit, line, beats: arr(l?.feet).map((f, foot) => {
+        const b = { unit, line, foot, path: voiceClipPath(song.id, unit, line, foot) };
+        if (!isMetricFoot(f)) b.offbeat = f.kind;
+        return b;
+      }) }));
     } else out.push({ unit, line: null, beats: arr(u?.feet).map((_, foot) => ({ unit, line: null, foot, path: voiceClipPath(song.id, unit, null, foot) })) });
   });
   return out;
@@ -58,6 +63,7 @@ function layout(parts, gapSec) {
     p.beats.forEach((b, k) => {
       const beat = { index: beats.length, time: t + k * p.beatSec, segment: index, unit: b.unit, line: b.line, foot: b.foot, path: b.path ?? null };
       if (b.sound) beat.sound = b.sound;
+      if (b.offbeat) beat.offbeat = b.offbeat;
       if (p.songId !== undefined) beat.songId = p.songId;
       seg.beats.push(beat.index);
       beats.push(beat);
@@ -70,7 +76,8 @@ function layout(parts, gapSec) {
 
 // 노래 한 편의 박자 칸. opts: { tempo, gapSec }
 // 돌려주는 값: { songId, genre, tempo, beatSec, gapSec, beats, segments, duration }
-//  beats[i]: { index, time(노래 시작 기준 초), segment, unit, line, foot, path }
+//  beats[i]: { index, time(노래 시작 기준 초), segment, unit, line, foot, path, offbeat? }
+//    offbeat: 고려가요 여음·후렴·되풀이 머리의 표시(kind). 낭송만 하고 두드리지 않는 칸이다.
 //  segments[i]: { index, unit, line, start, beatSec, duration, beats:[박 번호] } — 두드리기·다시 듣기 단위
 export function buildGrid(song, opts = {}) {
   const tempo = tempoOf(song, opts);
@@ -120,6 +127,8 @@ export function judgeTap(beatTime, tapTime, { offsetMs = 0, windowMs = TAP_WINDO
 // 두드리기 회차. 소리 판이 단위를 낼 때 arm(단위, 시작 시각)으로 열고, 단위가 끝나면 close(단위)로 닫는다.
 // close 결과의 replay가 true면 그 단위를 다시 듣게 한다(spec 5.3). 놓친 박은 회차 전체로 쌓아
 // 기준(MISS_SUGGEST_SLASH)에 닿는 순간 한 번 suggestSlash: true를 돌려준다.
+// 박이 아닌 칸(offbeat: 고려가요 여음·후렴)에는 판정 창을 열지 않고, 놓친 박으로도 세지 않는다.
+// 그래서 후렴만 있는 줄은 듣기만 하면 통과한다.
 export function createTapSession(grid, { offsetMs = 0, windowMs = TAP_WINDOW_MS, missLimit = MISS_SUGGEST_SLASH } = {}) {
   const armed = new Map();          // 단위 → [{ beat, time, hit }]
   const passed = new Set();
@@ -131,7 +140,7 @@ export function createTapSession(grid, { offsetMs = 0, windowMs = TAP_WINDOW_MS,
     arm(segIndex, at) {
       const seg = grid.segments[segIndex];
       if (!seg) throw new Error('없는 단위: ' + segIndex);
-      armed.set(segIndex, seg.beats.map((bi) => ({ beat: bi, time: at + (grid.beats[bi].time - seg.start), hit: false })));
+      armed.set(segIndex, seg.beats.filter((bi) => !grid.beats[bi].offbeat).map((bi) => ({ beat: bi, time: at + (grid.beats[bi].time - seg.start), hit: false })));
     },
     disarm(segIndex) { armed.delete(segIndex); },
     tap(tapTime) {
@@ -150,7 +159,7 @@ export function createTapSession(grid, { offsetMs = 0, windowMs = TAP_WINDOW_MS,
       return { hit: true, beat: b.index, segment: best.segIndex, unit: b.unit, line: b.line, foot: b.foot, deltaMs: best.deltaMs };
     },
     close(segIndex) {
-      const list = armed.get(segIndex) ?? grid.segments[segIndex].beats.map((bi) => ({ beat: bi, hit: false }));
+      const list = armed.get(segIndex) ?? grid.segments[segIndex].beats.filter((bi) => !grid.beats[bi].offbeat).map((bi) => ({ beat: bi, hit: false }));
       armed.delete(segIndex);
       const missedBeats = list.filter((e) => !e.hit).map((e) => e.beat);
       const missed = missedBeats.length;
@@ -161,6 +170,8 @@ export function createTapSession(grid, { offsetMs = 0, windowMs = TAP_WINDOW_MS,
       if (missed === 0) passed.add(segIndex);
       return { segment: segIndex, ok: missed === 0, missed, missedBeats, totalMissed, suggestSlash, replay: missed > 0 };
     },
+    // 박이 하나도 없는 단위(후렴만 있는 줄): 두드릴 것이 없어 듣기만 한다
+    listenOnly: (segIndex) => (grid.segments[segIndex]?.beats ?? []).every((bi) => !!grid.beats[bi].offbeat),
     missesBySegment: () => missesBy.slice(),
     totalMissed: () => totalMissed,
     done: () => passed.size === grid.segments.length,

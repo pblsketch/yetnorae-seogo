@@ -8,10 +8,14 @@
 //  - 「동동」은 두 달치(정월·이월), 「정읍사」 카드 문구, 「사모곡」 보스 무리
 //  - 「가시리」는 물건이 없어 '노래 속 마음' 카드(keepsake.kind: 'mind', 추가 제안 F1)이고 카드 한 줄(cardNote)이 있다
 //  - 『분류 수첩』 고려가요 쪽이 형식에 맞고 개념 셋을 모두 다룬다
+//  - 음보 세기(추가 제안 T31): 여음·후렴·되풀이 머리는 박에서 빠지고, 줄마다 박에 드는 음보 수가 정한 표와 같다.
+//    여음 글자와 같은 음보가 박으로 남아 있지 않고, 낱말 안에서 나눈 음보를 이으면 원래 글이 된다. 노래마다 근거 메모가 있다.
 // 음성 사례: 데이터를 일부러 망가뜨려 이 점검이 실제로 잡는지 확인한다.
 import { validateDataSet, validateNotebookPage } from '../js/core/validate.js';
-import { deriveConcepts, squash } from '../js/core/song-shape.js';
+import { deriveConcepts, squash, feetCounts, joinFeet, isMetricFoot } from '../js/core/song-shape.js';
 import { SONG_TABLE } from '../js/data/song-table.js';
+import { buildGrid, createTapSession } from '../js/core/rhythm.js';
+import { GORYEO_LINE_TEXT } from './fixtures/goryeo-line-text.mjs';
 import { conceptsOfGenre } from '../js/data/concepts.js';
 
 let failures = 0;
@@ -46,6 +50,30 @@ const lineText = (song, u, l, from, to, layer = 'original') =>
 const stanzaText = (song, u, layer = 'original') =>
   (song.units?.[u]?.lines ?? []).map((l) => (layer === 'gloss' ? l.gloss : (l.feet ?? []).map((f) => f[layer]).join(' '))).join('\n');
 
+// 줄마다 박에 드는 음보 수(교사 결정: 여음·후렴은 음보에서 뺀다, 3·3·2로 나눈다). 0은 후렴만 있어 듣기만 하는 줄.
+// 노래 글이나 음보 나눔을 바꾸면 이 표도 근거와 함께 고친다(근거는 노래의 citationNote '음보 세기').
+const METRIC = {
+  'cheongsan-byeolgok': [[3, 3, 3, 3, 0], [3, 3, 3, 2, 0], [3, 3, 3, 3, 0], [3, 2, 3, 3, 0], [3, 3, 3, 2, 0], [3, 3, 3, 3, 0], [3, 3, 3, 3, 0], [3, 3, 3, 3, 0]],
+  'seogyeong-byeolgok': [[3, 0, 3, 0, 3, 0, 3, 0], [3, 0, 3, 0, 3, 0, 3, 0], [3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0]],
+  gasiri: [[3, 3, 0], [3, 3, 0], [3, 3, 0], [3, 3, 0]],
+  jeongseokga: [[3, 3, 2], [3, 3, 3, 3, 3, 0], [3, 3, 3, 3, 3, 0], [3, 3, 3, 3, 3, 0], [3, 3, 2, 3, 3, 0], [3, 3, 3, 3, 3, 3]],
+  dongdong: [[3, 3, 3, 3, 0], [2, 3, 2, 3, 0]],
+  sangjeoga: [[3, 3, 3, 3]],
+  jeongeupsa: [[3, 2, 0, 0], [2, 2, 0], [2, 2, 0, 0]],
+  samogok: [[2, 3, 2, 0, 3, 2, 3]],
+};
+// 낱말 안에서 3·3·2로 나눈 줄: 음보를 이으면 원문 그대로여야 한다(띄어쓰기까지)
+const JOINED_LINES = [
+  ['cheongsan-byeolgok', 0, 0, '살어리 살어리랏다'],
+  ['cheongsan-byeolgok', 5, 1, '바ᄅᆞ래 살어리랏다'],
+  ['gasiri', 0, 0, '가시리 가시리잇고 나ᄂᆞᆫ'],
+  ['gasiri', 2, 0, '잡ᄉᆞ와 두어리마ᄂᆞᄂᆞᆫ'],
+  ['gasiri', 3, 0, '셜온 님 보내ᄋᆞᆸ노니 나ᄂᆞᆫ'],
+  ['seogyeong-byeolgok', 1, 2, '긴히ᄯᆞᆫ 아즐가 긴힛ᄯᆞᆫ 그츠리잇가 나ᄂᆞᆫ'],
+  ['seogyeong-byeolgok', 2, 10, 'ᄇᆡ 타들면 아즐가 ᄇᆡ 타들면 것고리이다 나ᄂᆞᆫ'],
+  ['jeongseokga', 5, 2, '긴힛ᄃᆞᆫ 그츠리잇가'],
+];
+
 // 고려가요 데이터 묶음을 점검해 문제 목록을 돌려준다(음성 사례에도 그대로 쓴다).
 function inspect(songs, page) {
   const problems = [];
@@ -78,12 +106,68 @@ function inspect(songs, page) {
       }
     }
 
+    // 4-1) 음보 세기: 박에 드는 음보 수가 정한 표와 같다
+    const counts = feetCounts(s);
+    if (METRIC[s.id] && JSON.stringify(counts) !== JSON.stringify(METRIC[s.id])) bad(s.id + ': 줄마다 박에 드는 음보 수 ' + JSON.stringify(counts) + ' ≠ 정한 표 ' + JSON.stringify(METRIC[s.id]));
+    // 4-2) 여음·후렴 구간 안의 음보는 박에서 빠져 있다(같은 kind)
+    for (const r of s.features?.refrains ?? []) {
+      for (const g of r.ranges ?? []) {
+        (s.units?.[g.unit]?.lines?.[g.line]?.feet ?? []).slice(g.from, g.to + 1).forEach((f, i) => {
+          if (f?.kind !== r.kind) bad(s.id + ': ' + (g.unit + 1) + '연 ' + (g.line + 1) + '줄 ' + (g.from + i + 1) + '번째 음보 "' + f?.original + '"가 ' + r.kind + ' 구간인데 박으로 남아 있다');
+        });
+      }
+    }
+    // 4-3) 한 음보짜리 여음 글자('아즐가', '나ᄂᆞᆫ', '히얘' 등)와 같은 음보가 박으로 남아 있지 않다
+    const yeoeumWords = new Set((s.features?.refrains ?? []).filter((r) => r.kind === 'yeoeum' && !/\s/.test(r.text.trim())).map((r) => squash(r.text)));
+    (s.units ?? []).forEach((u, ui) => (u.lines ?? []).forEach((l, li) => (l.feet ?? []).forEach((f, fi) => {
+      if (isMetricFoot(f) && yeoeumWords.has(squash(f.original))) bad(s.id + ': ' + (ui + 1) + '연 ' + (li + 1) + '줄 ' + (fi + 1) + '번째 음보 "' + f.original + '"는 여음인데 박으로 센다');
+    })));
+    // 4-4) 박자 칸: 판정 창이 열리는 박은 박에 드는 음보뿐이고, 여음·후렴 칸은 낭송만 한다
+    try {
+      const grid = buildGrid(s, { tempo: 60 });
+      const session = createTapSession(grid, {});
+      grid.segments.forEach((seg) => {
+        const line = s.units[seg.unit].lines[seg.line];
+        const metricBeats = seg.beats.filter((bi) => !grid.beats[bi].offbeat).length;
+        const metricFeet = line.feet.filter(isMetricFoot).length;
+        if (seg.beats.length !== line.feet.length) bad(s.id + ': ' + (seg.unit + 1) + '연 ' + (seg.line + 1) + '줄 낭송 칸 수가 음보 수와 다르다');
+        if (metricBeats !== metricFeet) bad(s.id + ': ' + (seg.unit + 1) + '연 ' + (seg.line + 1) + '줄 판정 창 ' + metricBeats + '개 ≠ 박에 드는 음보 ' + metricFeet + '개');
+        seg.beats.forEach((bi) => { const k = line.feet[grid.beats[bi].foot]?.kind; if ((grid.beats[bi].offbeat ?? undefined) !== k) bad(s.id + ': 박 ' + bi + '의 offbeat 표시가 음보 kind와 다르다'); });
+        if (session.listenOnly(seg.index) !== (metricFeet === 0)) bad(s.id + ': ' + (seg.unit + 1) + '연 ' + (seg.line + 1) + '줄 듣기만 하는 줄 판단이 어긋난다');
+      });
+    } catch (e) { bad(s.id + ': 박자 칸을 만들 수 없다 — ' + e.message); }
+
+    // 4-5) 근거 메모
+    if (!/음보 세기/.test(s.citationNote ?? '')) bad(s.id + ': citationNote에 음보 세기의 근거("음보 세기")가 없다');
+
     // 5) 출처
     if (s.verification !== 'pending') bad(s.id + ': 교과서 밖 글이므로 verification은 pending이어야 한다');
     if (s.id === 'jeongseokga') {
       if (s.sourceType !== 'textbook-literature') bad('jeongseokga: sourceType은 textbook-literature여야 한다');
       if (!/문학 교과서/.test(s.citation + (s.citationNote ?? '')) || !/교체|바꾼다|바꿀/.test(s.citation + (s.citationNote ?? ''))) bad('jeongseokga: 문학 교과서 수록본으로 바꿀 예정이라는 메모가 없다');
     } else if (s.sourceType !== 'old-text') bad(s.id + ': sourceType은 old-text여야 한다');
+  }
+
+  // 5-1) 낱말 안에서 나눈 음보를 이으면 원문 그대로다
+  for (const [id, u, l, want] of JOINED_LINES) {
+    const line = get(id)?.units?.[u]?.lines?.[l];
+    if (!line) { bad(id + ': ' + (u + 1) + '연 ' + (l + 1) + '줄이 없다'); continue; }
+    if (joinFeet(line.feet, 'original') !== want) bad(id + ': ' + (u + 1) + '연 ' + (l + 1) + '줄 음보를 이은 글 "' + joinFeet(line.feet, 'original') + '" ≠ 원문 "' + want + '"');
+  }
+
+  // 5-2) 모든 줄: 음보를 이은 글이 원문 줄 글(띄어쓰기까지, tests/fixtures/goryeo-line-text.mjs)과 같다.
+  //      낱말 안에서 나눈 곳에 빈칸이 끼거나(joined 빠짐) 낱말 사이가 붙으면 잡힌다.
+  for (const s of songs) {
+    const want = GORYEO_LINE_TEXT[s?.id];
+    if (!want) { bad((s?.id ?? '?') + ': 원문 줄 글 사본이 없다'); continue; }
+    (s.units ?? []).forEach((u, ui) => (u.lines ?? []).forEach((l, li) => {
+      const got = joinFeet(l.feet, 'original');
+      if (got !== want[ui]?.[li]) bad(s.id + ': ' + (ui + 1) + '연 ' + (li + 1) + '줄 음보를 이은 글 "' + got + '" ≠ 원문 "' + want[ui]?.[li] + '"');
+      // 오늘 소리도 낱말 안 나눔에는 빈칸이 없다(낭송에 읽히는 줄 글)
+      (l.feet ?? []).forEach((f, fi) => {
+        if (f?.joined && (/\s$/.test(l.feet[fi - 1]?.reading ?? '') || /^\s/.test(f.reading))) bad(s.id + ': ' + (ui + 1) + '연 ' + (li + 1) + '줄 ' + (fi + 1) + '번째 음보: 붙여 쓰는 오늘 소리에 빈칸이 있다');
+      });
+    }));
   }
 
   // 6) 「정석가」 작품 방
@@ -171,6 +255,16 @@ console.log('\n[고려가요] 음성 사례 (망가뜨린 데이터를 잡아야
     ['가시리 마음 카드 한 줄을 지움', (songs) => { delete songs.find((s) => s.id === 'gasiri').cardNote; }],
     ['가시리 마음 카드 낱말을 노래에 없는 말로 바꿈', (songs) => { const k = songs.find((s) => s.id === 'gasiri').keepsake; k.word = '이별'; k.phrase = '셜온 님 이별'; }],
     ['청산별곡을 마음 카드로 바꿈', (songs) => { songs.find((s) => s.id === 'cheongsan-byeolgok').keepsake.kind = 'mind'; }],
+    ['가시리 여음 나ᄂᆞᆫ을 박으로 셈', (songs) => { delete songs.find((s) => s.id === 'gasiri').units[0].lines[0].feet[3].kind; }],
+    ['서경별곡 되풀이 머리를 박으로 셈(다섯 음보)', (songs) => { const l = songs.find((s) => s.id === 'seogyeong-byeolgok').units[0].lines[0]; delete l.feet[0].kind; delete l.feet[1].kind; }],
+    ['청산별곡 후렴 줄을 박으로 셈', (songs) => { for (const f of songs.find((s) => s.id === 'cheongsan-byeolgok').units[0].lines[4].feet) delete f.kind; }],
+    ['상저가 여음 히얘를 박으로 셈(구간은 그대로)', (songs) => { delete songs.find((s) => s.id === 'sangjeoga').units[0].lines[0].feet[3].kind; }],
+    ['가시리 가시리잇고를 3·3·2로 나누지 않음', (songs) => { const l = songs.find((s) => s.id === 'gasiri').units[0].lines[0]; l.feet.splice(1, 2, { original: '가시리잇고', reading: '가시리잇고' }); for (const r of songs.find((s) => s.id === 'gasiri').features.refrains) for (const g of r.ranges) if (g.unit === 0 && g.line === 0) { g.from--; g.to--; } }],
+    ['가시리 낱말 안 나눔에서 joined를 지워 원문이 띄어짐', (songs) => { delete songs.find((s) => s.id === 'gasiri').units[2].lines[0].feet[2].joined; }],
+    ['서경별곡 한 줄의 아즐가를 구간과 표시에서 함께 빼 박으로 셈', (songs) => { const s = songs.find((x) => x.id === 'seogyeong-byeolgok'); delete s.units[0].lines[2].feet[1].kind; delete s.units[0].lines[2].feet[0].kind; const r = s.features.refrains.find((x) => x.text === '아즐가'); r.ranges = r.ranges.filter((g) => !(g.unit === 0 && g.line === 2)); }],
+    ['청산별곡 살어리랏다 나눔에서 joined를 지워 원문이 띄어짐', (songs) => { delete songs.find((s) => s.id === 'cheongsan-byeolgok').units[0].lines[1].feet[2].joined; }],
+    ['상저가 낱말 사이를 붙임(joined를 잘못 담)', (songs) => { songs.find((s) => s.id === 'sangjeoga').units[0].lines[0].feet[1].joined = true; }],
+    ['정읍사 음보 세기 메모를 지움', (songs) => { const s = songs.find((x) => x.id === 'jeongeupsa'); s.citationNote = s.citationNote.replace(/음보 세기/g, '음보'); }],
   ];
   for (const [name, mutate] of negatives) {
     const songs = structuredClone(mod.songs);

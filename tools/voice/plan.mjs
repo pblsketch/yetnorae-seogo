@@ -39,7 +39,15 @@ const out = picked.map((song) => {
     if (!lines.has(key)) lines.set(key, { key, unit: c.unit, line: c.line, text: '', clips: [] });
     lines.get(key).clips.push(c.path);
   }
-  for (const l of lines.values()) l.text = l.clips.map((p) => clips.find((c) => c.path === p).text).join(' ');
+  // 줄 글은 음보를 빈칸으로 잇되, 낱말 안에서 나눈 음보(고려가요 joined)는 붙인다(joinFeet와 같다).
+  // 그래서 음보를 낱말 안에서 다시 나눠도 읽힐 줄 글이 그대로라 낭송 캐시를 다시 쓴다.
+  const isJoined = (c) => song.genre === 'goryeo' && !!song.units[c.unit]?.lines?.[c.line]?.feet?.[c.foot]?.joined;
+  for (const l of lines.values()) {
+    l.text = l.clips.map((p, i) => {
+      const c = clips.find((x) => x.path === p);
+      return (i > 0 && !isJoined(c) ? ' ' : '') + c.text;
+    }).join('');
+  }
   const schedule = clipSchedule(grid, grid.segments.map((s) => s.index), 0).map((c) => ({ path: c.path, when: c.when, segment: c.segment }));
   return {
     id: song.id,

@@ -2,6 +2,7 @@
 // 이어서 기념품 카드 석 장을 남긴다. 설화에 바탕한 장면(legend)에는 '전해지는 이야기'를 붙인다.
 // 가객 이름과 소절 글, 기념품 글은 모두 노래 데이터에서 그대로 가져온다.
 import { buildGrid } from '../core/rhythm.js';
+import { joinFeet } from '../core/song-shape.js';
 import { paperDollCanvas } from '../world/sprites.js';
 import { el, button, assetUrl, quoted } from './dom.js';
 import { keepsakeCard } from './keepsake.js';
@@ -13,7 +14,7 @@ export function firstLine(song) {
   if (!u) return '';
   if (song.genre === 'hyangga') return u.original ?? '';
   const feet = song.genre === 'goryeo' ? u.lines?.[0]?.feet : u.feet;
-  return (feet ?? []).map((f) => f.original).join(' ');
+  return joinFeet(feet ?? [], 'original');
 }
 
 // host: 연출을 띄울 요소. list: 노래 객체 셋. engine: 소리 엔진(한 소절을 낸다). signal: 중단 신호.

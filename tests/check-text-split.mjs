@@ -2,7 +2,8 @@
 // 옛한글은 첫소리·가운뎃소리·끝소리 자모가 따로 된 코드 포인트라서, 코드 포인트로 자르면 'ᄂᆞᆫ'이
 // 'ᄂ' / 'ᆞᆫ'처럼 갈라져 화면에서 자모가 흩어져 보인다. 한글 말은 끊지 않고, 띄어 쓰지 않은 향찰만 끊는다.
 import { songs } from '../js/data/songs/index.js';
-import { splitWords, graphemes, piecesOf, feetOf } from '../js/measure/text.js';
+import { splitWords, graphemes, piecesOf, feetOf, segmentsOf } from '../js/measure/text.js';
+import { joinFeet } from '../js/core/song-shape.js';
 
 let failures = 0;
 const pass = (msg) => console.log('  ✓ ' + msg);
@@ -66,6 +67,52 @@ check(broken(oldSplit('날러ᄂᆞᆫ')).length > 0, '코드 포인트로 자�
 check(broken(oldSplit('보내ᄋᆞᆸ노니')).length > 0, '코드 포인트로 자른 \'보내ᄋᆞᆸ노니\'는 흩어진 조각으로 잡힌다');
 check(cutsHangulWord('두어리마ᄂᆞᄂᆞᆫ', oldSplit('두어리마ᄂᆞᄂᆞᆫ')), '자모는 안 흩어져도 한글 말 \'두어리마ᄂᆞᄂᆞᆫ\'을 가운데서 끊으면 잡힌다');
 check(broken(graphemes('잡ᄉᆞ와')).length === 0, '글자 묶음으로 자른 \'잡ᄉᆞ와\'는 잡히지 않는다');
+
+console.log('\n[4] 고려가요 박 밖 음보 표시와 낱말 안 나눔(추가 제안 T31)');
+// 두루마리 조각을 줄마다 다시 이은 글(joined 조각 앞은 띄우지 않음)
+function linesFromPieces(ps) {
+  const out = new Map();
+  for (const p of ps) {
+    if (p.kind !== 'word') continue;
+    const k = p.u + '|' + p.l;
+    out.set(k, (out.has(k) ? out.get(k) + (p.joined ? '' : ' ') : '') + p.text);
+  }
+  return out;
+}
+function markProblems(song) {
+  const out = [];
+  for (const layer of ['original', 'reading']) {
+    const ps = piecesOf(song, layer);
+    const lines = linesFromPieces(ps);
+    song.units.forEach((u, ui) => (u.lines ?? []).forEach((l, li) => {
+      const want = joinFeet(l.feet, layer);
+      if (lines.get(ui + '|' + li) !== want) out.push(`${song.id}/${layer} ${ui + 1}연 ${li + 1}줄: 두루마리 글 "${lines.get(ui + '|' + li)}" ≠ "${want}"`);
+    }));
+    for (const p of ps) {
+      if (p.kind !== 'word') continue;
+      const kind = song.units[p.u]?.lines?.[p.l]?.feet?.[p.f]?.kind ?? null;
+      if ((p.mark ?? null) !== kind) out.push(`${song.id}/${layer}: 조각 "${p.text}"의 표시 ${p.mark} ≠ 음보 kind ${kind}`);
+    }
+  }
+  segmentsOf(song).forEach((sg) => {
+    const want = song.units[sg.u].lines[sg.l].feet.filter((f) => !f.kind).length;
+    if (sg.feet !== want) out.push(`${song.id}: 두드리기 단위 ${sg.u + 1}연 ${sg.l + 1}줄의 박 수 ${sg.feet} ≠ ${want}`);
+  });
+  return out;
+}
+const goryeoSongs = songs.filter((s) => s.genre === 'goryeo');
+const markBad = goryeoSongs.flatMap(markProblems);
+check(markBad.length === 0, '고려가요 두루마리 조각에 여음·후렴·되풀이 표시가 음보대로 붙고, 줄 글이 원문 그대로 이어진다' + (markBad.length ? ' — ' + markBad.slice(0, 6).join(' | ') : ''));
+check(songs.filter((s) => s.genre !== 'goryeo').every((s) => piecesOf(s, 'original').every((p) => !p.mark && !p.joined)), '다른 갈래의 조각에는 표시와 붙임이 없다');
+{
+  // 음성 사례: 두루마리 조각이 표시를 잃었을 때와 붙임을 잃었을 때 잡히는지(조각을 직접 바꿔 본다)
+  const g = goryeoSongs.find((s) => s.id === 'gasiri');
+  const ps = piecesOf(g, 'original');
+  const lost = ps.map((p) => ({ ...p, mark: null }));
+  const lostJoin = ps.map((p) => ({ ...p, joined: false }));
+  check(lost.some((p) => p.kind === 'word' && (p.mark ?? null) !== (g.units[p.u]?.lines?.[p.l]?.feet?.[p.f]?.kind ?? null)), '음성 사례: 표시를 잃은 조각은 음보 kind와 달라 잡힌다');
+  check(linesFromPieces(lostJoin).get('0|0') !== joinFeet(g.units[0].lines[0].feet, 'original'), '음성 사례: 붙임을 잃은 조각을 이으면 원문과 달라("가시리 잇고") 잡힌다');
+}
 
 console.log(failures ? `\n글 나누기 점검 실패 ${failures}건` : '\n글 나누기 점검 통과');
 process.exit(failures ? 1 : 0);

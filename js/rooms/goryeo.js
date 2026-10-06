@@ -14,6 +14,7 @@
 import { room as DATA } from '../data/rooms-goryeo.js';
 import { songs as REGISTERED } from '../data/songs/index.js';
 import { buildGrid as baseBuildGrid } from '../core/rhythm.js';
+import { joinFeet } from '../core/song-shape.js';
 import { createAssets } from '../world/assets.js';
 import { createRoom3D } from './goryeo-3d.js';
 import { createRoom2D } from './goryeo-2d.js';
@@ -47,9 +48,12 @@ function abortError() {
   return new DOMException('작품 방을 나갔다', 'AbortError');
 }
 
-const lineOriginal = (line) => line.feet.map((f) => f.original).join(' ');
+// 줄 원문: 음보를 빈칸으로 잇되 낱말 안에서 나눈 음보(joined)는 붙인다
+const lineOriginal = (line) => joinFeet(line.feet, 'original');
 
-// 후렴이 줄 전체를 덮는 줄(「서경별곡」의 '위 두어렁셩…' 줄)과, 줄 안에 끼어든 여음 음보
+// 후렴이 줄 전체를 덮는 줄(「서경별곡」의 '위 두어렁셩…' 줄)과, 줄 안에 끼어든 여음 음보.
+// 여음 앞에 뒤 말을 미리 불러 두는 되풀이 머리(음보 kind 'repeat', 「서경별곡」 '西京이 아즐가 西京이 …'의 앞 '西京이')도
+// 박에 들지 않는 말이라 여음과 같은 모양으로 흐리게 표시한다.
 function refrainMarks(song) {
   const wholeLines = new Set();
   const yeoeumFeet = new Map(); // 'unit-line' → Set(음보 번호)
@@ -65,6 +69,12 @@ function refrainMarks(song) {
       }
     }
   }
+  (song?.units ?? []).forEach((u, unit) => (u?.lines ?? []).forEach((l, line) => (l?.feet ?? []).forEach((f, i) => {
+    if (f?.kind !== 'repeat') return;
+    const key = unit + '-' + line;
+    if (!yeoeumFeet.has(key)) yeoeumFeet.set(key, new Set());
+    yeoeumFeet.get(key).add(i);
+  })));
   return { wholeLines, yeoeumFeet };
 }
 
@@ -84,8 +94,8 @@ function lineView(song, unit, index, { yeoeum = null, repeated = false, pair = n
   }
   const orig = el('p', 'rg-orig');
   line.feet.forEach((f, i) => {
-    if (i > 0) orig.append(' ');
-    const span = el('span', 'rg-foot' + (yeoeum?.has(i) ? ' is-yeoeum' : ''), f.original);
+    if (i > 0 && !f.joined) orig.append(' ');
+    const span = el('span', 'rg-foot' + (yeoeum?.has(i) ? ' is-yeoeum' : '') + (yeoeum?.has(i) && f.kind === 'repeat' ? ' is-repeat' : ''), f.original);
     orig.append(span);
   });
   box.append(orig);

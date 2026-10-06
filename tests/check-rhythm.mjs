@@ -146,6 +146,50 @@ console.log('— 두드리기 회차: 놓친 박 세기와 빗금 모드 권하�
   ok(s.done() === false, '맞히지 않은 단위가 남으면 끝이 아님');
 }
 
+console.log('— 고려가요 여음·후렴: 박이 아닌 칸(판정 창 없음, 놓친 박으로 세지 않음)');
+{
+  // 줄 0: 박 셋 + 여음 하나(나ᄂᆞᆫ 자리), 줄 1: 후렴만(듣기만 하는 줄)
+  const mk = (t, kind) => (kind ? { original: t, reading: t, kind } : { original: t, reading: t });
+  const gy = {
+    id: 't-goryeo-off', genre: 'goryeo',
+    units: [{ lines: [
+      { feet: [mk('가'), mk('나'), mk('다'), mk('라', 'yeoeum')], gloss: 'ㄱ' },
+      { feet: [mk('후', 'refrain'), mk('렴', 'refrain')], gloss: 'ㄴ' },
+    ] }],
+  };
+  const g = R.buildGrid(gy, { tempo: 60, gapSec: 0.8 });
+  ok(g.beats.length === 6 && g.beats[3].offbeat === 'yeoeum' && g.beats[4].offbeat === 'refrain' && !g.beats[0].offbeat, '여음·후렴 칸도 낭송 칸으로 놓이고 offbeat 표시가 붙는다');
+  ok(g.beats[3].path === 'assets/audio/voice/t-goryeo-off/0-0-3.mp3', '여음 칸의 낭송 조각 경로는 그대로(음보 번호)');
+  const s = R.createTapSession(g, {});
+  s.arm(0, 0);
+  ok(s.tap(3).hit === false, '여음 칸 시각의 탭은 인정하지 않는다(판정 창이 없다)');
+  [0, 1, 2].forEach((t) => s.tap(t));
+  let r = s.close(0);
+  ok(r.ok && r.missed === 0 && r.totalMissed === 0, '박 셋을 맞히면 여음 칸을 치지 않아도 그 줄을 마친다');
+  ok(s.listenOnly(1) === true && s.listenOnly(0) === false, '후렴만 있는 줄은 듣기만 하는 단위다');
+  s.arm(1, 10);
+  ok(s.tap(10).hit === false && s.tap(11).hit === false, '후렴 줄에는 판정 창이 하나도 없다');
+  r = s.close(1);
+  ok(r.ok && r.missed === 0 && r.replay === false && r.suggestSlash === false, '후렴 줄은 아무것도 치지 않아도 놓친 박이 없다(다시 듣지 않음, 빗금 권유 없음)');
+  ok(s.done() === true, '박 줄과 후렴 줄을 모두 마치면 끝');
+  // 놓친 박 3개 권유가 여음·후렴 때문에 뜨지 않는다: 박을 모두 맞히고 후렴 줄을 여러 번 들어도 0
+  const s2 = R.createTapSession(g, {});
+  for (let k = 0; k < 3; k++) { s2.arm(1, k * 10); s2.close(1); }
+  s2.arm(0, 50); s2.tap(53); r = s2.close(0);
+  ok(r.totalMissed === 3 && r.missed === 3, '여음 칸만 친 줄은 박 셋을 모두 놓친 것으로 센다(여음 탭은 박이 아니다)');
+  const s3 = R.createTapSession(g, {});
+  for (let k = 0; k < 5; k++) { s3.arm(1, k * 10); const c = s3.close(1); if (c.suggestSlash || c.missed) { ok(false, '후렴 줄 때문에 놓친 박이 생겼다'); break; } }
+  ok(s3.totalMissed() === 0, '후렴 줄만 다섯 번 들어도 놓친 박 0(빗금 권유 없음)');
+  // 음성 사례: offbeat 표시를 지운 칸은 다시 판정 창이 열린다(점검이 차이를 알아본다)
+  const g2 = R.buildGrid(gy, { tempo: 60, gapSec: 0.8 });
+  delete g2.beats[3].offbeat;
+  const s4 = R.createTapSession(g2, {});
+  s4.arm(0, 0); [0, 1, 2].forEach((t) => s4.tap(t));
+  ok(s4.close(0).missed === 1, '음성 사례: 여음 칸에 박 표시가 없으면 놓친 박 1로 센다');
+  // 다른 갈래와 고려가요 표시 없는 줄은 바뀌지 않는다
+  ok(R.buildGrid(goryeo, { tempo: 60 }).beats.every((b) => !b.offbeat) && R.buildGrid(sijo, { tempo: 60 }).beats.every((b) => !b.offbeat) && R.buildGrid(hyangga, { tempo: 20 }).beats.every((b) => !b.offbeat), '표시 없는 고려가요·시조·향가에는 offbeat 칸이 없다');
+}
+
 console.log('— 박자 보정 계산');
 {
   const bells = R.calibrationBells({ startAt: 2, intervalSec: 0.8 });

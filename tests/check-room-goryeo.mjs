@@ -14,6 +14,7 @@ import { startServer } from './lib/server.mjs';
 import { openGame, assert, VIEWPORTS } from './lib/browser.mjs';
 import { songs } from '../js/data/songs/index.js';
 import { room } from '../js/data/rooms-goryeo.js';
+import { joinFeet } from '../js/core/song-shape.js';
 
 const PAGE = 'tests/pages/room-goryeo.html';
 const BUDGET = 60;
@@ -22,7 +23,8 @@ const SCORE_WORDS = ['점수', '정답', '오답', '등급', '순위', '실패',
 const song = songs.find((s) => s.id === room.songId);
 const echoSong = songs.find((s) => s.id === room.echo.songId);
 const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
-const lineText = (l) => l.feet.map((f) => f.original).join(' ');
+// 줄 원문: 음보를 빈칸으로 잇되 낱말 안에서 나눈 음보(joined)는 붙인다(방이 보이는 글과 같다)
+const lineText = (l) => joinFeet(l.feet, 'original');
 const squash = (s) => String(s ?? '').replace(/\s+/g, '');
 
 // ── 검사 함수 ──
@@ -105,6 +107,17 @@ function echoLines(unit) {
   return echoSong.units[unit].lines.map((l, i) => ({ unit, line: i, orig: lineText(l), gloss: l.gloss })).filter((x) => !rset.has(unit + '-' + x.line));
 }
 
+// 줄마다 흐리게(.is-yeoeum) 보여야 하는 음보: 여음과 되풀이 머리(박에 들지 않는 말)
+function dimProblems(lines) {
+  const out = [];
+  for (const x of lines) {
+    const feet = echoSong.units[x.unit]?.lines?.[x.line]?.feet ?? [];
+    const want = feet.map((f, i) => (f.kind === 'yeoeum' || f.kind === 'repeat' ? i : -1)).filter((i) => i >= 0);
+    if (JSON.stringify(x.dim ?? []) !== JSON.stringify(want)) out.push((x.unit + 1) + '연 ' + (x.line + 1) + '줄 ' + JSON.stringify(x.dim) + ' ≠ ' + JSON.stringify(want));
+  }
+  return out;
+}
+
 // ── 음성 사례: 검사 함수가 실제로 잡는가 ──
 console.log('\n[0] 검사 함수의 음성 사례');
 const goodRec = { room: 'goryeo', lastConditionId: room.cards[1].id, lastConditionText: room.cards[1].label };
@@ -122,6 +135,8 @@ assert(roomDataErrors({ ...room, cards: [{ ...room.cards[0], unit: 0 }] }, song,
 assert(roomDataErrors({ ...room, cards: [{ ...room.cards[0], lines: [9] }] }, song, echoSong).length > 0, '없는 줄을 가리킨 카드를 잡는다');
 assert(roomDataErrors({ ...room, echo: { ...room.echo, unit: 0 } }, song, echoSong).length > 0, '같은 사설이 없는 「서경별곡」 연을 잡는다');
 assert(roomDataErrors({ ...room, finalUnit: 1 }, song, echoSong).length > 0, '구슬 연이 아닌 마지막 연을 잡는다');
+assert(dimProblems([{ unit: 1, line: 0, dim: [0, 1] }]).length === 0, '여음과 되풀이 머리를 함께 흐리게 한 줄은 통과한다');
+assert(dimProblems([{ unit: 1, line: 0, dim: [1] }]).length > 0, '되풀이 머리를 흐리게 하지 않은 줄(여음만 표시)을 잡는다');
 
 console.log('\n[1] 방 데이터와 노래 데이터');
 assert(song && echoSong, '「정석가」와 「서경별곡」이 등록된 노래 데이터에 있다');
@@ -148,7 +163,8 @@ async function snapshot(page) {
     const qa = (s) => [...document.querySelectorAll(s)];
     const root = q('#room .room-goryeo');
     const vis = (e) => { const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
-    const lineOf = (e) => ({ song: e.dataset.song, unit: Number(e.dataset.unit), line: Number(e.dataset.line), orig: e.querySelector('.rg-orig')?.textContent ?? '', gloss: e.querySelector('.rg-gloss')?.textContent ?? '', match: e.classList.contains('is-match'), pair: e.dataset.pair ?? null });
+    const lineOf = (e) => ({ song: e.dataset.song, unit: Number(e.dataset.unit), line: Number(e.dataset.line), orig: e.querySelector('.rg-orig')?.textContent ?? '', gloss: e.querySelector('.rg-gloss')?.textContent ?? '', match: e.classList.contains('is-match'), pair: e.dataset.pair ?? null,
+      dim: [...e.querySelectorAll('.rg-orig .rg-foot')].map((f, i) => (f.classList.contains('is-yeoeum') ? i : -1)).filter((i) => i >= 0) });
     return {
       exists: !!root,
       step: root?.dataset.step ?? null,
@@ -281,6 +297,10 @@ async function playThrough(page, { order, how, label, expectMode }) {
   await waitFor(page, () => !!document.querySelector('#room .room-goryeo.is-match'), null, '같은 연 발견');
   s = await checkFrame(page, label + ' 같은 연 발견');
   checkLines(s.echoLines, echoLines(room.echo.unit), label + ': 「서경별곡」 같은 연(units[' + room.echo.unit + '])');
+  {
+    const bad = dimProblems(s.echoLines);
+    assert(bad.length === 0, label + ': 「서경별곡」 줄의 여음과 되풀이 머리가 같은 모양(흐리게)으로 표시된다' + (bad.length ? ' — ' + bad.join(' | ') : ''));
+  }
   checkLines(s.finalLines, distinctLines(song, room.finalUnit), label + ': 나란히 놓인 「정석가」 마지막 연');
   const leftPairs = s.finalLines.filter((x) => x.match).map((x) => x.pair).sort();
   const rightPairs = s.echoLines.filter((x) => x.match).map((x) => x.pair).sort();
