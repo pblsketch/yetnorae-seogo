@@ -62,8 +62,10 @@ export function createTextView(area, { song, layer = 'original' } = {}) {
     for (let i = a; i < e; i++) {
       p.append(makeWord(pieces[i]));
       if (i + 1 < pieces.length && (i + 1 < e || gaps)) {
+        // 낱말 안에서 나눈 음보 사이에는 틈(접을 자리)도 띄어쓰기도 두지 않는다
+        if (pieces[i + 1].joined) continue;
         if (gaps) p.append(makeGap(i));
-        else if (!pieces[i + 1].joined) p.append(' ');
+        else p.append(' ');
       }
     }
     if (e < pieces.length && gaps) p.append(makeWord(pieces[e], true));
