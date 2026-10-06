@@ -16,15 +16,23 @@ function foldLine(sheet, unit) {
 }
 
 // 두드리기 증거. 고려가요 줄은 박에 드는 음보만 센다(여음·후렴만 있는 줄은 빼고 센다).
-function tapLine(sheet, unit) {
+// 보스(neutral)에서는 '줄'이라는 말도 갈래를 드러내므로 단위 이름('덩이')으로 쓴다.
+function tapLine(sheet, unit, neutral) {
   const t = sheet.tap;
   if (t.mode === 'gu') return '[' + unit + '마다 한 박, 모두 ' + count(t.gu, '박') + ']';
   const list = t.mode === 'lines' ? t.feet.flat().filter((c) => c > 0) : t.feet;
-  const per = t.mode === 'lines' ? '줄' : unit;
+  const per = t.mode === 'lines' && !neutral ? '줄' : unit;
   if (list.length && list.every((c) => c === list[0])) return '[' + per + '마다 ' + count(list[0], '음보') + ']';
   if (list.length <= MAX_LIST) return '[' + per + '마다 음보 ' + list.join(' · ') + ']';
   const [value, times] = mostCommon(list);
   return '[' + per + ' ' + list.length + '개 가운데 ' + times + '개가 ' + count(value, '음보') + ']';
+}
+
+// 걷기: 세 걸음 전에 멈춤 / 세 걸음에서 멈춤 / 세 걸음을 넘어 이어짐
+export function walkWords(steps) {
+  if (steps < 3) return L.sheetWalk.before;
+  if (steps === 3) return L.sheetWalk.at;
+  return L.sheetWalk.beyond;
 }
 
 function actionLine(a, song, unit) {
@@ -40,7 +48,7 @@ function actionLine(a, song, unit) {
     case 'stairs':
       return a.applicable ? '[종장 첫 음보 ' + count(a.syllables, '글자') + ']' : '[종장 없음]';
     case 'walk':
-      return '[' + a.steps + '걸음 — ' + (a.stopsAtThree ? '세 걸음에서 멈춘다' : '세 걸음에서 멈추지 않고 이어진다') + ']';
+      return '[' + a.steps + '걸음 — ' + walkWords(a.steps) + ']';
     case 'rapid-unroll':
       if (!a.applicable) return '[가운데 장 없음]';
       return '[가운데 장 ' + count(a.middleFeet, '음보') + ' — ' + (a.overFour ? '네 음보를 넘는다' : '네 음보를 넘지 않는다') + ']';
@@ -49,15 +57,24 @@ function actionLine(a, song, unit) {
   }
 }
 
-// [{ kind: 'fold' | 'tap' | 'action', text }]
+// [{ kind: 'fold' | 'tap' | 'action' | 'refrains', text }]
+// '[여음·후렴이 있다]'는 후렴 고리 걸기(고려가요관의 고유 동작)가 되풀이 구절을 찾았을 때만 그 줄 뒤에 붙인다.
+// 두드리기에서 여음·후렴을 건너뛴 것만으로는 적지 않는다. 그래야 고유 동작이 그 증거를 맡고(spec 5.4),
+// 보스에서도 그 도구를 쓰기 전에는 갈래를 알려 주는 줄이 나오지 않는다.
 export function sheetLines(sheet, song, { neutral = false } = {}) {
   const unit = unitName(song, neutral);
   const out = [];
   if (sheet.fold) out.push({ kind: 'fold', text: foldLine(sheet, unit) });
-  if (sheet.tap) out.push({ kind: 'tap', text: tapLine(sheet, unit) });
-  if (sheet.tap?.refrains > 0) out.push({ kind: 'tap', text: L.sheetRefrains });
+  if (sheet.tap) out.push({ kind: 'tap', text: tapLine(sheet, unit, neutral) });
   const actions = sheet.actions ?? (sheet.action ? [sheet.action] : []);
-  for (const a of actions) out.push({ kind: 'action', action: a.action, text: actionLine(a, song, unit) });
+  let refrains = false;
+  for (const a of actions) {
+    out.push({ kind: 'action', action: a.action, text: actionLine(a, song, unit) });
+    if (a.action === 'refrain-link' && a.present && !refrains) {
+      refrains = true;
+      out.push({ kind: 'refrains', action: a.action, text: L.sheetRefrains });
+    }
+  }
   return out;
 }
 

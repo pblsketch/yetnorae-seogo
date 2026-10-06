@@ -16,7 +16,8 @@ import { L } from './labels.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ctx: { song, view, root, controls, overlay, setHint, rhythm, beat, setSlashMode, signal, emit }
+// ctx: { song, view, root, controls, overlay, setHint, rhythm, beat, setSlashMode, signal, emit, neutral }
+//  neutral: 보스 방식. 안내에 여음·후렴이라는 말을 쓰지 않는다
 //  beat: { get() → 박자 없는 방식인지, on(fn) → 떼기 }   (measure.js가 만든다)
 export async function runTap(ctx) {
   const { song, view, root, controls, overlay, setHint, rhythm, beat, signal } = ctx;
@@ -34,7 +35,11 @@ export async function runTap(ctx) {
   const feetOfSeg = segs.map((s) => feet.filter((f) => !f.mark && f.u === s.u && (s.l === null || f.l === s.l)).map((f) => footKey(f.u, f.l, f.f)));
   const listenOnly = (i) => feetOfSeg[i].length === 0;
   const hasOffbeat = feet.some((f) => f.mark);
-  const tapHint = hasOffbeat ? L.tapHintOffbeat : L.tapHint;
+  // 보스(neutral)에서는 이름표가 없으므로 안내도 여음·후렴이라는 말을 쓰지 않는다
+  const neutral = !!ctx.neutral;
+  const tapHint = hasOffbeat ? (neutral ? L.tapHintPlain : L.tapHintOffbeat) : L.tapHint;
+  const listenOnlyHint = neutral ? L.listenOnlyPlain : L.listenOnly;
+  const slashOffbeatHint = neutral ? L.slashPlainHint : L.slashOffbeatHint;
   const segOf = (u, l) => segs.findIndex((s) => s.u === u && (s.l === null || s.l === l));
   const done = new Set();     // 인정된 음보(빗금, 또는 통과한 단위의 박)
   const lit = new Set();      // 이번에 친 박(다시 들으면 지운다)
@@ -155,7 +160,7 @@ export async function runTap(ctx) {
         const s = segs[i];
         const gi = R.segmentIndexOf(grid, s.u, s.l);
         view.goTo((p) => p.u === s.u && (s.l === null || p.l === s.l));
-        setHint(listenOnly(i) ? L.listenOnly : tapHint);
+        setHint(listenOnly(i) ? listenOnlyHint : tapHint);
         for (;;) {
           for (const k of feetOfSeg[i]) lit.delete(k);
           view.refresh();
@@ -186,7 +191,7 @@ export async function runTap(ctx) {
   function slashPhase() {
     root.dataset.tapMode = 'slash';
     controls.replaceChildren();
-    setHint(noEngine && !beat.get() ? L.noSound : (hasOffbeat ? L.slashOffbeatHint : L.slashHint));
+    setHint(noEngine && !beat.get() ? L.noSound : (hasOffbeat ? slashOffbeatHint : L.slashHint));
     // 후렴만 있는 줄은 빗금을 그을 곳이 없으므로 마친 줄로 둔다
     segs.forEach((_, i) => { if (listenOnly(i)) pass(i); });
     const sw = switchWhen(true);

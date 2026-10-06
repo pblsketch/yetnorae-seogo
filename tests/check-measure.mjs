@@ -17,6 +17,8 @@ import { startServer } from './lib/server.mjs';
 import { openGame, VIEWPORTS } from './lib/browser.mjs';
 import { songs } from '../js/data/songs/index.js';
 import { deriveSheet, deriveActionEvidence, deriveFoldEvidence, deriveTapEvidence } from '../js/core/song-shape.js';
+import { sheetLines, walkWords } from '../js/measure/sheet.js';
+import { L } from '../js/measure/labels.js';
 
 const PAGE = 'tests/pages/measure.html';
 const GENRE_SONGS = { hyangga: 'chan-giparangga', goryeo: 'gasiri', sijo: 'dongjitdal', gasa: 'myeonangjeongga', saseol: 'chang-naegoja' };
@@ -243,6 +245,41 @@ ok(!deepEqual(deriveSheet(song('dongjitdal'), 'stairs'), deriveSheet(song('chang
 ok(!deepEqual(deriveFoldEvidence(song('gasiri')), { units: 3 }), '비교 도우미가 틀린 단위 수를 잡는다');
 ok(deepEqual({ a: 1, b: [1, 2] }, { b: [1, 2], a: 1 }), '비교 도우미는 열쇠 순서를 가리지 않는다');
 ok(deriveActionEvidence('stairs', song('myeonangjeongga')).applicable === false && deriveTapEvidence(song('chan-giparangga')).mode === 'gu', '기대값 계산이 README 6절 모양을 따른다');
+
+console.log('— 감정서 글(화면 없이 sheetLines로)');
+{
+  const lineTexts = (sheet, s, opts) => sheetLines(sheet, s, opts).map((l) => l.text);
+  // 걷기: 세 걸음 전에 멈춤 / 세 걸음에서 멈춤 / 넘어서 이어짐
+  const walkText = (id) => lineTexts(deriveSheet(song(id), 'walk'), song(id)).find((t) => t.includes('걸음')) ?? '';
+  const one = walkText('samogok');
+  const three = walkText('dongjitdal');
+  const many = walkText('myeonangjeongga');
+  ok(one.includes('세 걸음이 되기 전에 멈춘다') && !one.includes('이어진다'), '걷기: 한 연짜리 「사모곡」은 세 걸음이 되기 전에 멈춘다 ' + one);
+  ok(three.includes('세 걸음에서 멈춘다') && !three.includes('이어진다'), '걷기: 세 장의 「동짓달 기나긴 밤을」은 세 걸음에서 멈춘다 ' + three);
+  ok(many.includes('세 걸음에서 멈추지 않고 이어진다'), '걷기: 「면앙정가」는 세 걸음에서 멈추지 않고 이어진다 ' + many);
+  // 음성 사례: 두 가지 말만 쓰던 예전 감정서는 한 연짜리 노래에 '이어진다'를 붙여 잡힌다
+  const oldWalk = (a) => '[' + a.steps + '걸음 — ' + (a.stopsAtThree ? '세 걸음에서 멈춘다' : '세 걸음에서 멈추지 않고 이어진다') + ']';
+  ok(oldWalk(deriveActionEvidence('walk', song('samogok'))).includes('이어진다'), '음성 사례: 예전 두 가지 말은 한 연짜리 노래를 이어진다고 적어 잡힌다');
+  ok(walkWords(2) !== walkWords(3) && walkWords(3) !== walkWords(4) && walkWords(2) !== walkWords(4), '걷기 말은 세 가지가 서로 다르다');
+
+  // 보스(neutral): 「사모곡」 감정서에 '줄'이 없고 단위는 '덩이'. 후렴 고리 걸기를 쓰기 전에는 여음·후렴 줄이 없다
+  const sm = song('samogok');
+  const full = deriveSheet(sm, 'refrain-link');
+  const beforeTool = { fold: full.fold, tap: full.tap, action: null, actions: [] };
+  const bossBefore = lineTexts(beforeTool, sm, { neutral: true });
+  ok(bossBefore.length === 2 && bossBefore.every((t) => !t.includes('줄')) && bossBefore[1].includes('덩이'), '보스 「사모곡」: 두드리기 줄이 \'줄\' 대신 \'덩이\'를 쓴다 ' + JSON.stringify(bossBefore));
+  ok(!bossBefore.includes(L.sheetRefrains) && bossBefore.every((t) => !/여음|후렴|되풀이/.test(t)), '보스 「사모곡」: 도구를 쓰기 전에는 여음·후렴 줄이 없다 ' + JSON.stringify(bossBefore));
+  const bossOther = lineTexts({ ...beforeTool, actions: [deriveActionEvidence('stairs', sm)] }, sm, { neutral: true });
+  ok(!bossOther.includes(L.sheetRefrains), '보스 「사모곡」: 다른 도구(계단 오르기)를 써도 여음·후렴 줄은 없다 ' + JSON.stringify(bossOther));
+  const bossAfter = lineTexts({ ...beforeTool, actions: [deriveActionEvidence('refrain-link', sm)] }, sm, { neutral: true });
+  ok(bossAfter.includes(L.sheetRefrains), '음성 사례: 후렴 고리 걸기를 쓰면 여음·후렴 줄이 나온다(위 점검이 줄을 늘 숨기는 것이 아니다) ' + JSON.stringify(bossAfter));
+  const wingLines = lineTexts(beforeTool, sm);
+  ok(wingLines.some((t) => t.includes('줄마다') || t.includes('줄 ')), "음성 사례: 관(neutral 아님)에서는 같은 증거를 '줄'로 적는다 " + JSON.stringify(wingLines));
+  // 관: 여음·후렴 줄은 후렴 고리 걸기의 증거로만(고려가요 노래를 다른 관 동작으로 재면 없다)
+  const gs = song('gasiri');
+  ok(lineTexts(deriveSheet(gs, 'refrain-link'), gs).includes(L.sheetRefrains), '관: 고려가요관 동작(후렴 고리 걸기)으로 잰 「가시리」 감정서에는 여음·후렴 줄이 있다');
+  ok(!lineTexts(deriveSheet(gs, 'stairs'), gs).includes(L.sheetRefrains), '관: 계단 오르기로 잰 「가시리」 감정서에는 여음·후렴 줄이 없다(두드리기만으로는 적지 않음)');
+}
 
 const server = await startServer();
 const sessions = [];
@@ -543,11 +580,32 @@ try {
     await openM(page, { songId: 'samogok', wing: null, mode: 'boss', slash: true, journal: { concepts: {} } });
     ok(await ev(page, () => document.querySelectorAll('.measure .m-text button.m-gap').length > 0 && [...document.querySelectorAll('.measure .m-text button.m-gap')].every((g) => g.dataset.u === g.dataset.nu)), '한 연짜리 노래의 틈은 모두 단위 안이다');
     await ev(page, () => window.__solveFold());
+    await waitStep(page, 'tap');
+    // 보스에서는 갈래가 드러나지 않는다(spec 10.2): 여음 '위 덩더둥셩'에 이름표가 없고 종류도 가리지 않는다.
+    // 점선 테두리로만 묶여 있고 그 말은 누를 수 없다(박에 들지 않는 곳은 여전히 빗금의 답이 아니다).
+    const bossTap = await ev(page, () => {
+      const root = document.querySelector('.measure');
+      const off = [...root.querySelectorAll('.m-text .m-foot.is-offbeat')];
+      return {
+        off: off.length,
+        offButtons: off.reduce((n, e) => n + e.querySelectorAll('button.m-word').length, 0),
+        tags: root.querySelectorAll('.m-text .m-mark').length,
+        kinds: root.querySelectorAll('.m-text .is-yeoeum, .m-text .is-refrain, .m-text .is-repeat, .m-text [data-mark]').length,
+        words: (root.querySelector('.m-text').textContent + ' ' + root.querySelector('.m-hint').textContent).match(/여음|후렴|되풀이/g) ?? [],
+      };
+    });
+    ok(bossTap.off > 0 && bossTap.offButtons === 0, '보스 「사모곡」: 박 밖 음보는 따로 묶여 누를 수 없다 ' + JSON.stringify(bossTap));
+    ok(bossTap.tags === 0 && bossTap.kinds === 0 && bossTap.words.length === 0, "보스 「사모곡」: 두루마리와 안내에 '여음'·'후렴'·'되풀이' 이름표와 종류 표시가 없다 " + JSON.stringify(bossTap));
     await ev(page, () => window.__solveSlash());
     await waitStep(page, 'tools');
+    const toolsSheet = () => ev(page, () => document.querySelector('.measure .m-tools-sheet')?.textContent ?? '');
+    const before = await toolsSheet();
+    ok(!before.includes('[여음·후렴이 있다]') && !before.includes('줄'), "보스 「사모곡」: 도구를 쓰기 전 감정서에 '줄'도 여음·후렴 줄도 없다 " + JSON.stringify(before));
     await page.click('.measure .m-tool[data-action="refrain-link"]');
     await ev(page, (i) => window.__solveAction(i), actionInfo('refrain-link', s));
     await waitStep(page, 'tools');
+    const after = await toolsSheet();
+    ok(after.includes('[여음·후렴이 있다]') && !after.includes('줄'), '음성 사례: 후렴 고리 걸기를 쓴 뒤에는 여음·후렴 줄이 나온다(위 점검이 늘 비어 있는 감정서를 본 것이 아니다) ' + JSON.stringify(after));
     await page.click('.measure .m-finish');
     const { result } = await waitResult(page);
     const exp = deriveSheet(s, 'refrain-link');

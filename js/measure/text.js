@@ -2,7 +2,8 @@
 // 조각 하나 = 말 하나: { u(단위), l(줄, 고려가요만, 아니면 null), f(음보, 향가는 0), w(음보 안 말 번호), text,
 //                       footEnd(음보의 끝 말), kind: 'word' | 'gloss',
 //                       mark(박에 들지 않는 음보의 표시 'yeoeum'|'refrain'|'repeat', 아니면 null), markStart(같은 표시가 이어지는 첫 말),
-//                       joined(앞 음보와 한 낱말이라 띄우지 않는 첫 말) }
+//                       joined(앞 음보와 한 낱말이라 띄우지 않는 첫 말),
+//                       unitStart·lineStart·footStart(새 단위·줄·음보의 첫 말), breakBefore(그 앞에서 쪽을 나눌 수 있는 말) }
 // 원문·오늘 소리는 음보마다 말로 나누고, 풀이는 단위(고려가요는 줄)마다 말로 나눈다.
 // 향가는 구 하나를 음보 하나(f = 0)로 다룬다. 향찰처럼 띄어 쓰지 않은 글은 세 글자씩 끊어 말로 삼는다.
 import { genreById } from '../data/wings.js';
@@ -84,6 +85,9 @@ export function piecesOf(song, layer) {
     }
   }
   // 쪽을 나눌 수 있는 자리 표시
+  //  footStart: 새 음보가 시작하는 말. breakBefore: 이 말 앞에서 쪽을 나눌 수 있는가.
+  //  낱말 안에서 나눈 음보의 첫 말(joined)은 새 음보이지만 앞 말과 한 낱말이므로 그 앞에서는 쪽을 나누지 않는다.
+  //  풀이는 말마다 나눌 수 있다.
   out.forEach((p, i) => {
     const prev = out[i - 1];
     p.index = i;
@@ -95,6 +99,7 @@ export function piecesOf(song, layer) {
       p.joined = !!p.joined && !p.lineStart;
       p.markStart = !!p.mark && (p.lineStart || prev.mark !== p.mark);
     }
+    p.breakBefore = p.kind === 'gloss' || (p.footStart && !p.joined);
   });
   return out;
 }

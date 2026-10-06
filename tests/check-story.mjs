@@ -13,6 +13,8 @@
 //  - (상태 주입) 보스 도중의 기록을 다시 열면 회랑의 열린 보스 문 앞(보스로 곧장 가지 않음). 들어가면 하던 단계·노래부터, 나가면 문은 열린 채
 //  - (상태 주입) 보스를 마치면 엔딩: 행렬 순서, 빈자리, 한 줄 1~40자, 한마디 0~60자, 고른 관 갈래의 먹 개념만 고를 수 있음,
 //    꽂으면 서고 완성과 마지막 카드 내려받기(PNG), 시작 화면의 '서고 완성' 표시, 보스와 엔딩을 다시 할 수 없음, 카드는 다시 받음
+//  - (상태 주입) 기록 화면에서 결과 카드 다시 받기: 마친 관마다 판 카드, 서고 완성이면 마지막 카드, 내려받을 때마다 지금의 기록으로
+//    다시 그림(모습을 바꾸면 새 그림, 덤을 마친 기록이면 덤 줄이 바뀜), 마친 관이 없는 기록에는 단추 없음(음성 사례)
 //  - 3D와 강제 2D, 1366×768과 844×390. 콘솔 오류·바깥 요청·점수 말 없음, 화면 넘침·48px 미만 단추 없음
 // 음성 사례: 점검 도우미(미션 대조, 순서 대조, 점수 말 찾기, 배치 검사)가 실제 실패를 잡는지도 본다.
 import fs from 'node:fs';
@@ -86,6 +88,38 @@ function seedAllDone({ name = '점검', bossDone = false, pencilConcept = null, 
   const id = 's-story';
   data.slots[id] = { id, name, appearance, createdAt: '2026-10-01T09:00:00.000Z', updatedAt: '2026-10-01T09:00:00.000Z', progress: p };
   data.lastSlotId = id;
+  return { [SAVE_KEY]: JSON.stringify(data) };
+}
+
+// 기록 화면의 결과 카드 다시 받기용 기록 셋(점검 도구 전용 상태 주입).
+//  s-cards '덤기록': 향가관·고려가요관을 마침(고려가요관 덤은 bonus 값), 시조관 진행 중, 서고 미완성
+//  s-fresh '새기록': 튜토리얼만 마침(마친 관이 없다 → 카드 단추 없음)
+//  s-all '완성기록': 다섯 관·보스·엔딩을 마침(판 카드 다섯과 마지막 카드)
+function seedCards({ bonus = false, textScale = 1 } = {}) {
+  const data = defaultData();
+  data.device.calibrated = true;
+  data.device.textScale = textScale;
+  const at = '2026-10-02T09:00:00.000Z';
+  const rec = (id, name, p, updatedAt) => ({ id, name, appearance: 'a', createdAt: at, updatedAt, progress: p });
+
+  const p1 = defaultProgress();
+  p1.tutorialDone = true;
+  for (const w of ['hyangga', 'goryeo']) {
+    p1.wings[w] = doneWing(w);
+    p1.rooms[w] = ROOM_RECORDS[w];
+  }
+  if (bonus) {
+    p1.wings.goryeo.bonusDone = true;
+    p1.wings.goryeo.placements.bonus = fixed(WING_TABLE.goryeo.bonus);
+  }
+  const p2 = defaultProgress();
+  p2.tutorialDone = true;
+  const all = JSON.parse(seedAllDone({ name: '완성기록', bossDone: true })[SAVE_KEY]).slots['s-story'].progress;
+  all.ending = { line: '서고에 내 노래 한 줄', wing: 'sijo', conceptId: 'sijo-3jang', note: '', completed: true, completedAt: '2026-10-03T09:00:00.000Z' };
+  data.slots['s-cards'] = rec('s-cards', '덤기록', p1, '2026-10-03T09:00:00.000Z');
+  data.slots['s-fresh'] = rec('s-fresh', '새기록', p2, '2026-10-02T09:00:00.000Z');
+  data.slots['s-all'] = rec('s-all', '완성기록', all, '2026-10-01T09:00:00.000Z');
+  data.lastSlotId = 's-fresh';
   return { [SAVE_KEY]: JSON.stringify(data) };
 }
 
@@ -684,6 +718,105 @@ try {
     ok(same(after.progress.ending, rec.progress.ending), v.label + ': 엔딩 선택은 바뀌지 않는다');
     ok(game.errors.length === 0, v.label + ' 엔딩: 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
     ok(game.external.length === 0, v.label + ' 엔딩: 바깥 요청 없음');
+    await game.close();
+    sessions.pop();
+  }
+
+  // ══════════ (상태 주입) 기록 화면에서 결과 카드 다시 받기(spec 12·13) ══════════
+  // 판 카드는 마친 관마다, 마지막 카드는 서고를 완성한 기록에만. 내려받을 때마다 지금의 기록으로 다시 그린다.
+  {
+    const PNG_HEAD = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const cardLabel = (page) => ev(page, () => document.querySelector('.story-record-card .card-view-canvas')?.getAttribute('aria-label') ?? '');
+    const picks = (page) => ev(page, () => [...document.querySelectorAll('.story-cards .story-card-pick')].map((b) => (b.dataset.card === 'final' ? 'final' : b.dataset.wing)));
+    async function downloadFrom(page) {
+      await waitSel(page, '.story-record-card .card-view-download', 20000);
+      await page.waitForFunction(() => (document.querySelector('.story-record-card .card-view-canvas')?.getAttribute('aria-label') ?? '').length > 0, null, { timeout: 20000, polling: 100 });
+      const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }), click(page, '.story-record-card .card-view-download')]);
+      const buf = fs.readFileSync(await dl.path());
+      return { name: dl.suggestedFilename(), buf, png: buf.subarray(0, 8).equals(PNG_HEAD), label: await cardLabel(page) };
+    }
+    const openPicker = async (page, id) => {
+      if (!(await click(page, `.story-record[data-id="${id}"] .story-record-cards`))) throw new Error('결과 카드 단추 없음: ' + id);
+      await waitSel(page, '.story-cards');
+    };
+    const closePicker = async (page) => { await click(page, '.story-cards .story-cards-close'); await waitGone(page, '.story-cards-shade'); };
+    const closeCard = async (page) => { await click(page, '.story-record-card .card-view-close'); await waitGone(page, '.story-record-card'); };
+
+    console.log('— 기록 화면의 결과 카드(844×390, 글자 크기 1.3)');
+    let game = await openGame(server.url, { viewport: VIEWPORTS.phone, disable3d: true, seed: seedCards({ bonus: false, textScale: 1.3 }) });
+    sessions.push(game);
+    let page = game.page;
+    await waitStart(page);
+    const btns = await ev(page, () => Object.fromEntries([...document.querySelectorAll('.story-record')].map((li) => [li.dataset.id, !!li.querySelector('.story-record-cards')])));
+    ok(btns['s-cards'] === true && btns['s-all'] === true, '마친 관이 있는 기록에는 결과 카드 단추가 있다 ' + JSON.stringify(btns));
+    ok(btns['s-fresh'] === false, '음성 사례: 마친 관이 없는 기록에는 결과 카드 단추가 없다');
+    let ly = await layout(page, '.story-start');
+    ok(ly.length === 0, '결과 카드 단추가 있는 기록 목록 배치 문제 없음(844×390, 1.3) ' + JSON.stringify(ly));
+
+    await openPicker(page, 's-cards');
+    let pk = await picks(page);
+    ok(same(pk, ['hyangga', 'goryeo']), "마친 관마다 '판 카드' 단추(마치지 않은 시조관은 없음) " + JSON.stringify(pk));
+    ok(!pk.includes('final'), "음성 사례: 서고를 완성하지 않은 기록에는 '마지막 카드' 단추가 없다");
+    const pickText = await ev(page, () => [...document.querySelectorAll('.story-cards .story-card-pick')].map((b) => b.textContent));
+    ok(same(pickText, ['향가관 판 카드', '고려가요관 판 카드']), '단추 글: 관 이름 + 판 카드 ' + JSON.stringify(pickText));
+    ly = await layout(page, '.story-cards-shade');
+    ok(ly.length === 0, '카드 고르기 상자 배치 문제 없음(844×390, 1.3) ' + JSON.stringify(ly));
+
+    await click(page, '.story-cards .story-card-pick[data-wing="goryeo"]');
+    const first = await downloadFrom(page);
+    ok(first.png && first.name === '옛노래서고_덤기록_고려가요관.png', '기록 화면에서 고려가요관 판 카드를 PNG로 내려받는다 ' + first.name);
+    ok(first.label.includes('덤 칸은 아직 비어 있다') && first.label.includes('덤기록'), '판 카드: 넣은 기록 그대로(덤 아직) ' + first.label.slice(0, 80));
+    ly = await layout(page, '.story-record-card');
+    ok(ly.length === 0, '기록 화면의 카드 화면 배치 문제 없음 ' + JSON.stringify(ly));
+    await closeCard(page);
+    ok(await ev(page, () => !!document.querySelector('.story-cards')), '카드를 닫으면 카드 고르기 상자로 돌아온다');
+    await closePicker(page);
+
+    // 지금의 기록으로 다시 그린다: 기록 화면에서 모습을 바꾸고 다시 내려받으면 그림이 바뀐다(실제 조작, 상태 주입 없음)
+    await click(page, '.story-record[data-id="s-cards"] .story-record-look');
+    await page.waitForFunction(() => document.querySelector('.story-record[data-id="s-cards"] .story-record-thumb')?.dataset.appearance === 'b', null, { timeout: 5000, polling: 100 });
+    await openPicker(page, 's-cards');
+    await click(page, '.story-cards .story-card-pick[data-wing="goryeo"]');
+    const again = await downloadFrom(page);
+    ok(again.png && again.name === first.name && !again.buf.equals(first.buf), '모습을 바꾼 뒤 다시 내려받으면 지금의 기록으로 새로 그린 PNG다');
+    await closeCard(page);
+    await closePicker(page);
+
+    await openPicker(page, 's-all');
+    pk = await picks(page);
+    ok(same(pk, [...PLAY_WING_IDS, 'final']), "서고를 완성한 기록: 판 카드 다섯과 '마지막 카드' " + JSON.stringify(pk));
+    ly = await layout(page, '.story-cards-shade');
+    ok(ly.length === 0, '단추 여섯의 카드 고르기 상자 배치 문제 없음(844×390, 1.3) ' + JSON.stringify(ly));
+    await click(page, '.story-cards .story-card-pick[data-card="final"]');
+    const fin = await downloadFrom(page);
+    ok(fin.png && fin.name === '옛노래서고_완성기록_마지막.png' && fin.label.includes('서고에 내 노래 한 줄'), '기록 화면에서 마지막 카드를 PNG로 내려받는다 ' + fin.name);
+    await closeCard(page);
+    await closePicker(page);
+    ok((await bodyScoreWords(page)).length === 0, '기록 화면에 점수 말이 없다');
+    ok(game.errors.length === 0, '기록 화면 카드: 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
+    ok(game.external.length === 0, '기록 화면 카드: 바깥 요청 없음');
+    await game.close();
+    sessions.pop();
+
+    // 덤을 마친 기록을 넣으면 같은 판 카드의 덤 줄이 바뀐다(카드 그림을 저장하지 않고 기록으로 그린다)
+    console.log('— 기록 화면의 결과 카드: 덤을 마친 기록');
+    game = await openGame(server.url, { viewport: VIEWPORTS.phone, disable3d: true, seed: seedCards({ bonus: true }) });
+    sessions.push(game);
+    page = game.page;
+    await waitStart(page);
+    await openPicker(page, 's-cards');
+    await click(page, '.story-cards .story-card-pick[data-wing="goryeo"]');
+    const bonus = await downloadFrom(page);
+    ok(bonus.png && bonus.name === first.name, '덤을 마친 기록에서도 같은 이름의 PNG ' + bonus.name);
+    ok(bonus.label.includes('덤 칸도 채웠다') && !bonus.label.includes('덤 칸은 아직'), "판 카드의 '덤'이 지금의 기록을 따라 바뀐다 " + bonus.label.slice(0, 80));
+    ok(!bonus.buf.equals(first.buf), '덤 전과 다른 그림이다');
+    await closeCard(page);
+    await click(page, '.story-cards .story-card-pick[data-wing="hyangga"]');
+    const hy = await downloadFrom(page);
+    ok(hy.label.includes('덤 칸은 아직 비어 있다'), '음성 사례: 덤을 하지 않은 향가관 판 카드는 그대로 아직이다');
+    ly = await layout(page, '.story-record-card');
+    ok(ly.length === 0, '카드 화면 배치 문제 없음(844×390, 1) ' + JSON.stringify(ly));
+    ok(game.errors.length === 0, '덤 기록 카드: 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
     await game.close();
     sessions.pop();
   }

@@ -1,6 +1,6 @@
 # js/world — 세계 바탕(3D·2D)
 
-여기는 관 모형을 끼우는 바탕이다. 관 모형 다섯(`wings/`)의 건축과 손잡이 약속은 이 문서의 범위가 아니다.
+여기는 관 모형을 끼우는 바탕이다. 관 모형 다섯의 건축과 손잡이 약속은 `wings/`가 맡는다.
 
 ## 맡는 것
 - `world.js`: 바깥 손잡이. 다른 화면은 이 파일만 부른다. `mount(container, { wings, manifest, appearance, reduceMotion, onArrive })`, `enterWing`/`enterCorridor`, 상황 버튼 `setContext(label, handler)`, 반반 틀 `openSplit(panelEl)`/`closeSplit()`, 방 무대 `openRoom(el)`/`closeRoom()`, `setDancheong`, `getMode()`, `getWingHandle()`, `dispose()`. 사건 버스의 `diorama:*`를 지금 관 모형의 `react`로 넘기고, `wing:state`로 관 문을 열고 닫는다.

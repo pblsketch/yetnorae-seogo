@@ -114,5 +114,32 @@ check(songs.filter((s) => s.genre !== 'goryeo').every((s) => piecesOf(s, 'origin
   check(linesFromPieces(lostJoin).get('0|0') !== joinFeet(g.units[0].lines[0].feet, 'original'), '음성 사례: 붙임을 잃은 조각을 이으면 원문과 달라("가시리 잇고") 잡힌다');
 }
 
+console.log('\n[5] 쪽은 낱말 안에서 나뉘지 않는다(낱말 안에서 나눈 음보 앞)');
+// 재기 화면은 breakBefore가 참인 말 앞에서만 쪽을 나눈다(js/measure/view.js paginate).
+// 쪽 경계가 될 수 있는 자리 가운데 낱말 안(joined 말 앞)이 있으면 한 낱말이 두 쪽으로 갈라진다.
+const insideWordBreaks = (ps) => ps.filter((p) => p.kind === 'word' && p.joined && p.breakBefore);
+{
+  const joinedCount = goryeoSongs.reduce((n, s) => n + ['original', 'reading'].reduce((m, layer) => m + piecesOf(s, layer).filter((p) => p.joined).length, 0), 0);
+  check(joinedCount > 0, `낱말 안에서 나눈 음보의 첫 말이 ${joinedCount}개 있다(살펴볼 것이 있다)`);
+  const bad5 = [];
+  for (const song of songs) {
+    for (const layer of ['original', 'reading', 'gloss']) {
+      const ps = piecesOf(song, layer);
+      for (const p of insideWordBreaks(ps)) bad5.push(`${song.id}/${layer} "${p.text}"`);
+      // 낱말 안이 아닌 음보의 첫 말과 줄·단위의 첫 말에서는 여전히 나눌 수 있다(쪽 나누기가 막히지 않는다)
+      for (const p of ps) {
+        const want = p.kind === 'gloss' || (p.footStart && !p.joined);
+        if (p.breakBefore !== want) bad5.push(`${song.id}/${layer} "${p.text}" breakBefore ${p.breakBefore} ≠ ${want}`);
+      }
+    }
+  }
+  check(bad5.length === 0, '낱말 안에서 나눈 음보의 첫 말 앞에서는 쪽을 나누지 않고, 다른 음보의 첫 말 앞에서는 나눌 수 있다' + (bad5.length ? ' — ' + bad5.slice(0, 6).join(' | ') : ''));
+  // 음성 사례: 예전 규칙(음보의 첫 말이면 나눔)이면 「가시리」 '가시리 / 잇고'의 '잇고' 앞에서 쪽이 나뉠 수 있어 잡힌다
+  const g = goryeoSongs.find((s) => s.id === 'gasiri');
+  const oldRule = piecesOf(g, 'original').map((p) => ({ ...p, breakBefore: p.kind === 'gloss' || p.footStart }));
+  const caught = insideWordBreaks(oldRule);
+  check(caught.length > 0 && caught.some((p) => p.text === '잇고'), '음성 사례: 음보 첫 말마다 나누던 예전 규칙은 낱말 안 쪽 나눔으로 잡힌다 ' + JSON.stringify(caught.slice(0, 3).map((p) => p.text)));
+}
+
 console.log(failures ? `\n글 나누기 점검 실패 ${failures}건` : '\n글 나누기 점검 통과');
 process.exit(failures ? 1 : 0);
