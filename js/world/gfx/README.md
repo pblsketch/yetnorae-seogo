@@ -96,6 +96,12 @@ fig.dispose();
 - 투명 재질(`backdrop`, `contact`, `glow`)은 `renderOrder`로 순서를 잡아 두었다. 투명한 것끼리 많이 겹치게 하지 않는다.
 - 무늬는 역할마다 한 장을 나눠 쓴다. 관마다 새 캔버스 무늬를 만들면 `textures.js`에 그리기 함수를 더하고 이름으로 받는다.
 
+## 가사관·사설시조관 소품과 구운 빛(`t36-props.js`)
+
+`createT36Props(THREE, kit)`는 kit 틀에 부분을 더하는 소품을 준다: 모임지붕 `hipRoof`, 물가 정자 `pavilion`, 연못 `pond`, 둔덕 `hill`, 바위 `rock`, 디딤돌 `flatStone`, 초가 이엉 `thatch`, 담장 `wallRun`, 띠살 문 `lattice`, 종이 초롱 `paperLantern`, 등줄 `lanternString`, 장터 좌판 `stall`, 옹기 `jar`, 종이 오린 사람 `cutout`(지게꾼·광주리 인 아낙·부채 든 양반·아이), 덩이 솔 `pine`, 꽃나무 `blossom`, InstancedMesh용 무늬 좌표 있는 깎은 상자 `unitBox`. 역할은 wood·paint·roof·stone·contact 다섯만 쓴다(회벽·창호지·초롱은 'paint'에 밝은 색).
+
+`createLightBaker(THREE, 'wing')`는 관 빛 묶음(반구광 + 주광 + 보조광)을 꼭짓점 색에 굽고, `createBakedMaterials(THREE, textures, materials).convert(무리, baker)`는 kit이 지은 무리의 빛 재질을 빛 없는 재질(먹빛 걸이 그대로)로 바꾼다. SwiftShader에서 같은 그물의 그리기 시간이 대략 절반이 된다(`docs/engineering-notes.md`). 빛이 움직이는 장면(작품 방 연출 등)에는 쓰지 않는다.
+
 ## 점수 기록
 
 다듬기 전후 스크린숏과 10항목 점수는 `tests/shots/gfx-before/`, `tests/shots/gfx-after/`(커밋하지 않음)에 있다. 찍는 도구는 `tests/shots/gfx-capture.mjs`(같은 폴더, 커밋하지 않음)다.

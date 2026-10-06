@@ -8,8 +8,8 @@
 | 향가관 | `hyangga.js`(3D), `hyangga-board.js`(2D), `hyangga-shared.js` | 4·8·10구 층이 쌓이는 탑, 층마다 칸 한 자리, 10구 층 마지막 두 칸 앞의 '아아' 문 |
 | 고려가요관 | `goryeo.js` → `goryeo-3d.js`, `goryeo-2d.js`, `goryeo-state.js` | 똑같은 방이 줄지은 복도(연 방 일곱 칸), 방 사이 후렴 고리 |
 | 시조관 | `sijo.js` → `sijo-3d.js`, `sijo-2d.js`, `sijo-model.js` | 3층 정자, 층마다 계단참 둘, 종장 첫 계단 세 칸, '선대 사서의 자리' |
-| 가사관 | `gasa.js` → `gasa-3d.js`, `gasa-2d.js`, `gasa-shared.js`, `gasa-corridor.js` | 기둥이 넷씩 되풀이되는 끝없는 회랑. 걸을 때마다 기둥 넷과 처마가 생기며 길어진다 |
-| 사설시조관 | `saseol.js` → `saseol-3d.js`, `saseol-2d.js`, `saseol-model.js` | 가운데 층만 엿가락처럼 늘어나 장터까지 삐져나간 정자 |
+| 가사관 | `gasa.js` → `gasa-3d.js`, `gasa-2d.js`, `gasa-shared.js`, `gasa-corridor.js` | 기둥이 넷씩 되풀이되는 끝없는 회랑. 걸을 때마다 기둥 넷과 처마가 생기며 길어지고, 칸마다 디딤돌 넷(한 행의 네 음보)이 걸음과 박에 밝아진다. 회랑 너머 봄 산수(둔덕 위 정자, 벼랑·폭포·연못) |
+| 사설시조관 | `saseol.js` → `saseol-3d.js`, `saseol-2d.js`, `saseol-model.js` | 가운데 층만 엿가락처럼 늘어나 장터 엿 좌판까지 삐져나간 정자. 연타하면 그 층 앞의 큰 두루마리가 나무 굴대를 굴리며 풀린다. 담 너머 장터(가게·좌판·등줄·종이 오린 사람들) |
 
 `normalize.js`의 `normalizeWing(모듈)`은 다섯 모형이 저마다 다른 이름으로 내놓던 손잡이를 한 모양으로 맞춘다. `js/registry.js`는 모형을 반드시 이것으로 감싸 등록한다.
 

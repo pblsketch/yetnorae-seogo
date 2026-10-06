@@ -1,9 +1,19 @@
-// 사설시조관 3D 모형(spec 3.1·6·14). 저폴리 상자를 코드로 조립하고, 되풀이되는 것은 InstancedMesh 하나로 그린다.
-// 시조 정자의 가운데 층(중장)이 엿가락처럼 늘어나 오른쪽 벽을 뚫고 장터 가게 지붕 위까지 늘어진다.
-// '연타로 풀기'(diorama:unroll)를 하면 그 늘어난 층 앞면을 따라 두루마리가 길게 풀린다.
-// 그리기 호출은 열다섯 안팎이다(예산 60). 그림자는 쓰지 않는다.
+// 사설시조관 3D 모형(spec 3.1·6·14). 시조 정자의 가운데 층(중장)이 엿가락처럼 늘어나 오른쪽 담을 뚫고
+// 장터 엿 가게 좌판 위까지 늘어진다. '연타로 풀기'(diorama:unroll)를 하면 그 늘어난 층 앞에 걸린 큰 두루마리가
+// 나무 굴대를 굴리며 길게 풀린다. 장터에는 기와·초가 가게, 좌판과 차양, 등줄, 종이 오린 장사꾼과 거드름 피우는 양반이 있다.
+//
+// 그리는 것은 셋으로 나뉜다.
+//  · 반응하는 것: 정자 기둥·보·계단·문(상자 InstancedMesh 하나, 단청 색), 등불, 책, 삐져나옴, 두루마리와 굴대, 먹안개.
+//  · 늘어난 층: 몸(띠살 창), 기와 처마, 녹청 도리, 민화 띠(사설시조관 재질 무늬), 장터 차양 천을 그림 한 장의 한 기하로.
+//  · 서 있는 것(담, 정자 기단·지붕, 서가 틀, 바구니, 장터 가게·좌판·사람): gfx 꾸러미로 재질 역할마다 합친 기하 하나.
+//    첫 화면이 늦지 않게 두 번째 프레임에 짓는다.
+// 빛은 꼭짓점 색에 구워 빛 없는 재질로 그린다(t36-props.js '구운 빛'). 그림자 맵은 쓰지 않는다.
 import { SONG_CATALOG } from '../../data/song-table.js';
 import { TOKENS, dancheongColor, getDancheong, mixHex } from '../palette.js';
+import { createTextures } from '../gfx/textures.js';
+import { createMaterials, addInkHook } from '../gfx/materials.js';
+import { createKit, WOOD } from '../gfx/kit.js';
+import { cheapFilter, createBakedMaterials, createLightBaker, createT36Props, T36_COLORS } from '../gfx/t36-props.js';
 import {
   AREAS, LANTERN_COUNT, STAIR_STEPS, createModel, lanternStorey, taffy, unrollReach,
 } from './saseol-model.js';
@@ -18,10 +28,13 @@ const BONUS = { x: 3.6, z: -1.0 };
 const SLOT_DX = 0.68;
 const BASKET = { x: -4.0, z: 3.0 };
 const BASKET_DX = 0.27;
+const RETURNED = { x: 4.4, z: 2.6 };
+const DESK = { x: 1.6, z: 4.7 };
 const SCROLL = { x0: -4.95, x1: MID.x1 - 0.2 };
 const BOOK = { w: 0.42, h: 1.0, d: 0.36, y0: 0.14 };
 const POP_SEGS = 10;
 const POP_UNIT_H = 0.33;
+const CAM = { x: 2.4, z: 12.9 };
 
 // 늘어난 층의 x 자리에서의 생김새
 function midAt(x) {
@@ -36,21 +49,18 @@ export function scrollEndX(feet) {
   return SCROLL.x0 + r.within * (MID.seam - SCROLL.x0) + r.beyond * (SCROLL.x1 - MID.seam);
 }
 
+// 두루마리가 그 x에서 걸리는 높이: 처마 밑에서 늘어난 층 아래까지 길게 늘어진다
+function scrollSpan(x) {
+  const m = midAt(x);
+  const top = m.yc + m.hh - 0.02;
+  const bottom = m.yc - m.hh - 0.32 * (0.6 + 0.4 * (m.hh / MID.half));
+  return { top, bottom, z: MID.zc + m.hd + 0.07 };
+}
+
 const slotX = (area, i) => (area === 'shelf' ? SHELF.x : area === 'bonus' ? BONUS.x : BASKET.x) + (area === 'basket' ? (i - 0.5) * 2 * BASKET_DX : (i - 1) * SLOT_DX);
 const shelfZ = (area) => (area === 'shelf' ? SHELF.z : BONUS.z);
 
-// ── 정적인 상자 목록 ──
-function shelfBoxes(cx, cz, out) {
-  const wood = TOKENS.meokSoft;
-  out.push({ p: [cx, 0.75, cz - 0.23], s: [2.1, 1.5, 0.04], c: wood });
-  out.push({ p: [cx - 1.03, 0.75, cz], s: [0.06, 1.5, 0.5], c: wood });
-  out.push({ p: [cx + 1.03, 0.75, cz], s: [0.06, 1.5, 0.5], c: wood });
-  out.push({ p: [cx - SLOT_DX / 2, 0.75, cz], s: [0.04, 1.3, 0.48], c: wood });
-  out.push({ p: [cx + SLOT_DX / 2, 0.75, cz], s: [0.04, 1.3, 0.48], c: wood });
-  out.push({ p: [cx, 0.07, cz], s: [2.1, 0.14, 0.5], c: wood });
-  out.push({ p: [cx, 1.47, cz], s: [2.12, 0.06, 0.52], c: wood });
-}
-
+// ── 반응하는 상자들(정자의 칠한 부재, 계단, 문). 색은 단청 값을 따른다 ──
 function gate(x, z0, z1, leaf, out) {
   const zc = (z0 + z1) / 2;
   out.push({ p: [x, 1.2, z0], s: [0.22, 2.4, 0.22], c: TOKENS.juhong });
@@ -59,62 +69,29 @@ function gate(x, z0, z1, leaf, out) {
   out.push({ p: [x + 0.05, 1.05, zc], s: [0.06, 2.1, z1 - z0 - 0.25], c: leaf });
 }
 
-function stall(x, z, h, out) {
-  const wood = mixHex(TOKENS.meokSoft, TOKENS.hanjiDeep, 0.3);
-  for (const dx of [-0.75, 0.75]) for (const dz of [-0.45, 0.45]) out.push({ p: [x + dx, h / 2, z + dz], s: [0.1, h, 0.1], c: wood });
-  out.push({ p: [x, 0.42, z], s: [1.5, 0.08, 0.95], c: TOKENS.hanjiDeep });
-  out.push({ p: [x, 0.2, z], s: [1.3, 0.4, 0.8], c: wood });
-  // 좌판의 물건(게젓 항아리, 꾸러미 따위를 닮은 작은 상자)
-  [TOKENS.juhong, TOKENS.gold, TOKENS.nokcheong].forEach((c, i) => out.push({ p: [x - 0.45 + i * 0.45, 0.58, z + 0.1], s: [0.26, 0.24, 0.26], c }));
-}
-
-function person(x, z, c, out) {
-  out.push({ p: [x, 0.5, z], s: [0.42, 1.0, 0.3], c });
-  out.push({ p: [x, 1.17, z], s: [0.28, 0.3, 0.28], c: TOKENS.hanjiDeep });
-  out.push({ p: [x, 1.35, z], s: [0.52, 0.04, 0.52], c: TOKENS.meok });
-}
-
 function staticBoxes() {
   const out = [];
   const keys = {};
-  const wall = mixHex(TOKENS.hanji, TOKENS.meokFog, 0.22);
-  const stone = mixHex(TOKENS.hanjiDeep, TOKENS.meokFog, 0.5);
-  // 바닥, 장터 바닥(벽 너머)
-  out.push({ p: [0, -0.04, 0], s: [13, 0.08, 13], c: TOKENS.hanjiDeep });
-  out.push({ p: [10.1, -0.035, -2.9], s: [7.2, 0.07, 7.6], c: mixHex(TOKENS.hanjiDeep, TOKENS.meokFog, 0.35) });
-  // 벽: 뒤, 왼쪽(작품 방 문 자리 비움), 오른쪽(늘어난 층이 뚫고 나간 자리와 다음 관 문 자리 비움)
-  out.push({ p: [0, 0.8, -6.45], s: [13, 1.6, 0.15], c: wall });
-  out.push({ p: [-6.45, 1.1, -3.15], s: [0.15, 2.2, 6.7], c: wall });
-  out.push({ p: [-6.45, 1.1, 4.15], s: [0.15, 2.2, 4.7], c: wall });
-  out.push({ p: [6.45, 1.1, -5.65], s: [0.15, 2.2, 1.7], c: wall });
-  out.push({ p: [6.45, 0.3, -3.6], s: [0.15, 0.6, 2.4], c: wall });
-  out.push({ p: [6.45, 1.1, -0.8], s: [0.15, 2.2, 3.2], c: wall });
-  out.push({ p: [6.45, 1.1, 4.45], s: [0.15, 2.2, 4.1], c: wall });
-  // 뚫린 벽의 부스러기
-  [[6.5, 0.7, -4.5, 0.35], [6.7, 0.18, -2.7, 0.3], [6.3, 0.75, -2.65, 0.25], [6.9, 0.12, -3.9, 0.22]].forEach(([x, y, z, k]) => out.push({ p: [x, y, z], s: [k, k * 0.7, k], c: wall }));
-  // 정자: 기단, 초장 층 기둥과 인방, 난간, 층 사이 마루
-  out.push({ p: [-3.4, 0.15, MID.zc], s: [3.8, 0.3, 3.0], c: stone });
+  // 정자: 초장 층·종장 층 기둥(주홍), 창방(녹청)
   for (const x of PILLAR_X) {
-    out.push({ p: [x, 1.05, FRONT_Z], s: [0.18, 1.5, 0.18], c: TOKENS.juhong });
-    out.push({ p: [x, 1.05, BACK_Z], s: [0.18, 1.5, 0.18], c: TOKENS.juhong });
-    out.push({ p: [x, 3.87, FRONT_Z], s: [0.16, 1.06, 0.16], c: TOKENS.juhong });
-    out.push({ p: [x, 3.87, BACK_Z], s: [0.16, 1.06, 0.16], c: TOKENS.juhong });
+    out.push({ p: [x, 1.05, FRONT_Z], s: [0.2, 1.5, 0.2], c: TOKENS.juhong });
+    out.push({ p: [x, 1.05, BACK_Z], s: [0.2, 1.5, 0.2], c: TOKENS.juhong });
+    out.push({ p: [x, 3.87, FRONT_Z], s: [0.18, 1.06, 0.18], c: TOKENS.juhong });
+    out.push({ p: [x, 3.87, BACK_Z], s: [0.18, 1.06, 0.18], c: TOKENS.juhong });
   }
   for (const z of [FRONT_Z, BACK_Z]) {
-    out.push({ p: [-3.4, 1.72, z], s: [3.4, 0.14, 0.2], c: TOKENS.nokcheong });
-    out.push({ p: [-3.4, 4.36, z], s: [3.4, 0.12, 0.18], c: TOKENS.nokcheong });
+    out.push({ p: [-3.4, 1.72, z], s: [3.4, 0.16, 0.22], c: TOKENS.nokcheong });
+    out.push({ p: [-3.4, 4.36, z], s: [3.4, 0.14, 0.2], c: TOKENS.nokcheong });
   }
-  out.push({ p: [-3.4, 0.6, FRONT_Z], s: [3.2, 0.06, 0.06], c: TOKENS.meokSoft });
-  out.push({ p: [-3.4, 1.88, MID.zc], s: [3.8, 0.16, 2.9], c: TOKENS.meokSoft });
   // 종장으로 오르는 첫 계단 세 칸(정자 왼쪽 바깥)과 받침 기둥
   out.push({ p: [-5.5, 1.3, -3.2], s: [0.12, 2.6, 0.12], c: TOKENS.meokSoft });
   for (let k = 0; k < STAIR_STEPS; k++) {
     keys['stair' + k] = out.length;
-    out.push({ p: [-5.5, 2.25 + 0.45 * k, -2.7 - k * 0.5], s: [0.7, 0.2, 0.55], c: TOKENS.meokSoft });
+    out.push({ p: [-5.5, 2.25 + 0.45 * k, -2.7 - k * 0.5], s: [0.72, 0.16, 0.55], c: TOKENS.meokSoft });
   }
   // 시조라면 여기서 끝났을 자리(4음보 경계): 늘어난 층을 감는 금빛 띠
   out.push({ p: [MID.seam, MID.yc, MID.zc], s: [0.14, 1.35, 2.75], c: TOKENS.gold });
-  // 늘어난 층을 받치는 가는 기둥(관 안)과 장터 가게(층 끝이 얹힌 가게 포함)
+  // 늘어난 층을 받치는 가는 기둥(관 안)
   for (let k = 0; k < 8; k++) {
     const x = -0.8 + k * 0.95;
     if (x > 6.2) break;
@@ -123,138 +100,123 @@ function staticBoxes() {
     out.push({ p: [x, h / 2, MID.zc + m.hd - 0.15], s: [0.12, h, 0.12], c: TOKENS.juhong });
     out.push({ p: [x, h / 2, MID.zc - m.hd + 0.15], s: [0.12, h, 0.12], c: TOKENS.juhong });
   }
-  const endM = midAt(MID.x1 - 0.4);
-  stall(10.2, MID.zc, endM.yc - endM.hh, out);
-  stall(8.6, -0.6, 1.7, out);
-  stall(12.1, -1.4, 1.7, out);
-  stall(8.5, -5.7, 1.7, out);
-  // 장터 사람들(낮은 상자 인형), 장터 팻말 기둥
-  person(7.6, 0.4, TOKENS.meokSoft, out);
-  person(9.7, -1.6, mixHex(TOKENS.meokSoft, TOKENS.nokcheong, 0.5), out);
-  person(11.3, 0.3, mixHex(TOKENS.meokSoft, TOKENS.juhong, 0.4), out);
-  person(10.6, -5.9, TOKENS.meokSoft, out);
-  person(12.6, -3.3, mixHex(TOKENS.meokSoft, TOKENS.gold, 0.4), out);
-  out.push({ p: [7.2, 1.3, 0.4], s: [0.1, 2.6, 0.1], c: TOKENS.meokSoft });
-  // 칸(서가)과 덤 칸
-  shelfBoxes(SHELF.x, SHELF.z, out);
-  shelfBoxes(BONUS.x, BONUS.z, out);
-  // 바구니(두 자리)
-  out.push({ p: [BASKET.x, 0.18, BASKET.z], s: [1.1, 0.36, 0.6], c: mixHex(TOKENS.hanjiDeep, TOKENS.gold, 0.35) });
-  out.push({ p: [BASKET.x, 0.3, BASKET.z], s: [0.04, 0.22, 0.56], c: TOKENS.meokSoft });
-  // 돌아온 노래 선반
-  out.push({ p: [4.4, 0.45, 2.6], s: [1.3, 0.9, 0.4], c: TOKENS.meokSoft });
-  out.push({ p: [4.4, 0.92, 2.6], s: [1.4, 0.05, 0.46], c: TOKENS.meokSoft });
-  out.push({ p: [4.4, 0.47, 2.81], s: [1.2, 0.04, 0.02], c: TOKENS.hanjiDeep });
-  // 작품 방 문(왼쪽 벽), 다음 관 문(오른쪽 벽)
+  // 작품 방 문(왼쪽 담), 다음 관 문(오른쪽 담)
   gate(-6.4, 0.2, 1.8, TOKENS.meokSoft, out);
   gate(6.4, 0.8, 2.4, TOKENS.meok, out);
-  // 미리 잰 노래가 기다리는 서안
-  out.push({ p: [1.6, 0.35, 4.7], s: [0.9, 0.7, 0.45], c: TOKENS.meokSoft });
-  out.push({ p: [1.6, 0.72, 4.7], s: [1.1, 0.06, 0.55], c: TOKENS.meokSoft });
   return { list: out, keys };
-}
-
-// 지붕(네모뿔): 정자 지붕, 장터 차양
-function roofList() {
-  return [
-    { p: [-3.4, 5.0, MID.zc], hw: 2.4, h: 1.1, hd: 2.0, c: TOKENS.meok },
-    { p: [8.6, 2.0, -0.6], hw: 1.05, h: 0.6, hd: 0.75, c: TOKENS.juhong },
-    { p: [12.1, 2.0, -1.4], hw: 1.05, h: 0.6, hd: 0.75, c: TOKENS.nokcheong },
-    { p: [8.5, 2.0, -5.7], hw: 1.05, h: 0.6, hd: 0.75, c: TOKENS.gold },
-  ];
 }
 
 // 등불 자리: 초장 층 기둥 넷, 가운데 층(정자 안 넷 + 늘어난 쪽 열둘), 종장 층 기둥 넷
 function lanternPositions() {
   const out = [];
-  for (const x of PILLAR_X) out.push([x, 1.5, FRONT_Z + 0.16]);
+  for (const x of PILLAR_X) out.push([x, 1.5, FRONT_Z + 0.18]);
   for (let i = 0; i < 4; i++) {
     const x = -4.75 + i * 0.95;
     const m = midAt(x);
-    out.push([x, m.yc + m.hh - 0.14, MID.zc + m.hd + 0.08]);
+    out.push([x, m.yc + m.hh + 0.02, MID.zc + m.hd + 0.16]);
   }
   for (let k = 0; k < 12; k++) {
     const x = -1.0 + k * (11.0 / 11);
     const m = midAt(x);
-    out.push([x, m.yc + m.hh - 0.1, MID.zc + m.hd + 0.08]);
+    out.push([x, m.yc + m.hh + 0.02, MID.zc + m.hd + 0.16]);
   }
-  for (const x of PILLAR_X) out.push([x, 4.15, FRONT_Z + 0.14]);
+  for (const x of PILLAR_X) out.push([x, 4.15, FRONT_Z + 0.16]);
   return out;
 }
 
 // ── 그림(캔버스 무늬) ──
-function canvasTex(THREE, canvas, repeatX = 1) {
+function canvasTex(THREE, canvas) {
   const t = new THREE.CanvasTexture(canvas);
   t.colorSpace = THREE.SRGBColorSpace;
-  if (repeatX !== 1) { t.wrapS = THREE.RepeatWrapping; t.repeat.set(repeatX, 1); }
   return t;
 }
 
-function grainCanvas() {
-  const c = document.createElement('canvas');
-  c.width = 64; c.height = 64;
-  const g = c.getContext('2d');
-  g.fillStyle = '#ffffff';
-  g.fillRect(0, 0, 64, 64);
-  g.strokeStyle = 'rgba(90,86,80,0.18)';
-  for (let y = 4; y < 64; y += 9) { g.beginPath(); g.moveTo(0, y); g.bezierCurveTo(20, y + 3, 40, y - 3, 64, y); g.stroke(); }
-  return c;
-}
-
-function latticeCanvas() {
-  const c = document.createElement('canvas');
-  c.width = 128; c.height = 64;
-  const g = c.getContext('2d');
-  g.fillStyle = '#ffffff';
-  g.fillRect(0, 0, 128, 64);
-  g.strokeStyle = 'rgba(43,43,43,0.55)';
-  g.lineWidth = 3;
-  g.strokeRect(8, 10, 112, 44);
-  g.lineWidth = 1.5;
-  for (let x = 22; x < 120; x += 14) { g.beginPath(); g.moveTo(x, 10); g.lineTo(x, 54); g.stroke(); }
-  for (let y = 21; y < 54; y += 11) { g.beginPath(); g.moveTo(8, y); g.lineTo(120, y); g.stroke(); }
-  return c;
-}
-
-// 두루마리 무늬: 한지 바탕에 먹 글줄, 음보 경계마다 가는 금, 4음보 자리에 붉은 금
+// 두루마리 무늬: 위아래 비단 표구(녹청 띠와 금선), 한지 바탕에 세로 먹 글줄, 음보 경계마다 가는 금, 4음보 자리에 붉은 금
 function scrollCanvas() {
   const W = 2048;
+  const H = 128;
   const c = document.createElement('canvas');
-  c.width = W; c.height = 64;
+  c.width = W; c.height = H;
   const g = c.getContext('2d');
   g.fillStyle = TOKENS.hanji;
-  g.fillRect(0, 0, W, 64);
-  g.fillStyle = 'rgba(43,43,43,0.75)';
+  g.fillRect(0, 0, W, H);
   let seed = 7;
   const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-  for (let x = 6; x < W - 4; x += 9) {
-    const h = 16 + rnd() * 26;
-    g.fillRect(x, 32 - h / 2, 3, h);
+  // 세로 글줄(붓 획 덩이)
+  g.fillStyle = 'rgba(43,43,43,0.78)';
+  for (let x = 10; x < W - 6; x += 11) {
+    let y = 26;
+    while (y < H - 28) {
+      const h = 4 + rnd() * 9;
+      g.fillRect(x + (rnd() - 0.5) * 2, y, 3 + rnd() * 2, h);
+      y += h + 2 + rnd() * 4;
+    }
   }
   const u = (x) => ((x - SCROLL.x0) / (SCROLL.x1 - SCROLL.x0)) * W;
-  g.fillStyle = TOKENS.meok;
-  for (let f = 1; f <= 60; f++) g.fillRect(u(scrollEndX(f)) - 1, 0, 2, 64);
+  g.fillStyle = 'rgba(43,43,43,0.55)';
+  for (let f = 1; f <= 60; f++) g.fillRect(u(scrollEndX(f)) - 1, 18, 2, H - 36);
   g.fillStyle = TOKENS.juhong;
-  g.fillRect(u(scrollEndX(4)) - 3, 0, 6, 64);
+  g.fillRect(u(scrollEndX(4)) - 3, 18, 6, H - 36);
+  // 표구: 위아래 녹청 비단과 금선
+  for (const y of [0, H - 18]) {
+    g.fillStyle = TOKENS.nokcheong;
+    g.fillRect(0, y, W, 18);
+    g.fillStyle = TOKENS.gold;
+    g.fillRect(0, y === 0 ? 15 : H - 18, W, 3);
+    g.fillStyle = 'rgba(255,255,255,0.18)';
+    for (let x = 0; x < W; x += 24) g.fillRect(x, y + 5, 12, 2);
+  }
   return c;
 }
 
-// 먹안개 한 자락: 가운데가 짙고 가장자리로 갈수록 사라지는 둥근 얼룩
-function fogCanvas() {
-  const c = document.createElement('canvas');
-  c.width = 128; c.height = 64;
-  const g = c.getContext('2d');
-  g.translate(64, 32);
-  g.scale(2, 1);
-  const r = g.createRadialGradient(0, 0, 0, 0, 0, 32);
-  r.addColorStop(0, 'rgba(255,255,255,1)');
-  r.addColorStop(0.55, 'rgba(255,255,255,0.6)');
-  r.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = r;
-  g.fillRect(-32, -32, 64, 64);
-  return c;
+// 늘어난 층 그림 한 장(512×512): 위부터 띠살 창(0), 기와 골(1), 민화 띠(2, 사설시조관 재질 무늬), 흰 칸(3)
+const ATLAS_ROWS = 4;
+function drawAtlas(g, pattern) {
+  const S = 512;
+  const R = S / ATLAS_ROWS;
+  g.clearRect(0, 0, S, S);
+  // 0: 띠살 창(한지 + 먹 살)
+  g.fillStyle = '#f2ead8';
+  g.fillRect(0, 0, S, R);
+  g.strokeStyle = 'rgba(43,43,43,0.75)';
+  g.lineWidth = 6;
+  g.strokeRect(6, 10, S - 12, R - 20);
+  g.lineWidth = 2.5;
+  for (let x = 6; x < S; x += 21) { g.beginPath(); g.moveTo(x, 10); g.lineTo(x, R - 10); g.stroke(); }
+  for (const y of [R * 0.25, R * 0.5, R * 0.75]) for (const d of [-4, 4]) { g.beginPath(); g.moveTo(6, y + d); g.lineTo(S - 6, y + d); g.stroke(); }
+  // 1: 기와 골(수키와 줄과 그늘)
+  for (let x = 0; x < S; x += 32) {
+    const gr = g.createLinearGradient(x, 0, x + 32, 0);
+    gr.addColorStop(0, '#5a5650');
+    gr.addColorStop(0.5, '#9a958c');
+    gr.addColorStop(1, '#4a4642');
+    g.fillStyle = gr;
+    g.fillRect(x, R, 32, R);
+  }
+  g.fillStyle = 'rgba(30,30,30,0.35)';
+  for (let y = R + 20; y < 2 * R; y += 26) g.fillRect(0, y, S, 3);
+  // 2: 민화 띠
+  if (pattern) {
+    g.drawImage(pattern, 0, 2 * R, S, R);
+  } else {
+    g.fillStyle = '#f0e6cf';
+    g.fillRect(0, 2 * R, S, R);
+    g.lineWidth = 14;
+    for (const [col, dy] of [[TOKENS.nokcheong, 0.35], [TOKENS.juhong, 0.7]]) {
+      g.strokeStyle = col;
+      g.beginPath();
+      for (let x = 0; x <= S; x += 8) g.lineTo(x, 2 * R + R * dy + Math.sin((x / S) * Math.PI * 4) * 16);
+      g.stroke();
+    }
+    g.fillStyle = TOKENS.gold;
+    for (let x = 32; x < S; x += 96) { g.beginPath(); g.arc(x, 2 * R + R * 0.52, 10, 0, Math.PI * 2); g.fill(); }
+  }
+  // 3: 흰 칸(꼭짓점 색만 보인다)
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 3 * R, S, R);
 }
 
+// 나무판 간판 그림(한지 바탕 + 먹 테 + 먹 글씨). texts 하나가 한 칸
 function plaqueAtlas(texts) {
   const cw = 512;
   const ch = 128;
@@ -305,7 +267,8 @@ function quadMesh(THREE, quads, cells, material) {
 }
 
 // 늘어난 층 한 덩이: 상자를 x로 잘게 나눈 뒤 마디마다 굵기와 처짐을 준다. place(m) → { y, hy, hz }(가운데 높이, 반높이, 반깊이)
-function taffyMesh(THREE, place, material) {
+// row는 그림 칸, repeat는 u 되풀이 수, color는 꼭짓점 색. 색인 없는 기하로 돌려준다.
+function taffyPart(THREE, place, { row, repeat, color }) {
   const geo = new THREE.BoxGeometry(1, 1, 1, 64, 1, 1);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
@@ -315,8 +278,47 @@ function taffyMesh(THREE, place, material) {
     pos.setXYZ(i, X, q.y + pos.getY(i) * 2 * q.hy, MID.zc + pos.getZ(i) * 2 * q.hz);
   }
   geo.computeVertexNormals();
-  geo.computeBoundingSphere();
-  return new THREE.Mesh(geo, material);
+  const out = geo.toNonIndexed();
+  geo.dispose();
+  const uv = out.attributes.uv;
+  const v0 = 1 - (row + 1) / ATLAS_ROWS + 0.01;
+  const v1 = 1 - row / ATLAS_ROWS - 0.01;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * repeat, v0 + uv.getY(i) * (v1 - v0));
+  const c = new THREE.Color(color);
+  const col = new Float32Array(out.attributes.position.count * 3);
+  for (let i = 0; i < col.length; i += 3) col.set([c.r, c.g, c.b], i);
+  out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return out;
+}
+
+// 비스듬한 천 한 장(차양, 깃발). 네 모서리 [x,y,z]와 그림 칸
+function clothPart(THREE, corners, { row, repeat = 1, color = '#ffffff' }) {
+  const [a, b, c, d] = corners;   // 왼아래, 오른아래, 오른위, 왼위
+  const pos = [...a, ...b, ...c, ...a, ...c, ...d];
+  const v0 = 1 - (row + 1) / ATLAS_ROWS + 0.01;
+  const v1 = 1 - row / ATLAS_ROWS - 0.01;
+  const uv = [0, v0, repeat, v0, repeat, v1, 0, v0, repeat, v1, 0, v1];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  const cc = new THREE.Color(color);
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(18).map((_, i) => [cc.r, cc.g, cc.b][i % 3]), 3));
+  return g;
+}
+
+function mergeNonIndexed(THREE, parts) {
+  let n = 0;
+  for (const p of parts) n += p.attributes.position.count;
+  const out = new THREE.BufferGeometry();
+  for (const [name, size] of [['position', 3], ['normal', 3], ['uv', 2], ['color', 3]]) {
+    const arr = new Float32Array(n * size);
+    let o = 0;
+    for (const p of parts) { arr.set(p.attributes[name].array, o); o += p.attributes[name].array.length; }
+    out.setAttribute(name, new THREE.BufferAttribute(arr, size));
+  }
+  out.computeBoundingSphere();
+  return out;
 }
 
 export function create3D(ctx) {
@@ -341,49 +343,79 @@ export function create3D(ctx) {
   const HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
   let level = getDancheong(wingId);
   const dc = (hex) => dancheongColor(hex, level);
+  let frames = 0;
 
-  // 정적인 상자들(재질 하나, 그리기 호출 하나)
-  const grain = ctx.assets?.texture?.('texture/saseol') ?? tex(canvasTex(THREE, grainCanvas()));
+  // ── 꾸러미 ──
+  const textures = cheapFilter(THREE, createTextures(THREE));
+  const materials = createMaterials(THREE, textures);
+  const kit = createKit(THREE, { materials });
+  const props = createT36Props(THREE, kit);
+  const baker = createLightBaker(THREE, 'wing');
+  const baked = createBakedMaterials(THREE, textures, materials);
+  materials.setDancheong(level);
+  const unit = baker.bake(props.unitBox(0.06));
+  const basic = (opts) => new THREE.MeshBasicMaterial({ vertexColors: true, ...opts });
+
+  // 정자의 칠한 부재(재질 하나, 그리기 호출 하나)
   const { list: boxes, keys } = staticBoxes();
-  const boxMesh = keep(new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ map: grain }), boxes.length));
+  const boxMesh = keep(new THREE.InstancedMesh(unit, basic({ map: textures.get('wood') }), boxes.length));
   boxMesh.name = 'saseol-static';
   boxes.forEach((b, i) => {
     boxMesh.setMatrixAt(i, M4.compose(V.set(...b.p), Q.identity(), SC.set(...b.s)));
     boxMesh.setColorAt(i, COL.set(b.c));
   });
 
-  // 지붕(네모뿔 하나를 늘여 쓴다)
-  const cone = new THREE.ConeGeometry(1, 1, 4);
-  cone.rotateY(Math.PI / 4);
-  const roofs = roofList();
-  const roofMesh = keep(new THREE.InstancedMesh(cone, new THREE.MeshLambertMaterial(), roofs.length));
-  roofMesh.name = 'saseol-roofs';
-  roofs.forEach((r, i) => roofMesh.setMatrixAt(i, M4.compose(V.set(...r.p), Q.identity(), SC.set(r.hw / Math.SQRT1_2, r.h, r.hd / Math.SQRT1_2))));
-
-  // 늘어난 가운데 층: 몸(창살 무늬), 지붕 띠, 위 도리(녹청), 아래 인방(주홍)
-  const lattice = tex(canvasTex(THREE, latticeCanvas(), 18));
-  const bodyMat = new THREE.MeshLambertMaterial({ map: lattice });
-  const body = keep(taffyMesh(THREE, (m) => ({ y: m.yc, hy: m.hh, hz: m.hd }), bodyMat));
+  // 늘어난 가운데 층: 몸(띠살 창), 기와 처마, 녹청 도리, 민화 띠(+ 장터 차양 천) — 그림 한 장, 그리기 호출 하나
+  const pattern = ctx.assets?.texture?.('texture/saseol') ?? null;
+  const patternReady = () => { const img = pattern?.image; return !!img && (img.width ?? 0) > 0 && img.complete !== false; };
+  const atlasCanvas = document.createElement('canvas');
+  atlasCanvas.width = 512; atlasCanvas.height = 512;
+  let atlasHasPattern = patternReady();
+  drawAtlas(atlasCanvas.getContext('2d'), atlasHasPattern ? pattern.image : null);
+  const atlas = tex(canvasTex(THREE, atlasCanvas));
+  atlas.wrapS = THREE.RepeatWrapping;
+  const stretchParts = [
+    taffyPart(THREE, (m) => ({ y: m.yc, hy: m.hh, hz: m.hd }), { row: 0, repeat: 18, color: '#e8dcc0' }),
+    taffyPart(THREE, (m) => ({ y: m.yc + m.hh + 0.1, hy: 0.09, hz: m.hd + 0.3 * (m.hh / MID.half) }), { row: 1, repeat: 24, color: '#d0cac0' }),
+    taffyPart(THREE, (m) => ({ y: m.yc + m.hh - 0.07, hy: 0.07, hz: m.hd + 0.04 }), { row: 3, repeat: 1, color: TOKENS.nokcheong }),
+    taffyPart(THREE, (m) => ({ y: m.yc - m.hh + 0.1, hy: 0.12, hz: m.hd + 0.05 }), { row: 2, repeat: 14, color: '#ffffff' }),
+    ...awningParts(),
+  ];
+  const stretchGeo = baker.bake(mergeNonIndexed(THREE, stretchParts));
+  stretchParts.forEach((g) => g.dispose());
+  const stretchMat = addInkHook(basic({ map: atlas }), materials.shared, 0);
+  const body = keep(new THREE.Mesh(stretchGeo, stretchMat));
   body.name = 'saseol-stretched-storey';
-  const eaveMat = new THREE.MeshLambertMaterial();
-  keep(taffyMesh(THREE, (m) => ({ y: m.yc + m.hh + 0.1, hy: 0.09, hz: m.hd + 0.3 * (m.hh / MID.half) }), eaveMat)).name = 'saseol-stretched-eave';
-  const topMat = new THREE.MeshLambertMaterial();
-  keep(taffyMesh(THREE, (m) => ({ y: m.yc + m.hh - 0.06, hy: 0.06, hz: m.hd + 0.04 }), topMat));
-  const botMat = new THREE.MeshLambertMaterial();
-  keep(taffyMesh(THREE, (m) => ({ y: m.yc - m.hh + 0.06, hy: 0.06, hz: m.hd + 0.04 }), botMat));
 
-  // 현판: 작품 방 문, 장터, 덤, 돌아온 노래(그림 한 장)
+  // 장터 차양 천(민화 무늬) 넷: 좌판 셋 위와 엿 가게 앞
+  function awningParts() {
+    const out = [];
+    const tilt = (x, z, w, d, y, drop) => [[x - w / 2, y - drop, z + d / 2], [x + w / 2, y - drop, z + d / 2], [x + w / 2, y, z - d / 2], [x - w / 2, y, z - d / 2]];
+    out.push(clothPart(THREE, tilt(8.4, -0.4, 2.0, 1.4, 2.05, 0.35), { row: 2, repeat: 0.6 }));
+    out.push(clothPart(THREE, tilt(12.0, -1.2, 2.0, 1.4, 2.05, 0.35), { row: 2, repeat: 0.6 }));
+    out.push(clothPart(THREE, tilt(10.2, -6.0, 2.2, 1.0, 2.55, 0.3), { row: 2, repeat: 0.7 }));
+    // 주막 깃발(장대에 늘어뜨린 천)
+    out.push(clothPart(THREE, [[13.32, 2.2, -4.6], [13.32, 2.2, -3.95], [13.32, 3.3, -3.95], [13.32, 3.3, -4.6]], { row: 3, color: '#efe4c8' }));
+    return out;
+  }
+
+  // 현판·간판: 작품 방 문, 장터, 덤, 돌아온 노래, 장터 가게 넷(그림 한 장)
   const roomTitle = '「' + (SONG_CATALOG['nimi-oma']?.title ?? '') + '」';
-  const plaqueTex = tex(canvasTex(THREE, plaqueAtlas([roomTitle, '장터', '덤', '돌아온 노래'])));
+  const PLAQUES = [roomTitle, '장터', '덤', '돌아온 노래', '게젓', '엿', '짚신', '주막'];
+  const plaqueTex = tex(canvasTex(THREE, plaqueAtlas(PLAQUES)));
   const plaques = keep(quadMesh(THREE, [
     { c: [-6.0, 2.95, 1.0], r: [Math.SQRT1_2, 0, -Math.SQRT1_2], w: 2.0, h: 0.5, cell: 0 },
     { c: [7.2, 2.55, 0.47], r: [1, 0, 0], w: 1.2, h: 0.3, cell: 1 },
     { c: [BONUS.x, 1.78, BONUS.z + 0.27], r: [1, 0, 0], w: 1.2, h: 0.3, cell: 2 },
-    { c: [4.4, 1.2, 2.84], r: [1, 0, 0], w: 1.4, h: 0.35, cell: 3 },
-  ], 4, new THREE.MeshBasicMaterial({ map: plaqueTex })));
+    { c: [RETURNED.x, 1.2, RETURNED.z + 0.24], r: [1, 0, 0], w: 1.4, h: 0.35, cell: 3 },
+    { c: [7.7, 2.25, -5.66], r: [1, 0, 0], w: 1.3, h: 0.36, cell: 4 },
+    { c: [10.2, midAt(10.2).yc - midAt(10.2).hh - 0.35, MID.zc + 0.62], r: [1, 0, 0], w: 0.9, h: 0.3, cell: 5 },
+    { c: [12.6, 2.25, -5.66], r: [1, 0, 0], w: 1.3, h: 0.36, cell: 6 },
+    { c: [13.34, 2.75, -4.27], r: [0, 0, 1], w: 0.6, h: 0.2, cell: 7 },
+  ], PLAQUES.length, new THREE.MeshBasicMaterial({ map: plaqueTex, toneMapped: false, side: THREE.DoubleSide })));
   plaques.name = 'saseol-plaques';
 
-  // 두루마리와 굴대 둘
+  // 두루마리와 굴대(굴대 둘 + 굴대 머리 넷)
   const SEG = 96;
   const scrollGeo = new THREE.BufferGeometry();
   const sPos = new Float32Array((SEG + 1) * 2 * 3);
@@ -394,21 +426,23 @@ export function create3D(ctx) {
   scrollGeo.setAttribute('uv', new THREE.BufferAttribute(sUv, 2));
   scrollGeo.setIndex(sIdx);
   const scrollTex = tex(canvasTex(THREE, scrollCanvas()));
-  const scroll = keep(new THREE.Mesh(scrollGeo, new THREE.MeshLambertMaterial({ map: scrollTex, side: THREE.DoubleSide })));
+  const scroll = keep(new THREE.Mesh(scrollGeo, new THREE.MeshBasicMaterial({ map: scrollTex, side: THREE.DoubleSide })));
   scroll.name = 'saseol-scroll';
   scroll.visible = false;
-  const rollers = keep(new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.07, 1, 8), new THREE.MeshLambertMaterial(), 2));
+  const rollerGeo = baker.bake(new THREE.CylinderGeometry(0.5, 0.5, 1, 12));
+  const rollers = keep(new THREE.InstancedMesh(rollerGeo, basic({ map: textures.get('wood') }), 6));
   rollers.name = 'saseol-rollers';
 
-  // 등불
+  // 등불(종이 초롱 꼴, 빛 없는 재질: 켜지면 스스로 밝다)
   const lanternPos = lanternPositions();
-  const lanterns = keep(new THREE.InstancedMesh(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial(), LANTERN_COUNT));
+  const lanternGeo = new THREE.LatheGeometry([[0, -0.16], [0.07, -0.16], [0.13, -0.08], [0.14, 0.04], [0.1, 0.13], [0.05, 0.16], [0, 0.16]].map(([x, y]) => new THREE.Vector2(x, y)), 8);
+  const lanterns = keep(new THREE.InstancedMesh(lanternGeo, new THREE.MeshBasicMaterial(), LANTERN_COUNT));
   lanterns.name = 'saseol-lanterns';
-  lanternPos.forEach((p, i) => lanterns.setMatrixAt(i, M4.compose(V.set(...p), Q.identity(), SC.set(1, 1.25, 1))));
+  lanternPos.forEach((p, i) => lanterns.setMatrixAt(i, M4.compose(V.set(...p), Q.identity(), SC.set(1, 1, 1))));
 
   // 책(칸 셋, 덤 셋, 바구니 두루마리 둘과 행선지 표, 제본 실과 금박)
   const BOOK_N = 16;
-  const books = keep(new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), BOOK_N));
+  const books = keep(new THREE.InstancedMesh(unit, basic({ map: textures.get('hanji') }), BOOK_N));
   books.name = 'saseol-books';
 
   // 묶인 책등의 제목(묶인 뒤에만 보인다)
@@ -417,7 +451,7 @@ export function create3D(ctx) {
   const titleTex = tex(canvasTex(THREE, titleCanvas));
   const titleQuads = [];
   for (const area of ['shelf', 'bonus']) {
-    for (let i = 0; i < 3; i++) titleQuads.push({ c: [slotX(area, i), BOOK.y0 + BOOK.h / 2, shelfZ(area) + BOOK.d / 2 + 0.005], r: [1, 0, 0], w: 0.3, h: 0.9, cell: 0 });
+    for (let i = 0; i < 3; i++) titleQuads.push({ c: [slotX(area, i), BOOK.y0 + BOOK.h / 2, shelfZ(area) + BOOK.d / 2 + 0.012], r: [1, 0, 0], w: 0.3, h: 0.9, cell: 0 });
   }
   // 칸이 가로로 놓이므로 uv를 직접 맞춘다
   const titles = keep(quadMesh(THREE, titleQuads, 1, new THREE.MeshBasicMaterial({ map: titleTex, transparent: true, alphaTest: 0.1 })));
@@ -435,7 +469,9 @@ export function create3D(ctx) {
 
   // 삐져나오는 책 마디
   const popKeys = [...Object.entries(AREAS)].flatMap(([a, n]) => Array.from({ length: n }, (_, i) => a + ':' + i));
-  const pops = keep(new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), popKeys.length * POP_SEGS));
+  // 마디가 많고 대부분 숨어 있으므로 깎지 않은 상자(삼각형 12개)로
+  const popGeo = baker.bake(new THREE.BoxGeometry(1, 1, 1));
+  const pops = keep(new THREE.InstancedMesh(popGeo, basic({ map: textures.get('hanji') }), popKeys.length * POP_SEGS));
   pops.name = 'saseol-popout';
   for (let i = 0; i < pops.count; i++) { pops.setMatrixAt(i, HIDE); pops.setColorAt(i, COL.set(TOKENS.hanji)); }
 
@@ -449,16 +485,133 @@ export function create3D(ctx) {
   fog.name = 'saseol-fog';
   FOG.forEach(([x, y, z, w, h], i) => fog.setMatrixAt(i, M4.compose(V.set(x, y, z), Q.identity(), SC.set(w, h, 1))));
 
+  // ── 서 있는 것(두 번째 프레임에 짓는다) ──
+  let staticGroup = null;
+  function buildStatic() {
+    const b = kit.builder();
+    buildWalls(b);
+    buildPavilion(b);
+    buildShelves(b);
+    buildMarket(b);
+    staticGroup = baked.convert(b.build('saseol-kit'), baker);
+    root.add(staticGroup);
+  }
+
+  // 담: 돌 기단 + 회벽 + 기와. 오른쪽 담은 장터가 보이게 낮고, 늘어난 층이 뚫고 나간 자리는 부서져 있다
+  function buildWalls(b) {
+    const W = 6.45;
+    props.wallRun(b, { x0: -W, z0: -W, x1: W, z1: -W, h: 1.7 });
+    props.wallRun(b, { x0: -W, z0: -W, x1: -W, z1: 0.05, h: 1.9 });
+    props.wallRun(b, { x0: -W, z0: 1.95, x1: -W, z1: W, h: 1.9 });
+    props.wallRun(b, { x0: W, z0: -W, x1: W, z1: -5.0, h: 1.15 });
+    props.wallRun(b, { x0: W, z0: -2.2, x1: W, z1: 0.65, h: 1.15 });
+    props.wallRun(b, { x0: W, z0: 2.55, x1: W, z1: W, h: 1.15 });
+    // 뚫린 자리: 낮게 남은 담 밑동과 흩어진 부스러기
+    b.box('stone', 0.44, 0.45, 2.6, { p: [W, 0.22, -3.6], color: '#8f8a80', ao: 0.5 });
+    [[6.6, -4.6, 0.35, 1], [6.95, -2.6, 0.3, 2], [6.2, -2.5, 0.26, 3], [7.1, -3.9, 0.22, 4], [6.0, -4.9, 0.2, 5], [7.4, -3.1, 0.16, 6]].forEach(([x, z, s, seed]) => props.rock(b, { x, z, s, sy: 0.6, seed, color: '#cfc5b0' }));
+    for (const [x0, z0] of [[W, -5.0], [W, -2.2]]) b.box('paint', 0.36, 0.6, 0.36, { p: [x0, 1.1, z0], r: [0, 0, 0.25], color: '#d9cfbb', ao: 0 });
+    // 문 위 작은 기와 지붕
+    props.hipRoof(b, { x: -6.4, y: 2.62, z: 1.0, w: 0.9, d: 2.4, h: 0.4, lift: 0.12, flare: 0.08, sag: 0.04, color: '#6a665f', finial: false, ns: 3, nt: 6 });
+    props.hipRoof(b, { x: 6.4, y: 2.62, z: 1.6, w: 0.9, d: 2.4, h: 0.4, lift: 0.12, flare: 0.08, sag: 0.04, color: '#6a665f', finial: false, ns: 3, nt: 6 });
+  }
+
+  // 정자: 기단, 주춧돌, 층 사이 마루, 종장 층 난간, 모임지붕
+  function buildPavilion(b) {
+    b.box('stone', 3.9, 0.3, 3.1, { p: [-3.4, 0.15, MID.zc], color: '#9a958c', ao: 0.4 });
+    b.box('stone', 4.1, 0.08, 3.3, { p: [-3.4, 0.04, MID.zc], color: '#8f8a80', ao: 0.4 });
+    for (const x of PILLAR_X) for (const z of [FRONT_Z, BACK_Z]) b.add('stone', kit.cylinder(0.17, 0.2, 0.12, 8), { p: [x, 0.36, z], color: '#a8a296', ao: 0.2 });
+    b.box('wood', 3.8, 0.16, 2.9, { p: [-3.4, 1.88, MID.zc], color: WOOD.light, ao: 0 });
+    b.box('wood', 3.9, 0.1, 3.0, { p: [-3.4, 3.3, MID.zc], color: WOOD.light, ao: 0 });
+    // 종장 층 난간(앞)
+    b.box('wood', 3.3, 0.05, 0.06, { p: [-3.4, 3.78, FRONT_Z + 0.08], color: WOOD.dark, ao: 0 });
+    for (let i = 0; i < 12; i++) b.box('wood', 0.03, 0.42, 0.03, { p: [-4.95 + i * 0.28, 3.56, FRONT_Z + 0.08], color: WOOD.dark, ao: 0, bevel: 0.006 });
+    // 공포(기둥머리)
+    for (const x of PILLAR_X) for (const z of [FRONT_Z, BACK_Z]) b.box('paint', 0.34, 0.14, 0.34, { p: [x, 4.5, z], color: T36_COLORS.paint, ao: 0 });
+    props.hipRoof(b, { x: -3.4, y: 4.62, z: MID.zc, w: 4.9, d: 4.0, h: 1.05, lift: 0.36, flare: 0.3, color: '#5f5b54' });
+    // 정자 앞 초롱
+    props.paperLantern(b, { x: -5.15, y: 3.05, z: FRONT_Z + 0.25, scale: 0.6 });
+    kit.contactShadow(b, { x: -3.4, z: MID.zc + 0.3, w: 5, d: 4.2 });
+  }
+
+  // 서가(칸·덤), 바구니, 돌아온 노래 선반, 서안
+  function buildShelves(b) {
+    for (const [cx, cz] of [[SHELF.x, SHELF.z], [BONUS.x, BONUS.z]]) {
+      b.box('wood', 2.1, 1.5, 0.04, { p: [cx, 0.79, cz - 0.23], color: '#3f3530' });
+      for (const dx of [-1.03, 1.03]) b.box('wood', 0.08, 1.56, 0.52, { p: [cx + dx, 0.78, cz], color: WOOD.pillar });
+      for (const dx of [-SLOT_DX / 2, SLOT_DX / 2]) b.box('wood', 0.04, 1.3, 0.48, { p: [cx + dx, 0.79, cz], color: WOOD.beam });
+      b.box('wood', 2.16, 0.12, 0.54, { p: [cx, 0.06, cz], color: WOOD.beam });
+      b.box('paint', 2.2, 0.08, 0.58, { p: [cx, 1.58, cz], color: TOKENS.nokcheong, ao: 0 });
+      kit.contactShadow(b, { x: cx, z: cz + 0.15, w: 2.8, d: 1.2 });
+    }
+    // 바구니(짚 광주리)와 녹청 테
+    const prof = [[0, 0], [0.5, 0], [0.56, 0.06], [0.6, 0.3], [0.55, 0.32], [0.5, 0.08], [0, 0.08]].map(([x, y]) => new THREE.Vector2(x, y));
+    const lathe = new THREE.LatheGeometry(prof, 16).toNonIndexed();
+    lathe.deleteAttribute('uv');
+    lathe.computeVertexNormals();
+    own.geos.push(lathe);
+    b.add('wood', lathe, { p: [BASKET.x, 0, BASKET.z], s: [1.05, 1.1, 0.62], color: T36_COLORS.straw, ao: 0.3 });
+    const ring = new THREE.TorusGeometry(0.6, 0.04, 5, 20).rotateX(Math.PI / 2).toNonIndexed();
+    ring.deleteAttribute('uv');
+    own.geos.push(ring);
+    b.add('paint', ring, { p: [BASKET.x, 0.34, BASKET.z], s: [1.05, 1, 0.62], color: TOKENS.nokcheong, ao: 0 });
+    kit.contactShadow(b, { x: BASKET.x, z: BASKET.z, w: 1.8, d: 1.1 });
+    // 돌아온 노래 선반
+    const R = RETURNED;
+    b.box('wood', 1.3, 0.9, 0.4, { p: [R.x, 0.45, R.z], color: WOOD.beam });
+    b.box('paint', 1.4, 0.06, 0.46, { p: [R.x, 0.93, R.z], color: TOKENS.nokcheong, ao: 0 });
+    b.box('wood', 1.2, 0.04, 0.02, { p: [R.x, 0.47, R.z + 0.21], color: WOOD.dark, ao: 0 });
+    kit.contactShadow(b, { x: R.x, z: R.z + 0.1, w: 1.9, d: 1.0 });
+    // 미리 잰 노래가 기다리는 서안
+    b.box('wood', 1.1, 0.06, 0.55, { p: [DESK.x, 0.72, DESK.z], color: WOOD.light });
+    for (const dx of [-0.46, 0.46]) b.box('wood', 0.07, 0.7, 0.45, { p: [DESK.x + dx, 0.35, DESK.z], color: WOOD.beam });
+    b.box('paint', 0.36, 0.04, 0.46, { p: [DESK.x - 0.1, 0.77, DESK.z], r: [0, 0.2, 0], color: '#efe6d2', ao: 0 });
+    kit.contactShadow(b, { x: DESK.x, z: DESK.z, w: 1.6, d: 1.0 });
+  }
+
+  // 장터: 뒤로 기와·초가 가게 셋, 엿 가게 좌판(늘어난 층 끝이 얹힌 자리), 좌판 둘과 차양, 등줄, 장대, 종이 오린 사람들
+  function buildMarket(b) {
+    const zf = -6.6;
+    // 가게 셋(앞 +z): 게젓(기와), 주막(초가), 짚신(기와)
+    [[7.7, 'tile'], [10.15, 'thatch'], [12.6, 'tile']].forEach(([x, roof], i) => {
+      b.box('stone', 2.3, 0.2, 1.7, { p: [x, 0.1, zf - 0.7], color: '#9a958c', ao: 0.4 });
+      b.box('paint', 2.2, 2.0, 1.4, { p: [x, 1.2, zf - 0.85], color: i === 1 ? T36_COLORS.mud : '#ddd3bf', ao: 0.15 });
+      for (const dx of [-1.05, 1.05]) b.box('wood', 0.14, 2.1, 0.16, { p: [x + dx, 1.25, zf], color: WOOD.pillar });
+      b.box('wood', 2.3, 0.16, 0.2, { p: [x, 2.3, zf], color: WOOD.beam });
+      props.lattice(b, { x: x - 0.45, y: 0.22, z: zf + 0.02, w: 0.82, h: 1.6, cols: 4 });
+      props.lattice(b, { x: x + 0.45, y: 0.22, z: zf + 0.02, w: 0.82, h: 1.6, cols: 4 });
+      if (roof === 'tile') kit.giwaRoof(b, { x0: x - 1.4, x1: x + 1.4, zFront: zf + 0.7, zBack: zf - 1.6, yFront: 2.45, yBack: 3.15, lift: 0.2, flare: 0.14, color: '#6a665f' });
+      else props.thatch(b, { x, y: 2.35, z: zf - 0.6, w: 2.9, d: 2.2, h: 0.8, ropes: 4 });
+      // 가게 앞 물건
+      props.jar(b, { x: x - 0.75, z: zf + 0.5, h: 0.55, r: 0.24 });
+      if (i !== 1) props.jar(b, { x: x - 0.35, z: zf + 0.65, h: 0.4, r: 0.18, color: '#6b4a34' });
+    });
+    // 엿 가게 좌판: 늘어난 층 끝이 그 위에 얹혀 있다(엿가락처럼 늘어나 엿 좌판에 기댄 꼴)
+    const endM = midAt(MID.x1 - 0.4);
+    props.stall(b, { x: 10.2, z: MID.zc, h: endM.yc - endM.hh, w: 1.6, d: 1.0, goods: ['yeot', 'jar', 'yeot'], seed: 2 });
+    props.stall(b, { x: 8.4, z: -0.4, h: 1.75, goods: ['fish', 'jar', 'bundle'], seed: 3 });
+    props.stall(b, { x: 12.0, z: -1.2, h: 1.75, goods: ['shoes', 'bundle', 'shoes'], seed: 4 });
+    // 장터 팻말 장대와 주막 깃대
+    b.box('wood', 0.1, 2.6, 0.1, { p: [7.2, 1.3, 0.4], color: WOOD.pillar });
+    b.box('wood', 0.08, 3.4, 0.08, { p: [13.32, 1.7, -4.65], color: WOOD.pillar });
+    kit.contactShadow(b, { x: 13.32, z: -4.65, w: 0.6, d: 0.6 });
+    // 등줄 둘: 가게 앞을 따라, 장터를 가로질러
+    props.lanternString(b, { from: [6.9, 2.75, -5.7], to: [13.4, 2.75, -5.7], sag: 0.35, count: 5, scale: 0.42 });
+    props.lanternString(b, { from: [7.2, 2.6, 0.4], to: [13.32, 3.2, -4.4], sag: 0.6, count: 4, scale: 0.42 });
+    // 종이 오린 사람들(카메라 쪽을 본다)
+    const face = (x, z) => Math.atan2(CAM.x - x, CAM.z - z);
+    props.cutout(b, { x: 7.7, z: 1.0, kind: 'jige', color: '#5b6b7e', facing: face(7.7, 1.0) });
+    props.cutout(b, { x: 9.5, z: -2.0, kind: 'woman', facing: face(9.5, -2.0) });
+    props.cutout(b, { x: 11.3, z: 0.4, kind: 'yangban', color: '#3d4f6b', facing: face(11.3, 0.4) + 0.25, scale: 1.05 });
+    props.cutout(b, { x: 12.8, z: -3.1, kind: 'child', color: '#9a6a3c', facing: face(12.8, -3.1) });
+    props.cutout(b, { x: 8.7, z: -4.6, kind: 'jige', color: '#6e5a48', facing: face(8.7, -4.6) - 0.3, scale: 0.95 });
+  }
+
   // ── 그리기 ──
   function recolorStatic() {
     boxes.forEach((b, i) => boxMesh.setColorAt(i, COL.set(dc(b.c))));
-    roofs.forEach((r, i) => roofMesh.setColorAt(i, COL.set(dc(r.c))));
-    roofMesh.instanceColor.needsUpdate = true;
-    bodyMat.color.set(dc(mixHex(TOKENS.hanjiDeep, TOKENS.meokFog, 0.35)));   // 두루마리(한지)가 또렷하게 보이도록 벽은 한 톤 어둡게
-    eaveMat.color.set(dc(TOKENS.meok));
-    topMat.color.set(dc(TOKENS.nokcheong));
-    botMat.color.set(dc(TOKENS.juhong));
     plaques.material.color.set(mixHex('#9a9a9a', '#ffffff', 0.55 + 0.45 * level));
+    scroll.material.color.set(mixHex('#d8d2c6', '#ffffff', level));
+    materials.setDancheong(level);
   }
 
   function drawStairs() {
@@ -471,7 +624,7 @@ export function create3D(ctx) {
 
   function drawLanterns() {
     const lit = mixHex(TOKENS.gold, TOKENS.hanji, 0.35);
-    const off = dc(TOKENS.meokSoft);
+    const off = dc(mixHex(TOKENS.meokSoft, TOKENS.juhong, 0.3));
     for (let i = 0; i < LANTERN_COUNT; i++) {
       const f = S.flash[lanternStorey(i)];
       const base = S.lanterns[i] ? lit : off;
@@ -486,25 +639,35 @@ export function create3D(ctx) {
     scroll.visible = feet > 0.01;
     for (let j = 0; j <= SEG; j++) {
       const x = SCROLL.x0 + (end - SCROLL.x0) * (j / SEG);
-      const m = midAt(x);
-      const half = Math.max(0.14, 0.7 * m.hh);
-      const z = MID.zc + m.hd + 0.05;
-      sPos.set([x, m.yc + half, z, x, m.yc - half, z], j * 6);
+      const sp = scrollSpan(x);
+      // 풀린 끝 가까이는 조금 들떠 굴대 쪽으로 말려 든다
+      const lift = Math.max(0, 1 - (end - x) / 0.6) * 0.08;
+      sPos.set([x, sp.top, sp.z + lift, x, sp.bottom, sp.z + lift], j * 6);
       const u = (x - SCROLL.x0) / (SCROLL.x1 - SCROLL.x0);
       sUv.set([u, 1, u, 0], j * 4);
     }
     scrollGeo.attributes.position.needsUpdate = true;
     scrollGeo.attributes.uv.needsUpdate = true;
-    scrollGeo.computeVertexNormals();
     scrollGeo.computeBoundingSphere();
     scroll.userData = { feet, endX: end, length: end - SCROLL.x0, overFour: feet > 4 };
-    // 굴대: 시작과 끝. 연타 한 번마다 끝 굴대가 잠깐 굵어진다.
+    // 굴대: 시작과 끝, 위아래 굴대 머리. 연타 한 번마다 끝 굴대가 잠깐 굵어진다.
+    let n = 0;
     [SCROLL.x0, end].forEach((x, i) => {
-      const m = midAt(x);
-      const h = Math.max(0.14, 0.7 * m.hh) * 2 + 0.24;
+      const sp = scrollSpan(x);
+      const h = sp.top - sp.bottom + 0.3;
+      const mid = (sp.top + sp.bottom) / 2;
       const k = i === 1 ? 1 + 0.8 * S.unrollPulse : 1;
-      rollers.setMatrixAt(i, scroll.visible ? M4.compose(V.set(x, m.yc, MID.zc + m.hd + 0.09), Q.identity(), SC.set(k, h, k)) : HIDE);
-      rollers.setColorAt(i, COL.set(dc(TOKENS.meokSoft)));
+      // 끝 굴대에는 아직 감긴 종이가 남아 굵다(풀릴수록 가늘어진다)
+      const left = i === 1 ? Math.max(0, 1 - (end - SCROLL.x0) / (SCROLL.x1 - SCROLL.x0)) : 0;
+      const d = (0.2 + 0.32 * left) * k;
+      const z = sp.z + 0.04 + d / 2;
+      const show = scroll.visible;
+      rollers.setMatrixAt(n, show ? M4.compose(V.set(x, mid, z), Q.identity(), SC.set(d, h, d)) : HIDE);
+      rollers.setColorAt(n++, COL.set(i === 1 && left > 0.02 ? dc(mixHex(TOKENS.hanji, WOOD.beam, 0.25)) : dc(WOOD.beam)));
+      for (const y of [sp.top + 0.17, sp.bottom - 0.17]) {
+        rollers.setMatrixAt(n, show ? M4.compose(V.set(x, y, z), Q.identity(), SC.set(0.3 * k, 0.12, 0.3 * k)) : HIDE);
+        rollers.setColorAt(n++, COL.set(dc(TOKENS.juhong)));
+      }
     });
     rollers.instanceMatrix.needsUpdate = true;
     rollers.instanceColor.needsUpdate = true;
@@ -522,19 +685,19 @@ export function create3D(ctx) {
         const slot = S.slots[area][i];
         const popped = S.pops.has(area + ':' + i);
         // 빈자리는 제목 없는 빈 책등, 꽂은 책은 녹청 표지, 묶인 책은 먹 표지
-        const c = S.bound[area] ? TOKENS.meok : slot ? TOKENS.nokcheong : TOKENS.hanji;
+        const c = S.bound[area] ? TOKENS.meok : slot ? TOKENS.nokcheong : mixHex(TOKENS.hanji, TOKENS.meokFog, 0.1);
         put([slotX(area, i), BOOK.y0 + BOOK.h / 2, shelfZ(area)], popped ? null : [BOOK.w, BOOK.h, BOOK.d], dc(c));
       }
     }
     for (let i = 0; i < 2; i++) {
       const slot = S.slots.basket[i];
       const show = slot && !S.pops.has('basket:' + i);
-      put([slotX('basket', i), 0.5, BASKET.z], show ? [0.17, 0.48, 0.17] : null, dc(TOKENS.hanji));
+      put([slotX('basket', i), 0.42, BASKET.z], show ? [0.17, 0.48, 0.17] : null, dc(TOKENS.hanji));
     }
     for (let i = 0; i < 2; i++) {
       const slot = S.slots.basket[i];
       const show = slot?.to && !S.pops.has('basket:' + i);
-      put([slotX('basket', i) + 0.1, 0.62, BASKET.z + 0.1], show ? [0.13, 0.17, 0.02] : null, dc(TOKENS.nokcheong));
+      put([slotX('basket', i) + 0.1, 0.56, BASKET.z + 0.1], show ? [0.13, 0.17, 0.02] : null, dc(TOKENS.nokcheong));
     }
     for (const area of ['shelf', 'bonus']) {
       const x = area === 'shelf' ? SHELF.x : BONUS.x;
@@ -619,7 +782,7 @@ export function create3D(ctx) {
 
   recolorStatic();
   drawAll();
-  [boxMesh, roofMesh, lanterns, books, pops, fog, rollers].forEach((m) => m.computeBoundingSphere());
+  [boxMesh, lanterns, books, pops, fog, rollers].forEach((m) => m.computeBoundingSphere());
   // 인스턴스 경계는 처음 자리로 정해지므로 움직이는 것들은 화면 밖 잘림을 끈다.
   [books, pops, rollers, scroll].forEach((m) => { m.frustumCulled = false; });
 
@@ -648,6 +811,14 @@ export function create3D(ctx) {
       drawAll();
     },
     update(dt) {
+      // 서 있는 것은 두 번째 프레임에 짓는다(관 들어가기 글이 늦지 않게)
+      if (!staticGroup && ++frames >= 2) buildStatic();
+      // 재질 무늬가 뒤늦게 도착하면 늘어난 층 그림의 민화 띠를 다시 그린다
+      if (!atlasHasPattern && patternReady()) {
+        atlasHasPattern = true;
+        drawAtlas(atlasCanvas.getContext('2d'), pattern.image);
+        atlas.needsUpdate = true;
+      }
       const moved = model.step(dt, reduce());
       const now = getDancheong(wingId);
       if (now !== level) { level = now; recolorStatic(); drawAll(); return; }
@@ -655,9 +826,32 @@ export function create3D(ctx) {
     },
     dispose() {
       for (const o of [...root.children]) root.remove(o);
+      if (staticGroup) staticGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
       own.geos.forEach((g) => g.dispose());
       own.mats.forEach((m) => m.dispose());
       own.texs.forEach((t) => t.dispose());
+      for (const m of [boxMesh, lanterns, books, pops, fog, rollers]) m.dispose?.();
+      props.dispose();
+      kit.dispose();
+      baked.dispose();
+      materials.dispose();
+      textures.dispose();
     },
   };
+}
+
+// 먹안개 한 자락: 가운데가 짙고 가장자리로 갈수록 사라지는 둥근 얼룩
+function fogCanvas() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 64;
+  const g = c.getContext('2d');
+  g.translate(64, 32);
+  g.scale(2, 1);
+  const r = g.createRadialGradient(0, 0, 0, 0, 0, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)');
+  r.addColorStop(0.55, 'rgba(255,255,255,0.6)');
+  r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r;
+  g.fillRect(-32, -32, 64, 64);
+  return c;
 }
