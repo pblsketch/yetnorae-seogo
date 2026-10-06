@@ -8,7 +8,7 @@
 
 | 파일 | 맡는 일 |
 | --- | --- |
-| `textures.js` | 캔버스 무늬: `hanji` 한지 섬유, `wood` 나뭇결(결이 u 방향), `planks` 마루 널, `roof` 기와 골, `stone` 돌 쌓기, `plaster` 회벽, `foliage` 종이 나무 두 칸(왼쪽 소나무, 오른쪽 매화), `mountains` 수묵 산 세 줄, `contact` 접지 그림자, `glow` 등불 번짐. 씨앗이 있어서 늘 같은 그림이 나온다 |
+| `textures.js` | 캔버스 무늬: `hanji` 한지 섬유, `wood` 나뭇결(결이 u 방향), `planks` 마루 널, `roof` 기와 골, `stone` 돌 쌓기, `granite` 한 덩이 화강암 결(향가관 석탑), `plaster` 회벽, `foliage` 종이 나무 두 칸(왼쪽 소나무, 오른쪽 매화), `mountains` 수묵 산 세 줄, `contact` 접지 그림자, `glow` 등불 번짐. 씨앗이 있어서 늘 같은 그림이 나온다 |
 | `materials.js` | 역할별 재질 하나씩과 먹빛 → 단청 걸이(`addInkHook`) |
 | `kit.js` | 모서리를 깎은 부분을 역할마다 하나의 기하로 합치는 틀(`builder`)과 소품 함수 |
 | `figures.js` | 인물 무대: 인물 고르기(`createFigure`·`createCharacter`, 조립법이 있는 그림은 저절로 3D), 종이 카드(`createPaperCard`), 발밑 그림자, 무리(`createFigureCrowd`) |

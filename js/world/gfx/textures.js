@@ -486,3 +486,22 @@ export function createTextures(THREE, { seed = 7, anisotropy = 1 } = {}) {
   }
   return { get, dispose, count: () => made.size };
 }
+
+// ───────── 덧붙임(T39) ─────────
+
+// 화강암: 쌓은 돌 줄눈 없이 한 덩이 돌의 결. 검은 운모, 흰 석영, 옅은 장석 알갱이가 고르게 박혀 있고 큰 얼룩이 은은하다.
+// 꼭짓점 색(돌 색)에 곱해지므로 밝은 회색 바탕으로 그린다. 석탑 탑신·옥개석(향가관)이 쓴다.
+function drawGranite(rnd) {
+  const S = 256;
+  const [c, g] = canvas(S, S);
+  g.fillStyle = grey(212);
+  g.fillRect(0, 0, S, S);
+  mottle(g, S, S, rnd, { cells: 10, lo: 185, hi: 255, alpha: 0.55 });
+  speckle(g, S, S, rnd, 900, 'rgba(150,146,140,0.45)', 1.6);
+  speckle(g, S, S, rnd, 1300, 'rgba(48,46,44,0.5)', 1.1);
+  speckle(g, S, S, rnd, 700, 'rgba(255,255,255,0.55)', 1.2);
+  speckle(g, S, S, rnd, 350, 'rgba(206,182,160,0.4)', 1.5);
+  return c;
+}
+PAINTERS.granite = { draw: drawGranite, repeat: true, srgb: true };
+TEXTURE_NAMES.push('granite');

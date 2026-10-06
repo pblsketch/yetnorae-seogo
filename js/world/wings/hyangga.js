@@ -30,6 +30,7 @@ const BASKET = { x: 2.1, z: 2.2 };
 const ROOM_DOOR = { x: 1.9, w: 1.3, h: 2.3 };
 const NEXT_DOOR = { z: -1.4, w: 1.3, h: 2.3 };
 const RETURNED = { x: -5.9, z: 0.8 };
+const BAY_STONE = '#99938a';   // 불 꺼진 칸: 탑신과 거의 같은 화강암(얕게 판 면)
 
 const bayWidth = (f) => TOWER.width / FLOORS[f];
 const floorBase = (f) => TOWER.plinth + f * TOWER.floorH;
@@ -236,7 +237,8 @@ export function create3D(ctx) {
   root.add(sMesh);
 
   // 탑의 칸 불: 칸마다 앞면 창호 한 장(구를 셀 때 차오른다). 빛이라 조명의 영향을 받지 않는 재질.
-  const bayMat = keep(new THREE.MeshBasicMaterial());
+  // 칸 판은 탑신과 같은 화강암 결이다(불이 켜지면 그 돌 면이 밝아진다). 결이 없으면 유리 창처럼 보였다
+  const bayMat = keep(new THREE.MeshBasicMaterial({ map: gfx.textures.get('granite') }));
   const bays = instanced(THREE, bayMat, TOTAL_BAYS);
   bays.name = 'hyangga-bays';
   keep(bays.geometry);
@@ -343,7 +345,8 @@ export function create3D(ctx) {
 
   function paintBays(level) {
     const lit = litPerFloor(state.fill);
-    const dark = dancheongColor(TOKENS.meok, level);
+    // 불이 꺼진 칸은 탑신에 얕게 판 돌 면(어두운 화강암). 창문처럼 검게 뚫려 보이면 나무 누각처럼 읽힌다
+    const dark = mixHex(BAY_STONE, dancheongColor(BAY_STONE, level), 0.25);   // 돌 재질처럼 먹빛에서도 돌 색이 남는다(먹 바닥 0.75)
     const glow = mixHex(TOKENS.hanji, TOKENS.gold, 0.35);
     const pulse = new Map();
     for (const p of anim.pulses) {
@@ -550,6 +553,7 @@ export function create3D(ctx) {
     }),
     dispose() {
       root.remove(sMesh, bays, dyn, fog, doorPivot, labels);
+      art.group?.userData.granite?.dispose();
       art.dispose();
       for (const d of disposables) d.dispose?.();
       [sMesh, bays, dyn, fog].forEach((m) => m.dispose?.());
