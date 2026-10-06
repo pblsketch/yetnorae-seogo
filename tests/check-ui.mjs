@@ -251,7 +251,17 @@ async function scan(page, label, { scope = null, contrast = true } = {}) {
   ]));
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   await injectScan(page);
-  const s = await page.evaluate((sc) => window.__uiScan(sc), scope);
+  let s = await page.evaluate((sc) => window.__uiScan(sc), scope);
+  // 기다린 뒤에 새로 나타나 아직 희미한 알림(좀 알림 등)은 글과 받침이 함께 흐려져 대비가 낮게 잰다.
+  // 대비가 모자라면 막 나타난 것들의 연출이 끝나기를 한 번 더 기다렸다가 다시 잰다(늘 그런 글은 다시 재도 잡힌다).
+  if (contrast && s.contrast.length) {
+    await page.evaluate(() => Promise.race([
+      Promise.all(document.getAnimations().filter((a) => Number.isFinite(a.effect?.getComputedTiming?.().endTime)).map((a) => a.finished.catch(() => {}))),
+      new Promise((r) => setTimeout(r, 4000)),
+    ]));
+    await new Promise((r) => setTimeout(r, 600));
+    s = await page.evaluate((sc) => window.__uiScan(sc), scope);
+  }
   const layout = [...s.overflow, ...s.clipped];
   ok(layout.length === 0, label + ': 넘침·화면 밖·잘린 글 없음 ' + JSON.stringify(layout));
   ok(s.small.length === 0, label + ': 누를 것이 모두 48px 이상 ' + JSON.stringify(s.small));
