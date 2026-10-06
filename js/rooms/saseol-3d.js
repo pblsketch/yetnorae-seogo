@@ -1,9 +1,10 @@
-// 작품 방 「님이 오마 하거늘」의 3D 장면: 달밤에 대문을 나서 건넌 산 쪽으로 뻗은 길, 길 끝에 서 있는 거무희뜩한 것.
+// 작품 방 「님이 오마 하거늘」의 3D 장면: 달밤에 중문·대문을 나서 건넌 산 쪽으로 뻗은 길, 길 끝에 서 있는 거무희뜩한 것.
 // 공개하면 그림자가 걷히고, 그것이 껍질 벗겨 세워 둔 삼대 묶음이었음이 드러난다.
-// 저폴리 상자·원뿔을 코드로 조립하고, 되풀이되는 것은 InstancedMesh 하나로 그린다. 그리기 호출은 열둘 안팎이다(예산 60).
+// 풍경은 gfx 꾸러미(js/world/gfx/t37-scenery.js)로 짓는다: 기와 얹은 문 둘, 막돌 돌담, 달빛 먹 산 두 줄과 달무리.
+// 학생은 종이 인형(gfx/figures.js). 되풀이되는 풀·삼대·발자국은 InstancedMesh 하나씩이다. 그리기 호출은 스물 안팎(예산 60).
 // 그림자·후처리는 쓰지 않는다. 그리기는 부르는 쪽(세계 바탕)이 하고, 이 장면은 물체와 카메라만 움직인다.
 import { TOKENS, mixHex } from '../world/palette.js';
-import { paperDollCanvas } from '../world/sprites.js';
+import { createScenery, studentFigure, disposeGroupGeometry } from '../world/gfx/t37-scenery.js';
 
 // ── 배치(1 = 1m, +y 위, +z 카메라 쪽) ──
 const START_Z = 6.2;       // 학생이 서는 곳(중문 앞)
@@ -46,6 +47,7 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
   // 밤하늘: 장면 전체를 감싸는 안쪽 구
   const sky = new THREE.Mesh(own(new THREE.SphereGeometry(90, 16, 8)), own(new THREE.MeshBasicMaterial({ color: NIGHT, side: THREE.BackSide, depthWrite: false })));
   sky.name = 'rs-sky';
+  sky.renderOrder = 50;   // 불투명한 것을 다 그린 뒤에 그려 가려진 자리를 건너뛴다(넓은 면의 채움 비용을 줄인다)
   group.add(sky);
 
   // 땅과 길
@@ -67,55 +69,55 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
   path.name = 'rs-path';
   group.add(path);
 
-  // 중문·대문: 문마다 상자 다섯(기둥 둘, 인방, 양옆 담). 카메라가 문을 지나갈 때는 그 문을 감춘다(화면을 가리지 않게).
-  const gateBoxes = [];
-  for (const [gi, gz] of GATES_Z.entries()) {
-    const c = gi === 0 ? TOKENS.meokSoft : mixHex(TOKENS.meokSoft, TOKENS.juhong, 0.35);
-    const side = mixHex(TOKENS.hanjiDeep, TOKENS.meokSoft, 0.5);
-    gateBoxes.push({ g: gi, p: [-1.25, 1.2, gz], s: [0.24, 2.4, 0.24], c });
-    gateBoxes.push({ g: gi, p: [1.25, 1.2, gz], s: [0.24, 2.4, 0.24], c });
-    gateBoxes.push({ g: gi, p: [0, 2.48, gz], s: [2.9, 0.22, 0.3], c: TOKENS.meok });
-    gateBoxes.push({ g: gi, p: [-1.9, 0.9, gz], s: [1.2, 1.8, 0.2], c: side });
-    gateBoxes.push({ g: gi, p: [1.9, 0.9, gz], s: [1.2, 1.8, 0.2], c: side });
-  }
+  // ── 풍경(gfx 꾸러미) ──
+  const kitSc = createScenery(THREE);
+  kitSc.materials.setDancheong(0.6);   // 달빛 아래라 빛깔이 가라앉는다
   const boxGeo = own(new THREE.BoxGeometry(1, 1, 1));
-  const gates = new THREE.InstancedMesh(boxGeo, own(new THREE.MeshLambertMaterial({ color: '#ffffff' })), gateBoxes.length);
+  // 중문·대문: 문마다 주춧돌·기둥·인방·문짝 반쯤 열림·양옆 담·작은 맞배 기와지붕. 카메라가 문을 지나갈 때는 그 문을 감춘다.
+  const gateGroups = GATES_Z.map((gz, gi) => {
+    const gb = kitSc.kit.builder();
+    const post = gi === 0 ? '#5a5048' : '#6e4a3e';
+    for (const dx of [-1.25, 1.25]) {
+      gb.add('stone', kitSc.kit.cylinder(0.2, 0.24, 0.2, 8), { p: [dx, 0.1, gz], color: '#77726a', ao: 0.3 });
+      gb.box('wood', 0.24, 2.3, 0.24, { p: [dx, 1.3, gz], color: post, ao: 0.2 });
+      // 반쯤 열린 문짝(널문)
+      gb.box('wood', 1.05, 2.0, 0.07, { p: [dx * 0.8 + (dx < 0 ? -0.2 : 0.2), 1.15, gz - 0.45], r: [0, dx < 0 ? -1.15 : 1.15, 0], color: '#5c4d40', ao: 0.2 });
+      // 양옆 담: 회벽 + 아래 막돌
+      gb.box('plaster', 1.3, 1.5, 0.26, { p: [dx * 1.55, 1.05, gz], color: '#bdb39f', ao: 0.3 });
+      gb.box('stone', 1.34, 0.5, 0.32, { p: [dx * 1.55, 0.25, gz], color: '#77726a', ao: 0.4 });
+    }
+    gb.box('wood', 2.9, 0.2, 0.28, { p: [0, 2.45, gz], color: '#4a3f36', ao: 0 });
+    kitSc.hipRoof(gb, { x: 0, z: gz, y: 2.55, w: 3.0, d: 0.5, h: 0.55, overhang: 0.45, style: 'giwa', color: '#66666e', lift: 0.25, seg: 10 });
+    for (const dx of [-1.55, 1.55]) kitSc.hipRoof(gb, { x: dx, z: gz, y: 1.8, w: 1.3, d: 0.3, h: 0.28, overhang: 0.2, style: 'giwa', color: '#45444a', lift: 0.1, seg: 6 });
+    const g = gb.build('rs-gate-' + gi);
+    group.add(g);
+    return g;
+  });
   const gateShown = GATES_Z.map(() => null);
   function showGates(camZ) {
-    let changed = false;
     GATES_Z.forEach((gz, gi) => {
       const want = camZ - gz > GATE_HIDE_M;
       if (gateShown[gi] === want) return;
       gateShown[gi] = want;
-      changed = true;
-      gateBoxes.forEach((b, i) => {
-        if (b.g !== gi) return;
-        m4.compose(v.set(...b.p), q.identity(), want ? sc.set(...b.s) : sc.set(0, 0, 0));
-        gates.setMatrixAt(i, m4);
-      });
+      gateGroups[gi].visible = want;
     });
-    if (changed) gates.instanceMatrix.needsUpdate = true;
   }
-  gateBoxes.forEach((b, i) => gates.setColorAt(i, color.set(b.c)));
-  gates.name = 'rs-gates';
-  group.add(gates);
 
-  // 돌담
-  const boxes = [];
-  for (let z = 1.2; z > -22; z -= 1.0) {
+  // 돌담: 막돌을 두 켜로 쌓고 위에 넙적돌을 얹는다(돌 역할 하나로 합친다)
+  const wb = kitSc.kit.builder();
+  for (let z = 1.2; z > -22; z -= 0.95) {
     for (const side of [-1, 1]) {
-      const g = 0.25 + rand() * 0.3;
-      boxes.push({ p: [side * (WALL_X + rand() * 0.2) + pathX(z) * 0.5, 0.28, z], s: [0.7, 0.55 + rand() * 0.15, 0.9], c: mixHex(TOKENS.meokFog, TOKENS.meok, g) });
+      const x = side * (WALL_X + rand() * 0.15) + pathX(z) * 0.5;
+      const tone = mixHex('#a39e94', '#7d7870', rand());
+      kitSc.rock(wb, { x, z, s: 0.42 + rand() * 0.1, flat: 1.1, seed: (rand() * 4) | 0, color: tone, shadow: false });
+      kitSc.rock(wb, { x: x + side * 0.05, y: 0.42, z: z + 0.45, s: 0.36 + rand() * 0.08, flat: 1.0, seed: (rand() * 4) | 0, color: mixHex(tone, '#b3aea4', 0.3), shadow: false });
+      wb.box('stone', 0.75, 0.1, 1.0, { p: [x, 0.86, z], r: [0, rand() * 0.2, (rand() - 0.5) * 0.1], color: '#8a867e', ao: 0 });
     }
   }
-  const boxMesh = new THREE.InstancedMesh(boxGeo, own(new THREE.MeshLambertMaterial({ color: '#ffffff' })), boxes.length);
-  boxes.forEach((b, i) => {
-    m4.compose(v.set(...b.p), q.identity(), sc.set(...b.s));
-    boxMesh.setMatrixAt(i, m4);
-    boxMesh.setColorAt(i, color.set(b.c));
-  });
-  boxMesh.name = 'rs-walls';
-  group.add(boxMesh);
+  // 건넌 산: 달빛 먹 산 두 줄
+  kitSc.inkRanges(wb, { x0: -70, x1: 70, z: -40, height: 16, gap: 10, y: -2, color: '#6f7686' });
+  const wallGroup = wb.build('rs-walls');
+  group.add(wallGroup);
 
   // 풀숲
   const tufts = [];
@@ -133,20 +135,13 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
   });
   group.add(grass);
 
-  // 건넌 산
-  const hillSpec = [[-14, -34, 9, 5.5], [-3, -40, 12, 7.5], [10, -36, 10, 6], [20, -42, 12, 7]];
-  const hills = new THREE.InstancedMesh(own(new THREE.ConeGeometry(1, 1, 7)), own(new THREE.MeshLambertMaterial({ color: '#ffffff' })), hillSpec.length);
-  hillSpec.forEach(([x, z, r, h], i) => {
-    m4.compose(v.set(x, h / 2 - 0.2, z), q.identity(), sc.set(r, h, r * 0.6));
-    hills.setMatrixAt(i, m4);
-    hills.setColorAt(i, color.set(mixHex(TOKENS.meokSoft, NIGHT, 0.3 + i * 0.1)));
-  });
-  group.add(hills);
-
   // 달
-  const moon = new THREE.Mesh(own(new THREE.CircleGeometry(1.7, 24)), own(new THREE.MeshBasicMaterial({ color: TOKENS.hanji })));
+  const moon = new THREE.Mesh(own(new THREE.CircleGeometry(1.7, 32)), own(new THREE.MeshBasicMaterial({ color: TOKENS.hanji, fog: false })));
   moon.position.set(9, 12, -45);
   group.add(moon);
+  const halo = new THREE.Mesh(own(new THREE.CircleGeometry(4.2, 32)), own(new THREE.MeshBasicMaterial({ color: '#c9c3b0', transparent: true, opacity: 0.09, depthWrite: false })));
+  halo.position.set(0, 0, -0.3);
+  moon.add(halo);
 
   // 삼대 묶음: 가는 대 여럿을 위쪽에서 모아 묶은 모양(공개 전에는 먹빛)
   const STALKS = 22;
@@ -175,16 +170,10 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
   veil.name = 'rs-veil';
   group.add(veil);
 
-  // 학생 종이 인형
+  // 학생 종이 인형(세계와 같은 종이 카드, 발밑 그림자, 걸음)
   const SPRITE_H = 1.55;
-  let tex = assets?.texture?.('sprite/student-' + appearance) ?? null;
-  if (!tex) {
-    tex = own(new THREE.CanvasTexture(paperDollCanvas('student-' + appearance, 128, 256)));
-    tex.colorSpace = THREE.SRGBColorSpace;
-  }
-  const runner = new THREE.Mesh(own(new THREE.PlaneGeometry(1, 1)), own(new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.2, depthWrite: true })));
-  runner.scale.set(SPRITE_H * 0.5, SPRITE_H, 1);
-  runner.name = 'rs-runner';
+  const runnerFig = studentFigure(THREE, { art: assets?.image ? assets : null, appearance, reduceMotion, name: 'rs-runner', height: SPRITE_H, lean: 0.2 });
+  const runner = runnerFig.root;
   group.add(runner);
 
   // 발자국: 박에 맞춰 두드린 자리마다 작은 금빛 점
@@ -241,9 +230,7 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
     else runner.position.z += (tz - runner.position.z) * (1 - Math.exp(-dt * 7));
     runner.position.x = pathX(runner.position.z) - 0.25;
     hop = snap ? 0 : Math.max(0, hop - dt * 5);
-    runner.position.y = SPRITE_H / 2 + Math.sin(hop * Math.PI) * 0.12;
-    runner.quaternion.copy(camera.quaternion);
-    if (tex.image?.width && tex.image?.height) runner.scale.x = SPRITE_H * (tex.image.width / tex.image.height);
+    runner.position.y = Math.sin(hop * Math.PI) * 0.12;
     if (revealT >= 0 && revealT < 1) {
       revealT = snap ? 1 : Math.min(1, revealT + dt / 1.2);
       veilMat.opacity = 0.92 * (1 - revealT);
@@ -251,9 +238,10 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
       if (revealT >= 1) veil.visible = false;
     }
     placeCamera(snap, dt);
+    runnerFig.update(dt, camera, { moving: Math.abs(tz - runner.position.z) > 0.05 });
   }
 
-  runner.position.set(pathX(START_Z) - 0.25, SPRITE_H / 2, START_Z);
+  runner.position.set(pathX(START_Z) - 0.25, 0, START_Z);
   placeCamera(true, 0);
   raf = requestAnimationFrame(frame);
 
@@ -280,7 +268,11 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
     info: () => ({ shown, target, revealT }),
     dispose() {
       cancelAnimationFrame(raf);
+      runnerFig.dispose();
       root.remove(group);
+      for (const g of gateGroups) disposeGroupGeometry(g);
+      disposeGroupGeometry(wallGroup);
+      kitSc.dispose();
       for (const x of owned) x.dispose?.();
       owned.length = 0;
       camera.position.copy(saved.pos);

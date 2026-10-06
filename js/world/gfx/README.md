@@ -71,7 +71,7 @@ fig.dispose();
 - 움직임 줄이기면 숨쉬기·살랑임·걸음 흔들림이 모두 꺼진다. `update`는 그래도 불러야 카메라를 본다.
 - 방이나 보스에서 흔들기 같은 연출은 `fig.card.rotation.z`에 `update` 뒤에 더한다(「정석가」 방 참고).
 
-아직 옮기지 않은 인물: 「상춘곡」 방 걷는 사람(`js/rooms/gasa-3d.js`, `THREE.Sprite`), 「님이 오마 하거늘」 방 학생(`js/rooms/saseol-3d.js`), 보스의 좀·좀 왕·선대 사서(`js/boss/scene3d.js`).
+작품 방과 보스의 인물도 모두 이 무대로 옮겼다(아래 '작품 방·보스 풍경').
 
 ## 빛과 그리기
 
@@ -99,3 +99,14 @@ fig.dispose();
 ## 점수 기록
 
 다듬기 전후 스크린숏과 10항목 점수는 `tests/shots/gfx-before/`, `tests/shots/gfx-after/`(커밋하지 않음)에 있다. 찍는 도구는 `tests/shots/gfx-capture.mjs`(같은 폴더, 커밋하지 않음)다.
+
+## 작품 방·보스 풍경(t37-scenery.js)
+
+작품 방 다섯과 보스 장면이 함께 쓰는 풍경 꾸러미다. `createScenery(THREE, { unlit })`가 무늬·재질·소품 틀을 한 벌 만들고, 꾸러미에 없는 역할 넷(`thatch` 볏짚, `water` 흐르는 시냇물, `ink` 먹 번짐 땅·산, `plain` 무늬 없는 땅, `mist` 안개 띠)을 더한다. 꾸러미 builder가 역할 이름으로 재질을 찾으므로 `sc.kit.builder()`에 그대로 넣으면 된다.
+
+- 소품: `hipRoof`(오목한 모임지붕 `giwa`, 둥근 초가지붕 `thatch`), `thatchedHut`(초가 n칸, `open`이면 앞이 트인 칸), `pavilion`(정자), `rock`, `stream`(시내 띠와 물가 돌), `groundDisc`(가장자리가 한지 바탕으로 녹는 땅), `mountainMass`(높이 면 산 덩이와 그 높이 함수), `inkRanges`(수묵 먼 산 두 줄, `inkBackdrop`의 가벼운 꼴), `mistBand`.
+- `studentFigure`: 세계가 학생을 만드는 방법과 같은 종이 인형. 세계의 학생 모습이 바뀌면 이 함수만 함께 바꾼다.
+- `unlit`: 밤 장면처럼 넓은 면이 많고 빛의 결이 작은 곳은 역할을 빛 없는 꼴(MeshBasic + 같은 무늬 + 먹빛 걸이)로 그린다.
+- 방마다 `sc.materials.setDancheong(값)`을 따로 둔다(방은 세계와 다른 재질 묶음을 쓴다).
+- 넓은 땅은 무늬 없는 `plain`으로 그린다. SwiftShader에서 비스듬히 보이는 넓은 면의 무늬 읽기가 가장 비쌌다(「상춘곡」 방에서 무늬 땅을 빼자 약 1.5배).
+- 「상춘곡」 걷는 사람, 「님이 오마 하거늘」 학생, 보스의 좀·좀 대왕·선대 사서도 이제 `figures.js`의 종이 인형이다. 보스의 선대 사서는 갇힌 동안 `material.userData.ink`를 0으로 두어 먹빛이고, 풀려나면 1로 돌아온다(그 값이 없으면 빛깔 바꾸기만 건너뛴다).

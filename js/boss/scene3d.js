@@ -1,12 +1,16 @@
 // 보스전 3D 장면: 먹안개 낀 밤의 서고. 세계 바탕과 따로 보스 화면 안에 작은 그림판을 만든다(spec 14).
-// 빛 계산 없는 재질만 쓰고 실시간 그림자·후처리는 없다. 그리기 호출은 열 번 남짓이다(인스턴스로 묶는다).
-//   서가(책장·책·등불), 보스 서가 다섯 칸과 꽂힌 책, 먹안개 덩이, 좀, 좀 대왕, 선대 사서
+// 그림은 gfx 꾸러미(js/world/gfx/t37-scenery.js)로 짓는다: 한옥 서고 안(마루 널, 기둥·공포, 달빛 비치는 창살 벽),
+// 책이 꽂힌 서가 넷, 청사초롱과 등불 번짐, 가운데 보스 서가 다섯 칸. 실시간 그림자·후처리는 없고 안개(FogExp2)가 깊이를 준다.
+// 인물은 종이 인형(gfx/figures.js): 좀 여덟, 좀 대왕, 선대 사서. 선대 사서는 갇혀 있는 동안 먹빛이고 풀려나면 제 빛깔이 돌아온다.
+// 그리기 호출은 서른 남짓이다(역할마다 하나, 책등은 인스턴스 하나).
 // 손잡이: setFog('normal'|'thick'), setKing('hidden'|'present'|'scattered'), setMentor('trapped'|'free'),
 //         setFilled(칸 번호, bool), resize(), stats(), dispose()
 import * as THREE from 'three';
 import { TOKENS } from '../world/palette.js';
 import { createAssets } from '../world/assets.js';
 import { paperDollCanvas } from '../world/sprites.js';
+import { createFigure } from '../world/gfx/figures.js';
+import { createScenery, disposeGroupGeometry } from '../world/gfx/t37-scenery.js';
 
 export const SCENE_TUNING = Object.freeze({
   pixelRatioMax: 1.5,
@@ -35,7 +39,7 @@ function puffTexture() {
 }
 
 // 그림이 없을 때의 자리표시(좀, 좀 대왕)
-function blobTexture(kind) {
+function blobCanvas(kind) {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d');
@@ -48,9 +52,7 @@ function blobTexture(kind) {
   g.arc(48, 60, 6, 0, Math.PI * 2);
   g.arc(80, 60, 6, 0, Math.PI * 2);
   g.fill();
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  return c;
 }
 
 export function createScene3D(host, { manifest = null, reduceMotion = () => false } = {}) {
@@ -94,64 +96,64 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
     return mesh;
   }
 
-  // ── 바닥 ──
-  const floor = new THREE.Mesh(plane, keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(TOKENS.meokSoft).multiplyScalar(0.55) }), mats));
-  floor.rotation.x = -Math.PI / 2;
-  floor.scale.set(40, 40, 1);
-  scene.add(floor);
+  // ── 빛: 서고의 넓은 면은 빛 계산 없는 재질이라 빛을 두지 않는다. 밝기는 꼭짓점 색(굽은 그늘)과 등불·창호지가 맡는다 ──
+  // 초롱(lantern)과 창호지(paper)만 빛을 받는 재질이므로 그 둘을 위한 반구광 하나만 둔다.
+  const hemi = new THREE.HemisphereLight(0x9aa6bc, 0x2a2622, 1.2);
+  scene.add(hemi);
 
-  // ── 서가: 양옆과 뒤의 책장, 책(먹빛 재질 하나의 인스턴스) ──
-  const wood = new THREE.Color(TOKENS.meok).multiplyScalar(0.8).getHex();
-  // 밤이라 책등은 먹빛으로 어둡게 본다
-  const bookCols = [TOKENS.hanjiDeep, TOKENS.meokFog, TOKENS.meokSoft, TOKENS.hanji].map((c) => new THREE.Color(c).multiplyScalar(0.62).getHex());
-  const shelfBoxes = [];
-  const stack = (x, z, rotY, w) => {
-    // 책장 하나: 옆판 둘, 선반 다섯, 그 위의 책
-    const dx = Math.cos(rotY);
-    const dz = -Math.sin(rotY);
-    const at = (u, y, d) => [x + dx * u + Math.sin(rotY) * d, y, z + dz * u + Math.cos(rotY) * d];
-    shelfBoxes.push({ p: at(-w / 2, 2, 0), s: [0.15, 4, 0.6], c: wood }, { p: at(w / 2, 2, 0), s: [0.15, 4, 0.6], c: wood });
-    for (let k = 0; k < 5; k++) {
-      const y = 0.15 + k * 0.85;
-      shelfBoxes.push({ p: at(0, y, 0), s: rotY ? [0.6, 0.08, w] : [w, 0.08, 0.6], c: wood });
-      let u = -w / 2 + 0.2;
-      let n = 0;
-      while (u < w / 2 - 0.2) {
-        const bw = 0.12 + ((n * 7 + k * 3) % 5) * 0.03;
-        const bh = 0.5 + ((n * 5 + k) % 4) * 0.07;
-        shelfBoxes.push({ p: at(u + bw / 2, y + 0.04 + bh / 2, 0), s: rotY ? [0.45, bh, bw] : [bw, bh, 0.45], c: bookCols[(n + k) % bookCols.length] });
-        u += bw + 0.02;
-        n++;
-      }
-    }
-  };
-  stack(-6.5, 1.2, Math.PI / 2, 4);
-  stack(6.5, 1.2, -Math.PI / 2, 4);
-  stack(-4.2, -3.2, 0, 3.4);
-  stack(4.2, -3.2, 0, 3.4);
-  instanced(box, keep(new THREE.MeshBasicMaterial({ color: 0xffffff }), mats), shelfBoxes);
-
-  // ── 보스 서가: 다섯 칸(관 자리) ──
+  // ── 서고 건축(gfx 꾸러미) ──
+  // 밤 장면은 넓은 면(마루, 벽, 서가)이 많고 빛의 결이 작으므로 빛 계산 없는 꼴로 그린다(채움 비용)
+  const sc = createScenery(THREE, { unlit: ['wood', 'paint', 'plaster', 'roof', 'stone', 'floor', 'books'] });
+  sc.materials.setDancheong(0.8);   // 밤의 서고: 단청이 조금 가라앉은 빛
+  const b = sc.kit.builder();
+  // 마루 널
+  b.box('floor', 18, 0.12, 16, { p: [0, -0.06, 0], color: '#6d5a48', ao: 0, bevel: 0.02 });
+  // 뒷벽: 어둠 속에 달빛 비치는 창살 창 셋과 기둥·공포·서까래(벽면은 밤의 어둠과 안개가 맡는다: 넓은 면 채움을 아낀다)
+  const wallZ = -4.6;
+  b.box('plaster', 16, 0.5, 0.2, { p: [0, 0.25, wallZ - 0.15], color: '#6d6558', ao: 0.4 });
+  for (const x of [-4.6, 0, 4.6]) sc.kit.latticeWindow(b, { x, y: 1.0, z: wallZ, w: 2.4, h: 2.2, pattern: 'grid', cols: 7, rows: 6, frame: '#2f2722' });
+  sc.kit.hanokFrame(b, { posts: [-7.2, -2.3, 2.3, 7.2], z: wallZ + 0.1, height: 3.9, eave: 0.9, paint: '#3f4b44', accent: '#5a3a32', rafterGap: 0.55 });
+  // 서가 넷: 양옆은 비스듬히, 뒤 둘은 창 사이
+  const shelves = [
+    { x: -6.3, z: 0.8, rot: Math.PI / 2 - 0.25, w: 3.6, seed: 2 },
+    { x: 6.3, z: 0.8, rot: -Math.PI / 2 + 0.25, w: 3.6, seed: 4 },
+    { x: -3.6, z: -3.6, rot: 0, w: 2.4, seed: 6 },
+    { x: 3.6, z: -3.6, rot: 0, w: 2.4, seed: 8 },
+  ];
+  for (const s of shelves) {
+    const sb = sc.kit.builder();
+    sc.kit.bookshelf(sb, { x: 0, z: 0, width: s.w, height: 3.4, levels: 5, seed: s.seed, fill: 0.88 });
+    for (const [role, list] of sb.parts) for (const it of list) b.add(role, it.geo, { matrix: new THREE.Matrix4().makeRotationY(s.rot).setPosition(s.x, 0, s.z).multiply(it.matrix), color: it.color, shade: it.shade, ao: it.ao, uv: it.uv });
+    for (const [role, { geo, items }] of sb.instanced) for (const it of items) b.instance(role, geo, { matrix: new THREE.Matrix4().makeRotationY(s.rot).setPosition(s.x, 0, s.z).multiply(it.matrix), color: it.color });
+  }
+  // 보스 서가: 다섯 칸(관 자리). 나무 틀 + 칸막이(금빛 칠, 누를 수 있는 자리의 표시) + 받침
   const SLOT_W = 1.1;
   const slotX = (i) => (i - 2) * (SLOT_W + 0.15);
-  const frameBoxes = [];
-  frameBoxes.push({ p: [0, 0.6, -0.8], s: [5 * (SLOT_W + 0.15) + 0.3, 0.12, 0.7], c: wood }, { p: [0, 1.95, -0.8], s: [5 * (SLOT_W + 0.15) + 0.3, 0.12, 0.7], c: wood });
-  for (let i = 0; i <= 5; i++) frameBoxes.push({ p: [(i - 2.5) * (SLOT_W + 0.15), 1.27, -0.8], s: [0.1, 1.35, 0.7], c: TOKENS.gold });
-  instanced(box, keep(new THREE.MeshBasicMaterial({ color: 0xffffff }), mats), frameBoxes);
+  const FRAME_W = 5 * (SLOT_W + 0.15) + 0.3;
+  b.box('wood', FRAME_W, 0.14, 0.72, { p: [0, 0.6, -0.8], color: '#4a3c32', ao: 0.2 });
+  b.box('wood', FRAME_W + 0.2, 0.16, 0.8, { p: [0, 1.98, -0.8], color: '#4a3c32', ao: 0 });
+  b.box('wood', FRAME_W, 1.35, 0.06, { p: [0, 1.27, -1.13], color: '#2f2722', ao: 0.2 });
+  for (const dx of [-FRAME_W / 2 + 0.1, FRAME_W / 2 - 0.1]) b.box('wood', 0.16, 0.6, 0.6, { p: [dx, 0.3, -0.8], color: '#3e332b', ao: 0.4 });
+  for (let i = 0; i <= 5; i++) b.box('paint', 0.1, 1.35, 0.7, { p: [(i - 2.5) * (SLOT_W + 0.15), 1.27, -0.8], color: TOKENS.gold, ao: 0 });
+  sc.kit.contactShadow(b, { x: 0, z: -0.6, w: FRAME_W + 1, d: 1.6 });
+  // 청사초롱: 서가 사이 기둥에 걸린 등불(따뜻한 빛 번짐)
+  const glows = [];
+  for (const [x, y, z] of [[-5.0, 2.7, 0.4], [5.0, 2.7, 0.4], [-2.3, 2.9, -3.9], [2.3, 2.9, -3.9], [0, 2.75, -0.55]]) sc.kit.lantern(b, glows, { x, y, z, scale: 0.9 });
+  sc.kit.glowCards(b, glows);
+  const hall = sc.build(b, 'boss-hall');
+  scene.add(hall);
+  // 등불 번짐과 창호지는 안개에 묻히지 않게(먼 데서도 밝게 남는다)
+  for (const m of hall.children) if (m.material?.name === 'gfx-glow') { m.material.fog = false; m.material.opacity = 0.65; }
+
   // 꽂힌 책(칸마다 하나, 빈 칸은 크기 0)
-  const filledMesh = instanced(box, keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(TOKENS.hanji) }), mats),
-    [0, 1, 2, 3, 4].map((i) => ({ p: [slotX(i), 1.25, -0.75], s: [0.0001, 0.0001, 0.0001] })));
+  const filledMat = keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(TOKENS.hanji).multiplyScalar(0.85) }), mats);
+  const filledMesh = instanced(box, filledMat, [0, 1, 2, 3, 4].map((i) => ({ p: [slotX(i), 1.25, -0.75], s: [0.0001, 0.0001, 0.0001] })));
   const filled = [false, false, false, false, false];
   function placeFilled(i, on) {
     m4.compose(new THREE.Vector3(slotX(i), 1.25, -0.75), q, on ? new THREE.Vector3(0.7, 1.1, 0.45) : new THREE.Vector3(0.0001, 0.0001, 0.0001));
     filledMesh.setMatrixAt(i, m4);
     filledMesh.instanceMatrix.needsUpdate = true;
   }
-
-  // ── 등불 ──
-  const lamps = [[-5.2, 2.6, 0.2], [5.2, 2.6, 0.2], [-2.6, 2.4, -2.6], [2.6, 2.4, -2.6], [0, 2.4, -0.6]];
-  instanced(box, keep(new THREE.MeshBasicMaterial({ color: new THREE.Color(TOKENS.gold).multiplyScalar(1.4), fog: false }), mats),
-    lamps.map((p) => ({ p, s: [0.22, 0.32, 0.22] })));
 
   // ── 먹안개 덩이(정해진 자리, 무작위 없음) ──
   const puffTex = keep(puffTexture(), texs);
@@ -160,31 +162,30 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
   for (let i = 0; i < 14; i++) PUFFS.push({ x: -6 + (i % 7) * 2, y: 0.4 + (i % 3) * 0.5, z: 2.5 - Math.floor(i / 7) * 4, s: 3 + (i % 4) * 0.7, ph: i * 0.9 });
   const puffMesh = new THREE.InstancedMesh(plane, puffMat, PUFFS.length);
   puffMesh.frustumCulled = false;
+  puffMesh.renderOrder = 20;
   scene.add(puffMesh);
 
-  // ── 좀(평면 인스턴스, 카메라를 본다) ──
-  const jomTex = assets.texture('sprite/jom') ?? keep(blobTexture('jom'), texs);
-  const jomMat = keep(new THREE.MeshBasicMaterial({ map: jomTex, transparent: true, alphaTest: 0.2, depthWrite: false }), mats);
+  // ── 종이 인형: 좀 여덟, 좀 대왕, 선대 사서 ──
+  const figure = (name, kind, height, opts = {}) => {
+    const url = assets.image('sprite/' + kind);
+    const canvas = url ? null : kind === 'mentor' ? paperDollCanvas('mentor', 128, 256) : blobCanvas(kind === 'jom-king' ? 'king' : 'jom');
+    const f = createFigure(THREE, { url, canvas, height, reduceMotion, name, ...opts });
+    scene.add(f.root);
+    return f;
+  };
   const JOMS = [[-5.6, 2.2, 1.0], [-5.6, 0.9, 2.2], [5.6, 1.6, 0.4], [5.6, 3.1, 2.0], [-3.4, 2.7, -2.8], [3.0, 1.0, -2.8], [-1.2, 0.08, 2.4], [1.8, 0.08, 1.6]];
-  const jomMesh = new THREE.InstancedMesh(plane, jomMat, JOMS.length);
-  jomMesh.frustumCulled = false;
-  scene.add(jomMesh);
-
-  // ── 좀 대왕, 선대 사서(종이 인형 빌보드) ──
-  const kingTex = assets.texture('sprite/jom-king') ?? keep(blobTexture('king'), texs);
-  const king = new THREE.Sprite(keep(new THREE.SpriteMaterial({ map: kingTex, transparent: true, depthWrite: false }), mats));
-  king.position.set(-2.2, 3.0, 0.4);
-  king.scale.set(3.2, 3.2, 1);
-  king.visible = false;
-  scene.add(king);
-  let mentorTex = assets.texture('sprite/mentor');
-  if (!mentorTex) { mentorTex = keep(new THREE.CanvasTexture(paperDollCanvas('mentor', 128, 256)), texs); mentorTex.colorSpace = THREE.SRGBColorSpace; }
-  const mentor = new THREE.Sprite(keep(new THREE.SpriteMaterial({ map: mentorTex, transparent: true, depthWrite: false, opacity: 0.35 }), mats));
-  const mentorTrapped = new THREE.Vector3(2.6, 1.1, -1.8);
-  const mentorFree = new THREE.Vector3(2.2, 1.15, 2.2);
-  mentor.position.copy(mentorTrapped);
-  mentor.scale.set(0.9, 2.2, 1);
-  scene.add(mentor);
+  const joms = JOMS.map((p, i) => figure('boss-jom-' + i, 'jom', 0.6, { shadow: p[1] < 0.5, phase: i * 0.7, lean: 0.2 }));
+  const king = figure('boss-king', 'jom-king', 3.4, { shadow: false, lean: 0.1 });
+  const kingBase = new THREE.Vector3(-2.2, 1.35, 0.4);
+  king.root.position.copy(kingBase);
+  king.root.visible = false;
+  const mentor = figure('boss-mentor', 'mentor', 2.0, { lean: 0.15 });
+  const mentorTrapped = new THREE.Vector3(3.9, 0, -2.0);
+  const mentorFree = new THREE.Vector3(2.2, 0, 2.2);
+  mentor.root.position.copy(mentorTrapped);
+  // 갇힌 선대 사서는 먹빛(그림의 빛깔을 걷음), 풀려나면 제 빛깔이 돌아온다
+  const setInk = (f, v) => { const u = f.material?.userData?.ink; if (u) u.value = v; };
+  setInk(mentor, 0);
 
   // ── 상태 ──
   let fog = 'normal';
@@ -208,17 +209,18 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
     puffMesh.instanceMatrix.needsUpdate = true;
   }
 
-  function layoutJoms(t) {
+  function layoutJoms(t, dt) {
     const fly = scatterT >= 0 ? Math.min(1, scatterT / SCENE_TUNING.scatterSec) : 0;
     JOMS.forEach((p, i) => {
       const crawl = reduceMotion() ? 0 : Math.sin(t * 0.8 + i) * 0.25;
       const out = fly * (6 + i);
-      const v = new THREE.Vector3(p[0] + crawl + Math.sign(p[0] || 1) * out, p[1] + fly * 3, p[2] + fly * 2);
-      const s = (1 - fly) * 0.6;
-      m4.compose(v, camera.quaternion, new THREE.Vector3(Math.max(0.0001, s), Math.max(0.0001, s), 1));
-      jomMesh.setMatrixAt(i, m4);
+      const f = joms[i];
+      f.root.position.set(p[0] + crawl + Math.sign(p[0] || 1) * out, p[1] + fly * 3 - 0.3, p[2] + fly * 2);
+      const s = Math.max(0.0001, 1 - fly);
+      f.root.scale.setScalar(s);
+      f.root.visible = fly < 1;
+      f.update(dt, camera, { moving: !reduceMotion() && fly === 0 });
     });
-    jomMesh.instanceMatrix.needsUpdate = true;
   }
 
   function frame(now) {
@@ -236,29 +238,37 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
     // 카메라 살짝 흔들림(움직임 줄이기면 멈춤)
     camera.position.set(camBase.x + (rm ? 0 : Math.sin(time * 0.2) * 0.25), camBase.y, camBase.z);
     camera.lookAt(lookAt);
-    // 좀 대왕
+    // 좀 대왕: 떠서 숨 쉬듯 오르내리고, 흩어질 때는 부풀며 솟았다가 사라진다
     if (kingState === 'present') {
-      king.visible = true;
-      king.material.opacity = 1;
-      king.position.y = 3.0 + (rm ? 0 : Math.sin(time * 0.9) * 0.12);
+      king.root.visible = true;
+      king.root.scale.setScalar(1);
+      king.root.position.set(kingBase.x, kingBase.y + (rm ? 0 : Math.sin(time * 0.9) * 0.12), kingBase.z);
+      king.update(dt, camera);
     } else if (kingState === 'scattered') {
       scatterT = rm ? SCENE_TUNING.scatterSec : scatterT + dt;
       const k = Math.min(1, scatterT / SCENE_TUNING.scatterSec);
-      king.material.opacity = 1 - k;
-      king.scale.setScalar(3.2 * (1 + k * 0.8));
-      king.visible = k < 1;
+      const grow = 1 + k * 0.8;
+      const fade = k < 0.6 ? grow : grow * Math.max(0.0001, (1 - k) / 0.4);
+      king.root.scale.setScalar(fade);
+      king.root.position.set(kingBase.x, kingBase.y + k * 1.2, kingBase.z);
+      king.update(dt, camera);
+      if (!rm) king.card.rotation.z += Math.sin(k * Math.PI) * 0.25;
+      king.root.visible = k < 1;
     } else {
-      king.visible = false;
+      king.root.visible = false;
     }
-    // 선대 사서
+    // 선대 사서: 풀려나면 걸어 나오며 빛깔이 돌아온다
     if (mentorState === 'free') {
       mentorT = rm ? SCENE_TUNING.mentorStepSec : mentorT + dt;
       const k = Math.min(1, mentorT / SCENE_TUNING.mentorStepSec);
-      mentor.position.lerpVectors(mentorTrapped, mentorFree, k);
-      mentor.material.opacity = 0.35 + 0.65 * k;
+      mentor.root.position.lerpVectors(mentorTrapped, mentorFree, k);
+      setInk(mentor, k);
+      mentor.update(dt, camera, { moving: k < 1 && !rm });
+    } else {
+      mentor.update(dt, camera);
     }
     layoutPuffs(time);
-    layoutJoms(time);
+    layoutJoms(time, dt);
     renderer.render(scene, camera);
     calls = renderer.info.render.calls;
   }
@@ -287,7 +297,7 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
     },
     setMentor(v) {
       if (v === 'free' && mentorState !== 'free') mentorT = 0;
-      if (v !== 'free') { mentorT = -1; mentor.position.copy(mentorTrapped); mentor.material.opacity = 0.35; }
+      if (v !== 'free') { mentorT = -1; mentor.root.position.copy(mentorTrapped); setInk(mentor, 0); }
       mentorState = v;
     },
     setFilled(i, on) {
@@ -301,6 +311,9 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
       disposed = true;
       cancelAnimationFrame(raf);
       ro?.disconnect();
+      for (const f of [...joms, king, mentor]) f.dispose();
+      disposeGroupGeometry(hall);
+      sc.dispose();
       for (const g of geos) g.dispose();
       for (const m of mats) m.dispose();
       for (const t of texs) t.dispose();

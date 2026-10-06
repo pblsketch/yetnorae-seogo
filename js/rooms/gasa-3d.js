@@ -1,15 +1,17 @@
-// 「상춘곡」 방의 3D 장면(spec 14): 저폴리 디오라마. 초가(수간모옥) → 정자 → 시냇가 → 산봉우리 길을 걷는다.
-// 인물은 2D 종이 인형 스프라이트, 그림자·후처리 없음, 그리기 호출 60 이하.
+// 「상춘곡」 방의 3D 장면(spec 14): 수묵 담채 봄 풍경. 초가(수간모옥) → 정자 → 시냇가 → 산봉우리 길을 걷는다.
+// 풍경은 gfx 꾸러미(js/world/gfx/t37-scenery.js)로 짓는다: 초가지붕, 모임지붕 정자, 흐르는 시내와 나무다리,
+// 높이 면 산봉우리(꼭대기 먹 → 밑동 한지색), 수묵 병풍 세 줄의 먼 산, 종이 오린 소나무·꽃나무, 떨어지는 꽃잎.
+// 걷는 사람은 종이 인형(gfx/figures.js). 그림자·후처리 없음, 그리기 호출 60 이하(역할마다 하나).
 // three가 주어지면({ THREE, root, camera }) 그 root에 붙이고 카메라만 움직인다(그리기는 부르는 쪽).
 // 없으면 장면 칸 안에 그림판을 스스로 만든다.
 import { createRoute } from './gasa-route.js';
-import { paperDollCanvas } from '../world/sprites.js';
+import { createScenery, studentFigure, disposeGroupGeometry } from '../world/gfx/t37-scenery.js';
 import { TOKENS } from '../world/palette.js';
 import { createAssets } from '../world/assets.js';
 
 export const PIXEL_RATIO_MAX = 1.5;
-const CAMERA_OFFSET = [0, 8.5, 14];
-const LOOK_UP = 1.2;
+const CAMERA_OFFSET = [0, 6.6, 13.5];
+const LOOK_UP = 1.5;
 
 // 바닥 좌표(x, z). 머무는 곳: 수간모옥 → 정자 → 시냇가 → 산봉우리 → 마무리(꼭대기)
 export const ROUTE_3D = [
@@ -23,8 +25,8 @@ const STREAM_X = -6;
 const LABEL_W = 2.4;
 const LABEL_AT = { hut: [-14, 5.2, -1], pavilion: [6, 5, -6], stream: [-6, 2.4, 7], peak: [22, 11.6, -18] };
 
-// 산 비탈 높이(원뿔)
-function heightAt(x, z) {
+// 산 비탈 높이(원뿔). 장면이 산 덩이를 지으면 그 높이 면으로 바꾼다
+function coneHeight(x, z) {
   const d = Math.hypot(x - MOUNTAIN.x, z - MOUNTAIN.z);
   return Math.max(0, MOUNTAIN.h * (1 - d / MOUNTAIN.r));
 }
@@ -60,10 +62,10 @@ function labelTexture(THREE, text) {
 export async function createScene3D({ host, three = null, assets = null, manifest = null, appearance = 'a', stations, reduceMotion = () => false, onCalls = () => {} }) {
   const THREE = three?.THREE ?? (await import('three'));
   const route = createRoute(ROUTE_3D);
+  let heightAt = coneHeight;
   const art = manifest ? createAssets(manifest, THREE) : assets;
   const owned = [];   // 치울 것(geometry, material, texture)
   const own = (x) => { owned.push(x); return x; };
-  const lambert = (color, extra = {}) => own(new THREE.MeshLambertMaterial({ color, ...extra }));
   const basic = (color, extra = {}) => own(new THREE.MeshBasicMaterial({ color, ...extra }));
 
   // ── 그림판 ──
@@ -91,12 +93,6 @@ export async function createScene3D({ host, three = null, assets = null, manifes
   group.name = 'room-gasa';
   (three?.root ?? scene).add(group);
 
-  // 빛(그룹 안에 둔다)
-  group.add(new THREE.HemisphereLight(0xfff6e6, 0x8d8a85, 1.6));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-  sun.position.set(-10, 20, 12);
-  group.add(sun);
-
   const add = (geo, mat, pos = [0, 0, 0], rot = null) => {
     own(geo);
     const m = new THREE.Mesh(geo, mat);
@@ -106,70 +102,92 @@ export async function createScene3D({ host, three = null, assets = null, manifes
     return m;
   };
 
-  // 바닥, 먼 산, 큰 산
-  add(new THREE.PlaneGeometry(140, 120), lambert(TOKENS.hanjiDeep), [0, 0, -10], [-Math.PI / 2, 0, 0]);
-  const far = lambert(TOKENS.meokFog);
-  add(new THREE.ConeGeometry(14, 16, 5), far, [-20, 8, -50]);
-  add(new THREE.ConeGeometry(12, 20, 5), far, [4, 10, -58]);
-  add(new THREE.ConeGeometry(16, 14, 5), far, [40, 7, -52]);
-  add(new THREE.ConeGeometry(MOUNTAIN.r, MOUNTAIN.h, 7), lambert('#7d7a72', { flatShading: true }), [MOUNTAIN.x, MOUNTAIN.h / 2, MOUNTAIN.z]);
-  // 봉우리 꼭대기 작은 정자
-  add(new THREE.ConeGeometry(1.1, 0.7, 4), lambert(TOKENS.meokSoft), [MOUNTAIN.x + 0.6, MOUNTAIN.h + 0.2, MOUNTAIN.z - 0.6], [0, Math.PI / 4, 0]);
+  // ── 풍경(gfx 꾸러미): 역할마다 그리기 호출 하나 ──
+  const sc = createScenery(THREE);
+  sc.materials.setDancheong(1);   // 방은 봄빛 그대로(먹빛 걸이를 풀어 둔다)
+  const b = sc.kit.builder();
 
-  // 시내와 다리
-  add(new THREE.PlaneGeometry(2.4, 44), lambert('#8fb5b0'), [STREAM_X, 0.03, -6], [-Math.PI / 2, 0, 0]);
-  add(new THREE.BoxGeometry(2.0, 0.35, 3.4), lambert('#8a6a48'), [STREAM_X, 0.25, 1]);
+  // 빛(그룹 안에 둔다): 반구광 + 왼쪽 앞 위의 봄 햇살 + 서늘한 보조광
+  const hemi = new THREE.HemisphereLight(0xfff6e6, 0x8a8576, 1.9);
+  const sun = new THREE.DirectionalLight(0xfff1dc, 1.5);
+  sun.position.set(-10, 20, 12);
+  const fill = new THREE.DirectionalLight(0xd6e0e6, 0.35);
+  fill.position.set(12, 6, -10);
+  group.add(hemi, sun, fill);
 
-  // 초가(수간모옥)
-  add(new THREE.BoxGeometry(4.2, 2.0, 3), lambert(TOKENS.hanji), [-15, 1, -1]);
-  add(new THREE.ConeGeometry(3.6, 1.8, 4), lambert('#c9a45c', { flatShading: true }), [-15, 2.9, -1], [0, Math.PI / 4, 0]);
-  add(new THREE.PlaneGeometry(0.9, 1.4), lambert(TOKENS.meokSoft), [-14.2, 0.7, 0.52]);
+  // 땅: 봄 들판색이 가장자리에서 한지 바탕으로 번진다
+  sc.groundDisc(b, { x: 4, z: -10, r: 52, color: '#d2cca4', rings: 4 });
 
-  // 정자
-  add(new THREE.BoxGeometry(4.2, 0.5, 4.2), lambert('#a9a59a'), [6, 0.25, -5.5]);
-  const postGeo = own(new THREE.CylinderGeometry(0.14, 0.14, 2.4, 6));
-  const posts = new THREE.InstancedMesh(postGeo, lambert('#a8473a'), 4);
-  const m4 = new THREE.Matrix4();
-  [[-1.6, -1.6], [1.6, -1.6], [-1.6, 1.6], [1.6, 1.6]].forEach(([dx, dz], i) => { m4.makeTranslation(6 + dx, 1.7, -5.5 + dz); posts.setMatrixAt(i, m4); });
-  group.add(posts);
-  add(new THREE.ConeGeometry(3.6, 1.5, 4), lambert('#3f4a48', { flatShading: true }), [6, 3.6, -5.5], [0, Math.PI / 4, 0]);
+  // 먼 산: 수묵 먼 산 두 줄(먼 줄은 엷고 크게, 가까운 줄은 짙게) — 길 뒤로 겹겹이 물러난다
+  sc.inkRanges(b, { x0: -110, x1: 120, z: -50, height: 20, gap: 14, y: -3 });
 
-  // 나무·꽃·돌(모양마다 한 번에 그린다)
-  const rnd = seeded(15);
-  const trees = [];
-  for (let i = 0; i < 28; i++) {
-    const x = -30 + rnd() * 62;
-    const z = -30 + rnd() * 30;
-    if (Math.abs(x - STREAM_X) < 2.5 || Math.hypot(x - MOUNTAIN.x, z - MOUNTAIN.z) < MOUNTAIN.r + 1) continue;
-    if (Math.hypot(x + 15, z + 1) < 4 || Math.hypot(x - 6, z + 5.5) < 4) continue;
-    trees.push([x, z, 0.8 + rnd() * 0.6]);
+  // 산봉우리: 높이 면 산 덩이(꼭대기 짙은 먹 → 밑동 한지색). 길은 이 산의 높이를 따라 오른다
+  const peak = sc.mountainMass(sc.materials, { x: MOUNTAIN.x, z: MOUNTAIN.z, r: MOUNTAIN.r * 1.35, h: MOUNTAIN.h, seed: 11, top: '#4d4b44', foot: '#d2cca4', peaks: 4 });
+  heightAt = (x, z) => peak.height(x, z);
+  group.add(peak.mesh);
+  // 봉우리 바위와 소나무
+  for (const [dx, dz, s, k] of [[1.6, 1.2, 0.8, 1], [-1.8, 0.6, 0.6, 2], [0.4, -1.9, 0.9, 3], [2.6, -1.2, 0.55, 4]]) {
+    const x = MOUNTAIN.x + dx;
+    const z = MOUNTAIN.z + dz;
+    sc.rock(b, { x, y: heightAt(x, z) - 0.15, z, s, seed: k, color: '#6f6b62', shadow: false });
   }
-  const trunkGeo = own(new THREE.CylinderGeometry(0.15, 0.22, 1.4, 5));
-  const crownGeo = own(new THREE.ConeGeometry(1.2, 3, 6));
-  const trunks = new THREE.InstancedMesh(trunkGeo, lambert('#5b4636'), trees.length);
-  const crowns = new THREE.InstancedMesh(crownGeo, lambert('#3e5b4a', { flatShading: true }), trees.length);
-  const q = new THREE.Quaternion();
-  const v = new THREE.Vector3();
-  const sc = new THREE.Vector3();
-  trees.forEach(([x, z, k], i) => {
-    m4.compose(v.set(x, 0.7 * k, z), q, sc.set(k, k, k)); trunks.setMatrixAt(i, m4);
-    m4.compose(v.set(x, 2.6 * k, z), q, sc.set(k, k, k)); crowns.setMatrixAt(i, m4);
-  });
-  group.add(trunks, crowns);
 
-  const blossomSpots = [[-11, 0], [-17, 2], [-8, -3], [-3, 3], [3, -7], [9, -2], [-2, 9], [-7.5, 8], [13, 2], [18, -8], [19, -12.5], [17.5, -10]];
-  const blossomGeo = own(new THREE.IcosahedronGeometry(0.65, 0));
-  const pinks = new THREE.InstancedMesh(blossomGeo, lambert('#e7a3a8', { flatShading: true }), blossomSpots.length);
-  blossomSpots.forEach(([x, z], i) => { const y = heightAt(x, z) + 1.2 + (i % 3) * 0.3; m4.compose(v.set(x, y, z), q, sc.set(1, 0.8, 1)); pinks.setMatrixAt(i, m4); });
-  group.add(pinks);
-  const stoneGeo = own(new THREE.DodecahedronGeometry(0.45, 0));
-  const stoneSpots = [[STREAM_X - 1.6, 4], [STREAM_X + 1.5, 6], [STREAM_X + 1.6, -4], [STREAM_X - 1.5, -8], [-3.4, 7.2], [2, 9], [15, -2], [18.4, -9]];
-  const stones = new THREE.InstancedMesh(stoneGeo, lambert(TOKENS.meokSoft, { flatShading: true }), stoneSpots.length);
-  stoneSpots.forEach(([x, z], i) => { m4.compose(v.set(x, heightAt(x, z) + 0.2, z), q, sc.set(1, 0.7, 1)); stones.setMatrixAt(i, m4); });
-  group.add(stones);
+  // 시내: 산 쪽에서 흘러 내려와 길 아래를 지난다(다리)
+  const streamPts = [];
+  for (let z = -30; z <= 18; z += 2) streamPts.push([STREAM_X - 0.3 + 0.6 * Math.sin(z * 0.2), z]);
+  sc.stream(b, { points: streamPts, width: 2.3, seed: 4 });
+  // 나무다리: 길이 시내를 건너는 쪽(x)으로 놓인 널판 + 난간
+  b.box('wood', 3.8, 0.18, 1.9, { p: [STREAM_X, 0.32, 1], color: '#7a5f46', ao: 0.2 });
+  for (const dz of [-0.85, 0.85]) {
+    b.box('wood', 3.8, 0.08, 0.08, { p: [STREAM_X, 0.85, 1 + dz], color: '#5e4a3a', ao: 0 });
+    for (const dx of [-1.7, 0, 1.7]) b.box('wood', 0.09, 0.55, 0.09, { p: [STREAM_X + dx, 0.6, 1 + dz], color: '#5e4a3a', ao: 0 });
+  }
+  for (const dx of [-1.6, 1.6]) b.add('wood', sc.kit.cylinder(0.1, 0.12, 0.6, 8), { p: [STREAM_X + dx, 0.05, 1], color: '#4f3f32' });
 
-  // 달(청풍명월)
-  const moon = add(new THREE.CircleGeometry(2.2, 20), basic(TOKENS.gold), [34, 22, -46]);
+  // 수간모옥: 초가 세 칸, 싸리 울타리
+  sc.thatchedHut(b, { x: -15, z: -1.2, bays: 3, bayW: 1.5, depth: 2.4, wall: 1.75, base: 0.36 });
+  for (let i = 0; i < 15; i++) {
+    const x = -20.2 + i * 0.75;
+    if (x > -15.8 && x < -13.4) continue;   // 사립문 자리
+    b.box('wood', 0.06, 0.8 + (i % 3) * 0.08, 0.06, { p: [x, 0.42, 2.2], r: [0, 0, (i % 2 ? 0.05 : -0.04)], color: '#6b5b4a', ao: 0 });
+  }
+  b.box('wood', 9.6, 0.05, 0.05, { p: [-15.8, 0.65, 2.2], color: '#5e4e40', ao: 0 });
+
+  // 정자: 모임지붕, 붉은 기둥(석간주), 뇌록 창방
+  sc.pavilion(b, { x: 6, z: -5.5, size: 3.0, height: 2.3 });
+
+  // 종이 나무: 소나무와 꽃나무(봄). 길과 집 둘레를 비워 둔다. 알파 카드라 겹을 두 장으로 줄인다
+  const trees = [
+    [-19.5, -4.5, 4.4, 'pine'], [-11, -4.5, 3.6, 'blossom'], [-23, 0.5, 4.6, 'pine'], [-8.6, -7, 3.4, 'blossom'],
+    [-2.5, -8.5, 4.2, 'pine'], [1.5, -11, 3.8, 'blossom'], [10.5, -1.5, 3.2, 'blossom'], [10.5, -10, 4.6, 'pine'],
+    [14.5, -4.5, 4.4, 'pine'], [-14, -10.5, 4.6, 'pine'], [16.5, -13, 3.2, 'blossom'], [-17, -6.5, 3.0, 'blossom'],
+  ];
+  trees.forEach(([x, z, h, kind], i) => sc.kit.paperTree(b, { x, z, h, kind, seed: i + 3, layers: i < 2 ? 2 : 1 }));
+  // 산비탈 소나무(땅 높이에 앉힌다)
+  for (const [dx, dz, h] of [[-4.5, 3.5, 3.4], [4.2, 3.8, 3.0], [-5.6, -2.6, 3.8], [5.8, -1.8, 3.6]]) {
+    const x = MOUNTAIN.x + dx;
+    const z = MOUNTAIN.z + dz;
+    const y = heightAt(x, z);
+    b.add('foliage', sc.kit.card(0, 0, 0.5, 1), { p: [x, y - 0.2, z], s: [h, h, 1], uv: 'keep', shade: 0.85, ao: 0.2 });
+  }
+  // 꽃 덤불·풀 무더기: 길가의 진달래(작은 꽃나무 카드)
+  for (const [x, z] of [[-11, -0.4], [-3, 3.2], [9, -1.2], [-8.2, 7.6], [13, 1.6], [18, -8.5], [19, -12.5]]) {
+    const y = heightAt(x, z);
+    b.add('foliage', sc.kit.card(0.5, 0, 1, 1), { p: [x, y - 0.05, z], s: [1.5, 1.4, 1], uv: 'keep', shade: 1, ao: 0.1 });
+  }
+  for (const [x, z, s, k] of [[-3.4, 7.2, 0.5, 1], [2, 9, 0.45, 2], [15, -2, 0.6, 3], [-9.5, -2.2, 0.55, 4], [8.6, -8.4, 0.7, 2]]) sc.rock(b, { x, z, s, seed: k, color: '#a29c90' });
+
+  const scenery = sc.build(b, 'room-gasa-scenery');
+  group.add(scenery);
+  // 시냇물 흐름(무늬만 흘러간다)
+  const water = sc.waterTexture();
+
+  // 달(청풍명월): 한지색 둥근 달과 엷은 달무리
+  const moon = add(new THREE.CircleGeometry(2.2, 32), basic('#f6edd2'), [34, 22, -46]);
+  const halo = add(new THREE.CircleGeometry(4.2, 32), basic('#fbf3dc', { transparent: true, opacity: 0.45, depthWrite: false }), [34, 22, -46.2]);
+  moon.add(halo);
+  halo.position.set(0, 0, -0.2);
+  halo.renderOrder = -11;
 
   // 길 띠: 전체와 걸은 부분(같은 모양, 그리는 범위만 다르다)
   const samples = route.samples(0.4);
@@ -183,7 +201,8 @@ export async function createScene3D({ host, three = null, assets = null, manifes
     const nx = -dz / l; const nz = dx / l;
     for (const sgn of [-1, 1]) {
       const x = p[0] + nx * W * sgn; const z = p[1] + nz * W * sgn;
-      pos.push(x, heightAt(x, z) + 0.06, z);
+      const y = heightAt(x, z);
+      pos.push(x, y + (y > 0.02 ? 0.16 : 0.06), z);
     }
   });
   const idx = [];
@@ -192,10 +211,10 @@ export async function createScene3D({ host, three = null, assets = null, manifes
   pathGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   pathGeo.setIndex(idx);
   pathGeo.computeVertexNormals();
-  const pathMesh = new THREE.Mesh(pathGeo, lambert('#d8c79f', { side: THREE.DoubleSide }));
+  const pathMesh = new THREE.Mesh(pathGeo, basic('#e6d8b4', { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
   group.add(pathMesh);
   const walkedGeo = own(pathGeo.clone());
-  const walkedMesh = new THREE.Mesh(walkedGeo, lambert(TOKENS.nokcheong, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  const walkedMesh = new THREE.Mesh(walkedGeo, basic(TOKENS.nokcheong, { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   walkedMesh.position.y = 0.02;
   group.add(walkedMesh);
   const sampleS = samples.map((x) => x.s);
@@ -219,23 +238,27 @@ export async function createScene3D({ host, three = null, assets = null, manifes
     labels[st.id] = sp;
   }
 
-  // 걷는 사람(종이 인형)
-  const name = 'sprite/student-' + (appearance === 'b' ? 'b' : 'a');
-  let tex = art?.texture?.(name) ?? null;
-  if (!tex) {
-    tex = own(new THREE.CanvasTexture(paperDollCanvas(appearance === 'b' ? 'student-b' : 'student-a')));
-    tex.colorSpace = THREE.SRGBColorSpace;
-  }
-  const walker = new THREE.Sprite(own(new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.1 })));
-  walker.center.set(0.5, 0);
-  walker.scale.set(1.0, 2.0, 1);
-  group.add(walker);
+  // 걷는 사람: 학생 종이 인형(세계와 같은 종이 카드, 발밑 그림자, 걸음)
+  const walker = studentFigure(THREE, { art, appearance, reduceMotion, name: 'rg-walker', height: 2.0, lean: 0.3 });
+  group.add(walker.root);
 
-  // 떨어지는 꽃잎(움직임 줄이기면 멈춘다)
+  // 떨어지는 꽃잎(움직임 줄이기면 멈춘다): 다섯 장 꽃잎 모양 하나를 인스턴스로
+  const rnd = seeded(15);
+  const m4 = new THREE.Matrix4();
+  const petalEuler = new THREE.Euler();
   const PETALS = 36;
-  const petalGeo = own(new THREE.PlaneGeometry(0.18, 0.12));
-  const petals = new THREE.InstancedMesh(petalGeo, basic('#e7a3a8', { side: THREE.DoubleSide }), PETALS);
+  const petalShape = new THREE.Shape();
+  petalShape.moveTo(0, -0.1);
+  petalShape.bezierCurveTo(0.11, -0.05, 0.1, 0.07, 0.03, 0.1);
+  petalShape.lineTo(0, 0.07);
+  petalShape.lineTo(-0.03, 0.1);
+  petalShape.bezierCurveTo(-0.1, 0.07, -0.11, -0.05, 0, -0.1);
+  const petalGeo = own(new THREE.ShapeGeometry(petalShape, 3));
+  const petals = new THREE.InstancedMesh(petalGeo, basic('#eab8b3', { side: THREE.DoubleSide }), PETALS);
   const petalState = [...Array(PETALS)].map(() => ({ x: rnd() * 24 - 12, y: rnd() * 8, z: rnd() * 12 - 8, sp: 0.4 + rnd() * 0.5, ph: rnd() * 6 }));
+  const pc = new THREE.Color();
+  for (let i = 0; i < PETALS; i++) petals.setColorAt(i, pc.set(i % 3 ? '#efc9c2' : '#f7e8df'));
+  petals.frustumCulled = false;
   group.add(petals);
 
   // ── 움직임 ──
@@ -250,6 +273,7 @@ export async function createScene3D({ host, three = null, assets = null, manifes
   const look = new THREE.Vector3();
   const tmp = new THREE.Vector3();
 
+  let walkDt = 0;
   function walkerAt(sv) {
     const [x, z] = route.point(sv);
     return tmp.set(x, heightAt(x, z) + 0.05, z);
@@ -257,17 +281,20 @@ export async function createScene3D({ host, three = null, assets = null, manifes
 
   function aimCamera(snap) {
     const w = walkerAt(s);
-    walker.position.copy(w);
+    walker.root.position.copy(w);
     look.set(w.x, w.y + LOOK_UP, w.z);
     const target = new THREE.Vector3(w.x + CAMERA_OFFSET[0], w.y + CAMERA_OFFSET[1], w.z + CAMERA_OFFSET[2]);
     if (snap) camPos.copy(target); else camPos.lerp(target, 0.08);
     camera.position.copy(camPos);
     camera.lookAt(look);
+    walker.update(walkDt, camera, { moving: t < dur && !reduceMotion() });
   }
 
   function update(dt) {
     if (paused) return;
+    walkDt = dt;
     const rm = reduceMotion();
+    if (!rm) water.offset.y -= dt * 0.22;
     if (t < dur && !rm) { t = Math.min(dur, t + dt); s = from + (to - from) * (t / dur); } else s = to;
     setWalked(s);
     aimCamera(rm);
@@ -275,8 +302,8 @@ export async function createScene3D({ host, three = null, assets = null, manifes
     const time = performance.now() / 1000;
     petalState.forEach((p, i) => {
       if (!rm) { p.y -= p.sp * dt; if (p.y < 0) p.y = 8; }
-      m4.makeRotationFromEuler(new THREE.Euler(time * p.sp + p.ph, p.ph, 0));
-      m4.setPosition(walker.position.x + p.x, walker.position.y + p.y, walker.position.z + p.z);
+      m4.makeRotationFromEuler(petalEuler.set(time * p.sp + p.ph, p.ph, 0));
+      m4.setPosition(walker.root.position.x + p.x, walker.root.position.y + p.y, walker.root.position.z + p.z);
       petals.setMatrixAt(i, m4);
     });
     petals.instanceMatrix.needsUpdate = true;
@@ -319,7 +346,11 @@ export async function createScene3D({ host, three = null, assets = null, manifes
       cancelAnimationFrame(raf);
       group.parent?.remove(group);
       for (const x of owned) x.dispose?.();
-      posts.dispose(); trunks.dispose(); crowns.dispose(); pinks.dispose(); stones.dispose(); petals.dispose();
+      walker.dispose();
+      petals.dispose();
+      disposeGroupGeometry(scenery);
+      peak.mesh.geometry.dispose();
+      sc.dispose();
       if (art !== assets) art?.dispose?.();
       renderer?.dispose();
       canvas?.remove();
