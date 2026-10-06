@@ -7,7 +7,7 @@
 - `mode.js`: WebGL2 확인으로 `'3d'`/`'2d'`를 정한다(창마다 한 번, 바뀌지 않음). 3D 그림판을 못 만들면 `fallbackTo2D()`.
 - `scene3d.js`: Three.js 장면, 따라가는 카메라와 제한 각도 회전, 학생 3D 인물, 관 문과 현판, 먹빛→단청 색. `board2d.js`: 같은 일을 16:9 그림 판 위 DOM 겹으로.
 - `corridor-art.js`: 회랑 건축(그림만). 한옥 서고 회랑(마루, 서가와 창살 벽, 기둥·공포·서까래, 기와 처마, 문루, 초롱, 난간, 입구 문)과 언제나 보이는 바깥(마당, 관 자리 바닥돌과 길, 종이 나무, 관 뒤 수묵 병풍, 먼 산). 배치 값은 `scene3d.js`가 넘기고 여기서 바꾸지 않는다.
-- `gfx/`: 그래픽 꾸러미. 캔버스 무늬(`textures.js`), 역할별 재질과 먹빛→단청 걸이(`materials.js`), 모서리를 깎은 부분을 역할마다 합치는 소품 틀(`kit.js`), 인물 무대(`figures.js`: 종이 카드와 `createCharacter`, `figures-3d.js`: 절차 3D 인물), 그리기 설정·빛·안개(`lighting.js`). 쓰는 법과 예산 요령은 `gfx/README.md`.
+- `gfx/`: 그래픽 꾸러미. 캔버스 무늬(`textures.js`), 역할별 재질과 먹빛→단청 걸이(`materials.js`), 모서리를 깎은 부분을 역할마다 합치는 소품 틀(`kit.js`), 인물 무대(`figures.js`: 인물 고르기·종이 카드·무리, `figures-3d.js`: 절차 3D 인물, `cast.js`: 가객 표), 그리기 설정·빛·안개(`lighting.js`). 쓰는 법과 예산 요령은 `gfx/README.md`.
 - `controls.js`: 탭 이동(도착 표시), 터치에서만 생기는 왼쪽 아래 조이스틱, 끌어 돌리기, 키보드(WASD·방향키, Enter·Space = 상황 버튼), 오른쪽 아래 상황 버튼.
 - `screen.js`: 세로 화면이면 회전 안내를 덮고 `#app`을 `inert`로, `orientation:pause`·`audio:pause { reason: 'orientation' }`을 내고 가로로 돌아오면 `resume`.
 - `motion.js`: 움직임 줄이기 전역 상태(기기 설정 또는 브라우저 `prefers-reduced-motion` 가운데 하나라도 켜지면 켜짐). `#app.reduce-motion`과 `settings:reduce-motion`.
@@ -38,7 +38,7 @@
 - 반반 틀: 지금 관 모형에 `measureFocus`가 있으면 왼쪽 반이 그곳을 비춘다. 3D는 카메라가 `target`을 보고(`position`이 없으면 `TUNING.measureOffset`만큼 떨어져), 2D는 그림 판을 왼쪽 칸에 꽉 차게 키우고 초점을 가운데로 민다.
 - 단청: `diorama:dancheong-restore`를 받으면 지금 관을 0→1로 `TUNING.dancheongRestoreSeconds` 동안 올린다(움직임 줄이기면 바로). 색은 `dancheongColor(본색, 값)`으로 먹빛과 본색 사이를 섞는다.
 - 움직임 줄이기면 카메라 이동은 잘라 바꾸고, `shake()`는 아무것도 하지 않고 `false`를 돌려주며, 파티클은 `particleScale()`(0.3)배로 줄인다. 인물의 숨쉬기·들썩임·소매 흔들림·고개 돌리기도 끄고, 3D 학생은 팔다리만 작게 움직이며 방향을 바로 바꾼다.
-- 학생은 `gfx/figures.js`의 `createCharacter`로 만든 절차 3D 인물이다(`gfx/figures-3d.js`, 생김새 a·b는 기록의 `appearance`). 몸 하나 + 먹 테두리 하나 + 발밑 그림자 하나로 그리기 호출 셋이다. 걷는 쪽을 부드럽게 돌아보고, 오래 서 있으면 카메라 쪽으로 비스듬히 돌아선다. 키 1.62m(문 2.6m, 기둥 3.6m 기준), 발 가운데가 자리다. 선대 사서·가객·좀은 아직 종이 카드다(그림은 미리 곱한 알파로 올려 가장자리 검은 테가 없다). 2D 그림 판과 결과 카드는 승인된 그림 그대로다.
+- 학생은 `gfx/figures.js`의 `createCharacter`로 만든 절차 3D 인물이다(`gfx/figures-3d.js`, 생김새 a·b는 기록의 `appearance`). 몸 하나 + 먹 테두리 하나 + 발밑 그림자 하나로 그리기 호출 셋이다. 걷는 쪽을 부드럽게 돌아보고, 오래 서 있으면 카메라 쪽으로 비스듬히 돌아선다. 키 1.62m(문 2.6m, 기둥 3.6m 기준), 발 가운데가 자리다. 선대 사서·가객 45명·좀·좀 대왕도 같은 틀의 3D 인물이다. `createFigure`에 그림 주소(`sprite/<이름>.webp`)를 넘기면 저절로 3D가 되고, 조립법이 없는 그림(「정석가」 방의 '임', 자리표시 캔버스)만 종이 카드로 남는다. 가객은 `gfx/cast.js`의 표(틀 → 생김새 → 노래)로 짓는다. 2D 그림 판, DOM 화면(엔딩 행렬, 도감, 입구, 회랑의 좀 알림, 시조 방 얼굴)과 결과 카드는 승인된 그림 그대로다.
 - `motion.js`는 처음 설치될 때 저장 문서에서 `device.reduceMotion`을 직접 읽는다(열쇠 `yetnorae-seogo-v1`을 상수로 따로 가진다). 저장 열쇠가 바뀌면 이 상수도 바꾼다.
 
 ## 점검

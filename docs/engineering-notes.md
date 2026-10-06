@@ -145,7 +145,11 @@
 
 ### 승인된 종이 인형 색이 톤 매핑으로 바뀐다
 - 까닭: 세계 그리기 판은 `NeutralToneMapping`을 쓴다(`js/world/gfx/lighting.js`). 톤 매핑은 모든 재질에 걸린다.
-- 대응: 승인 그림을 그대로 보여야 하는 재질(종이 인형 카드, 현판)은 `toneMapped: false`. 새 인물은 `gfx/figures.js`의 `createFigure`로 만들면 그렇게 된다.
+- 대응: 승인 그림을 그대로 보여야 하는 재질(종이 인형 카드, 현판)은 `toneMapped: false`. 새 인물은 `gfx/figures.js`의 `createFigure`로 만들면 그렇게 된다. 단 조립법이 있는 그림(학생, 선대 사서, 가객, 좀, 좀 대왕)은 이제 3D 인물이 되어 빛과 톤 매핑을 받는다.
+
+### 재질을 나눠 쓰는 3D 인물 하나만 먹빛으로 바꿀 수 없다
+- 까닭: 3D 인물은 몸 재질 하나를 나눠 쓴다. `onBeforeCompile`로 단 uniform은 three가 재질이 바뀔 때만 다시 올리므로, 같은 재질의 인물마다 `onBeforeRender`에서 값을 바꿔도 먹지 않는다(`uniformsNeedUpdate`는 `ShaderMaterial`만 본다).
+- 대응: 먹빛(`material.userData.ink.value` < 1)인 동안만 그 인물이 같은 셰이더의 재질 사본을 쓴다(`figures-3d.js`의 `setInk`). `customProgramCacheKey`가 같아 셰이더는 늘지 않는다.
 
 ### 작품 방 스타일이 다른 방에 번졌다
 - 증상: 「정석가」 방 패널 모양이 「상춘곡」 방에서 바뀌었다.

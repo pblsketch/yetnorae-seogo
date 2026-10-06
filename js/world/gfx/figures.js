@@ -12,10 +12,12 @@
 //   fig.update(dt, camera, { moving: true, flip: false });
 //   fig.dispose();
 //
-// 절차 3D 인물(figures-3d.js): createCharacter(THREE, { kind, … })는 kind에 3D 조립법이 있으면 3D 인물을,
-// 없으면 위의 종이 카드를 돌려준다. 두 손잡이는 같은 모양이다(root, shadow, update, dispose).
+// 절차 3D 인물(figures-3d.js): createFigure·createCharacter는 그림 이름(url의 sprite/<이름>.webp, sprite, kind)에
+// 3D 조립법이 있으면 3D 인물을, 없으면 위의 종이 카드를 돌려준다. 부르는 곳을 고치지 않아도 학생·선대 사서·가객 45명·좀·좀 대왕이
+// 3D로 선다. 두 손잡이는 같은 모양이다(root, card, shadow, material.userData.ink, update, setTexture, dispose).
+// 종이 카드를 꼭 써야 하면 procedural: false, 또는 createPaperCard를 부른다.
 import { TOKENS } from '../palette.js';
-import { buildProceduralFigure, hasProceduralFigure } from './figures-3d.js';
+import { buildProceduralFigure, hasProceduralFigure, buildCrowd } from './figures-3d.js';
 
 export { hasProceduralFigure, RECIPES as FIGURE_RECIPES } from './figures-3d.js';
 
@@ -25,7 +27,18 @@ export const FIGURE_HEIGHT = {
   mentor: 1.7,
   nim: 1.6,
   jom: 0.7,
+  jomKing: 3.2,
 };
+
+// 그림 주소나 이름에서 인물 이름을 읽는다: '…/assets/img/sprite/singer-taesan.webp' → 'singer-taesan'
+const SPRITE_RE = /(?:^|\/)sprite\/([a-z0-9-]+)\.(?:webp|png|jpe?g)(?:[?#].*)?$/i;
+export function spriteKind({ kind = null, sprite = null, url = null, texture = null } = {}) {
+  if (kind) return kind;
+  if (sprite) return String(sprite).replace(/^sprite\//, '');
+  const src = url ?? texture?.image?.currentSrc ?? texture?.image?.src ?? null;
+  const m = typeof src === 'string' ? SPRITE_RE.exec(src) : null;
+  return m ? m[1] : null;
+}
 
 // 그림 원본에서 몸이 차지하는 위아래 여백(그림마다 조금 다르지만 같은 생성 규칙이라 비슷하다)
 const FOOT_MARGIN = 0.02;
@@ -101,8 +114,16 @@ export function paperCardMaterial(THREE, map, { edge = 0.022, paper = TOKENS.han
   return mat;
 }
 
-// 인물 하나. url(그림 주소) 또는 canvas(자리표시 그림) 가운데 하나를 준다.
-export function createFigure(THREE, { url = null, canvas = null, texture = null, height = FIGURE_HEIGHT.student, reduceMotion = () => false, edge = 0.024, shadow = true, lean = 0.35, name = 'figure', phase = 0 } = {}) {
+// 인물 하나. 그림에 3D 조립법이 있으면 3D 인물(createCharacter), 없으면 종이 카드다.
+//   url(그림 주소), sprite('sprite/mentor' 같은 이름), kind 가운데 하나로 인물을 알아본다. procedural: false면 늘 종이 카드.
+export function createFigure(THREE, opts = {}) {
+  const kind = opts.procedural === false ? null : spriteKind(opts);
+  if (kind && hasProceduralFigure(kind)) return createCharacter(THREE, { ...opts, kind });
+  return createPaperCard(THREE, opts);
+}
+
+// 종이 카드 인물. url(그림 주소) 또는 canvas(자리표시 그림) 가운데 하나를 준다.
+export function createPaperCard(THREE, { url = null, canvas = null, texture = null, height = FIGURE_HEIGHT.student, reduceMotion = () => false, edge = 0.024, shadow = true, lean = 0.35, name = 'figure', phase = 0 } = {}) {
   const root = new THREE.Group();
   root.name = name;
   const pivot = new THREE.Group();   // 발 가운데를 축으로 흔든다
@@ -219,27 +240,39 @@ function disposeShadow(m) {
   if (--shadowUsers <= 0) { shadowTex?.dispose(); shadowTex = null; shadowUsers = 0; }
 }
 
-// 인물 하나: kind에 절차 3D 조립법(figures-3d.js RECIPES)이 있으면 3D 인물, 없으면 종이 카드(createFigure).
-//   kind: 'student-a' | 'student-b' | 그 밖(종이 카드). 나머지 인자는 createFigure와 같다.
+// 인물 하나: kind(또는 그림 이름)에 절차 3D 조립법(figures-3d.js RECIPES)이 있으면 3D 인물, 없으면 종이 카드(createPaperCard).
+//   kind: 'student-a' | 'student-b' | 'mentor' | 'jom' | 'jom-king' | 'singer-<노래 id>' | 'look:<생김새>' | 그 밖(종이 카드).
+//   나머지 인자는 createFigure와 같다. height를 빼면 FIGURE_HEIGHT에서 고른다(좀 0.7, 좀 대왕 3.2, 선대 사서 1.7, 그 밖 1.62).
 //   faceCamera: 3D 인물이 오래 서 있으면 카메라 쪽으로 비스듬히 돌아선다(세계 true, 길을 걷는 방 false).
+//   detail: 둘레 나눔 배수(1 = 가까이, 멀리 서는 인물은 0.55쯤으로 삼각형을 줄인다).
 //   3D 인물의 update(dt, camera, { moving, dir, speed })는 dir·speed를 주지 않으면 root가 움직인 거리로 스스로 잰다.
-//   flip은 종이 카드만 쓴다.
-export function createCharacter(THREE, { kind = null, height = FIGURE_HEIGHT.student, reduceMotion = () => false, shadow = true, name = 'figure', phase = 0, faceCamera = true, ...card } = {}) {
-  if (!kind || !hasProceduralFigure(kind)) return createFigure(THREE, { ...card, height, reduceMotion, shadow, name, phase });
-  const fig = buildProceduralFigure(THREE, { kind, height, reduceMotion, name, phase, faceCamera });
+//   flip·lean·edge는 종이 카드만 쓴다.
+//   card: 3D 인물에서는 발 가운데를 축으로 하는 묶음이다. update 뒤에 card.rotation·position을 더하면 그 프레임만 흔들린다(종이 카드와 같은 쓰임).
+//   material.userData.ink.value: 0 = 먹빛 회색, 1 = 제 빛깔(종이 카드와 같은 쓰임).
+export function createCharacter(THREE, { kind = null, height = null, reduceMotion = () => false, shadow = true, name = 'figure', phase = 0, faceCamera = true, detail = 1, ...card } = {}) {
+  const k = kind && hasProceduralFigure(kind) ? kind : (card.procedural === false ? null : spriteKind(card));
+  if (!k || !hasProceduralFigure(k)) return createPaperCard(THREE, { ...card, height: height ?? FIGURE_HEIGHT.student, reduceMotion, shadow, name, phase });
+  const h = height ?? defaultHeight(k);
+  const fig = buildProceduralFigure(THREE, { kind: k, height: h, reduceMotion, name, phase, faceCamera, detail });
   const shadowMesh = shadow ? contactShadowMesh(THREE, name) : null;
   if (shadowMesh) {
-    const k = height / FIGURE_HEIGHT.student;
-    shadowMesh.scale.set(0.78 * k, 1, 0.5 * k);
+    const s = h / fig.designHeight;
+    shadowMesh.scale.set(fig.shadowSize[0] * s, 1, fig.shadowSize[1] * s);
     fig.root.add(shadowMesh);
   }
+  let inkValue = 1;
+  const ink = {
+    get value() { return inkValue; },
+    set value(v) { inkValue = v; fig.setInk(v); },
+  };
   return {
     kind: 'procedural',
+    figure: k,
     root: fig.root,
-    card: null,
+    card: fig.sway,
     body: fig,
     shadow: shadowMesh,
-    material: fig.material,
+    material: { userData: { ink } },
     update: fig.update,
     setTexture() {},   // 3D 인물은 그림을 쓰지 않는다
     dispose() {
@@ -247,5 +280,53 @@ export function createCharacter(THREE, { kind = null, height = FIGURE_HEIGHT.stu
       fig.dispose();
     },
     get aspect() { return 0.45; },
+    get triangles() { return fig.triangles; },
+  };
+}
+
+function defaultHeight(kind) {
+  if (kind === 'jom') return FIGURE_HEIGHT.jom;
+  if (kind === 'jom-king') return FIGURE_HEIGHT.jomKing;
+  if (kind === 'mentor') return FIGURE_HEIGHT.mentor;
+  return FIGURE_HEIGHT.student;
+}
+
+// 인물 무리(엔딩 행렬, 줄 세우기처럼 한꺼번에 많이 보일 때): 서 있는 몸을 합친 기하 하나 + 먹 테두리 하나 + 발밑 그림자 인스턴스 하나,
+// 몇 명이든 그리기 호출 셋이다. 멀리 보는 간단한 몸(detail 0.55)이 기본이다.
+//   members: [{ kind, x, z, y = 0, yaw = 0(정면 +z), height, phase }]. kind에 조립법이 없는 사람은 빠진다.
+//   update(dt): 사람마다 다른 위상으로 작게 들썩인다(움직임 줄이기면 멈춘다).
+//   outline: false면 먹 테두리를 빼서 그리기 호출 둘, 삼각형 약 절반(아주 멀리 서는 무리).
+export function createFigureCrowd(THREE, members, { detail = 0.55, reduceMotion = () => false, shadow = true, outline = true, name = 'crowd' } = {}) {
+  const crowd = buildCrowd(THREE, members.map((m) => ({ ...m, height: m.height ?? defaultHeight(m.kind) })), { detail, name, outline });
+  let shadows = null;
+  if (shadow && crowd.members.length) {
+    const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({ color: TOKENS.meok, map: contactTexture(THREE), transparent: true, depthWrite: false, opacity: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    shadows = new THREE.InstancedMesh(geo, mat, crowd.members.length);
+    shadows.name = name + '-shadow';
+    shadows.renderOrder = 6;
+    const m4 = new THREE.Matrix4();
+    crowd.members.forEach((m, i) => {
+      const s = (m.height ?? FIGURE_HEIGHT.student) / FIGURE_HEIGHT.student;
+      m4.makeScale(0.78 * s, 1, 0.5 * s).setPosition(m.x ?? 0, (m.y ?? 0) + 0.015, m.z ?? 0);
+      shadows.setMatrixAt(i, m4);
+    });
+    shadows.instanceMatrix.needsUpdate = true;
+    crowd.root.add(shadows);
+  }
+  return {
+    root: crowd.root,
+    members: crowd.members,
+    triangles: crowd.triangles,
+    update(dt) { crowd.update(dt, reduceMotion()); },
+    dispose() {
+      if (shadows) {
+        shadows.geometry.dispose();
+        shadows.material.dispose();
+        shadows.dispose();
+        if (--shadowUsers <= 0) { shadowTex?.dispose(); shadowTex = null; shadowUsers = 0; }
+      }
+      crowd.dispose();
+    },
   };
 }
