@@ -407,3 +407,7 @@ textarea.story-input { resize: none; line-height: 1.4; }
 /* 재는 동안(반반 틀)에는 들어가기 글과 좀을 비킨다 */
 .play.is-measuring ~ .story-layer .story-wing-intro,
 .play.is-measuring ~ .story-layer .story-jom { display: none; }
+
+/* 겹 창(수첩·일지·도감·다시 듣기)을 연 동안에도 들어가기 글과 좀을 비킨다(창 위에 겹쳐 보이지 않게) */
+.play:has(.play-panel) ~ .story-layer .story-wing-intro,
+.play:has(.play-panel) ~ .story-layer .story-jom { display: none; }

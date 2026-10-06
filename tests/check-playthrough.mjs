@@ -676,9 +676,32 @@ async function closeWingIntro(ui) {
 }
 
 // 떠도는(또는 입구에서 기다리는) 노래를 잡아 잰다
+// 떠도는 노래 단추는 늘 둥실거려서(play-float) Playwright의 click·tap이 '멈춘 요소'를 기다리다 시간이 다 된다.
+// 학생처럼 지금 보이는 자리의 가운데를 누른다. 그 자리 맨 위가 그 단추일 때만 누르고, 잡기 안내가 뜰 때까지 다시 본다.
+async function pressFloatingSong(ui, id) {
+  const sel = `.play-song[data-song="${id}"]`;
+  await ui.waitSel(sel);
+  for (let k = 0; k < 20; k++) {
+    const pt = await ui.ev((s) => {
+      const b = document.querySelector(s);
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      const x = r.x + r.width / 2;
+      const y = r.y + r.height / 2;
+      const top = document.elementFromPoint(x, y);
+      return top && (top === b || b.contains(top)) ? { x, y } : null;
+    }, sel);
+    if (pt) {
+      await ui.pressAt(pt.x, pt.y);
+      try { await ui.waitContext('잡기', 15000); return; } catch { /* 빗나갔으면 다시 */ }
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error('떠도는 노래 「' + id + '」를 누르지 못함');
+}
+
 async function catchAndMeasure(page, ui, S, wingId, id, stats) {
-  await ui.press(`.play-song[data-song="${id}"]`);
-  await ui.waitContext('잡기');
+  await pressFloatingSong(ui, id);
   await ui.press('.world-context');
   await ui.waitSel('.world.is-split .measure', 20000);
   const r = await solveMeasure(page, ui, S, actionInfo(ACTION_OF[wingId], song(id)), stats);
