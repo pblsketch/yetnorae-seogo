@@ -246,6 +246,8 @@ export async function startApp(container) {
     if (!mod) { say(STORY.boss.notReady); return; }
     const g = game;
     closeBoss(g, false);
+    // 회랑에서 띄운 알림(예: '다섯 관을 모두 마쳤다')이 보스 화면 위에 남지 않게 거둔다
+    g.layer.querySelectorAll('.story-toast').forEach((t) => t.remove());
     const host = el('div', 'story-boss-host');
     g.layer.append(host);
     g.bossHost = host;
@@ -299,6 +301,7 @@ export async function startApp(container) {
   async function playEnding() {
     const g = game;
     g.layer.querySelector('.story-boss-door')?.remove();
+    g.layer.querySelectorAll('.story-toast').forEach((t) => t.remove());
     await runEnding({ host: g.layer, session, manifest, signal: g.ac.signal });
     if (game !== g) return;
     session.enterCorridor();

@@ -12,7 +12,7 @@
   --meok-soft: #5a5650;
   --meok-fog: #8d8a85;   /* 먹안개 */
   --nokcheong: #2f7d6d;  /* 단청 녹청: 상호작용 요소 */
-  --juhong: #c4462f;     /* 단청 주홍: 상호작용 요소 강조 */
+  --juhong: #b83f2a;     /* 단청 주홍: 상호작용 요소 강조(한지 글과 대비 4.5:1 이상이 되게 어둡게 맞춤) */
   --gold: #b88a2a;       /* 금박 */
   --font-body: 'YetnoraeText', 'Noto Serif KR', 'Nanum Myeongjo', serif;
   --font-ui: 'YetnoraeUI', 'Pretendard', 'Noto Sans KR', 'Malgun Gothic', sans-serif;

@@ -99,7 +99,7 @@
   opacity: 0.5;
 }
 .measure .m-gap.is-folded::before { top: 12%; bottom: 12%; width: 4px; margin-left: -2px; background: var(--juhong); opacity: 1; }
-.m-word.is-lookahead { opacity: 0.45; }
+.m-word.is-lookahead { color: var(--meok-soft); text-decoration: underline dotted var(--meok-fog); text-underline-offset: 0.25em; }   /* 다음 쪽 첫 말 미리 보기: 흐리게(투명) 하면 대비가 모자라 점선 밑줄로 구분한다 */
 
 /* 단위 덩이 */
 .m-unit { margin: 0 0 6px; padding: 2px 0 2px 10px; border-left: 3px solid var(--meok-fog); }

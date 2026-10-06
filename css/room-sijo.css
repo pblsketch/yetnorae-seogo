@@ -61,6 +61,8 @@
 .sj-slot-label { font-size: 0.75em; color: var(--meok-soft); white-space: nowrap; }
 .sj-slot-item { font-family: var(--font-body); font-weight: 700; font-size: 1.05em; white-space: nowrap; }
 .sj-room:not(.is-filled) { background: rgba(243, 234, 214, 0.28); }
+/* 칸 상자는 3D 초가 칸 크기를 따르므로 좁다. 큰 글자에서 이름표가 잘리지 않게 상자 밖으로 넘쳐 보이게 둔다(이름표는 제 바탕이 있다) */
+.sj-room { overflow: visible; }
 .sj-slot.is-refused { animation: sj-refuse 0.45s ease; }
 @keyframes sj-refuse {
   20% { transform: translateX(-6px); }

@@ -92,6 +92,7 @@
   transform: translate(-50%, -50%);
   min-width: var(--touch-min);
   min-height: var(--touch-min);
+  width: max-content;   /* 화면 가장자리 가까이 놓여도 좁아져 제목이 잘리지 않게 */
   max-width: 9em;
   padding: 4px 10px;
   display: flex;

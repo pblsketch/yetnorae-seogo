@@ -293,6 +293,8 @@ textarea.story-input { resize: none; line-height: 1.4; }
   background: var(--meok);
 }
 .story-scene[hidden] { display: none; }
+/* 엔딩은 화면 전체를 덮는다: 한 판 위 띠(회랑·수첩·일지·도감·설정)와 회랑 장면이 엔딩 위로 비치지 않게 */
+.story-ending { top: 0; }
 .story-backdrop {
   position: absolute;
   inset: 0;
