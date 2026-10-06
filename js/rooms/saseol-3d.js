@@ -1,10 +1,11 @@
 // 작품 방 「님이 오마 하거늘」의 3D 장면: 달밤에 중문·대문을 나서 건넌 산 쪽으로 뻗은 길, 길 끝에 서 있는 거무희뜩한 것.
 // 공개하면 그림자가 걷히고, 그것이 껍질 벗겨 세워 둔 삼대 묶음이었음이 드러난다.
 // 풍경은 gfx 꾸러미(js/world/gfx/t37-scenery.js)로 짓는다: 기와 얹은 문 둘, 막돌 돌담, 달빛 먹 산 두 줄과 달무리.
-// 학생은 종이 인형(gfx/figures.js). 되풀이되는 풀·삼대·발자국은 InstancedMesh 하나씩이다. 그리기 호출은 스물 안팎(예산 60).
+// 학생은 세계와 같은 절차 3D 인물(gfx/figures.js createCharacter). 되풀이되는 풀·삼대·발자국은 InstancedMesh 하나씩이다. 그리기 호출은 스물 안팎(예산 60).
 // 그림자·후처리는 쓰지 않는다. 그리기는 부르는 쪽(세계 바탕)이 하고, 이 장면은 물체와 카메라만 움직인다.
 import { TOKENS, mixHex } from '../world/palette.js';
-import { createScenery, studentFigure, disposeGroupGeometry } from '../world/gfx/t37-scenery.js';
+import { createScenery, disposeGroupGeometry } from '../world/gfx/t37-scenery.js';
+import { createCharacter } from '../world/gfx/figures.js';
 
 // ── 배치(1 = 1m, +y 위, +z 카메라 쪽) ──
 const START_Z = 6.2;       // 학생이 서는 곳(중문 앞)
@@ -170,10 +171,10 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
   veil.name = 'rs-veil';
   group.add(veil);
 
-  // 학생 종이 인형(세계와 같은 종이 카드, 발밑 그림자, 걸음)
-  const SPRITE_H = 1.55;
-  const runnerFig = studentFigure(THREE, { art: assets?.image ? assets : null, appearance, reduceMotion, name: 'rs-runner', height: SPRITE_H, lean: 0.2 });
-  const runner = runnerFig.root;
+  // 학생: 세계와 같은 절차 3D 인물(gfx/figures-3d.js). 발 자리가 원점이고, 움직인 거리로 걸음을 스스로 맞춘다
+  const FIGURE_H = 1.55;
+  const student = createCharacter(THREE, { kind: 'student-' + (appearance === 'b' ? 'b' : 'a'), height: FIGURE_H, reduceMotion, name: 'rs-runner', faceCamera: false });
+  const runner = student.root;
   group.add(runner);
 
   // 발자국: 박에 맞춰 두드린 자리마다 작은 금빛 점
@@ -238,7 +239,7 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
       if (revealT >= 1) veil.visible = false;
     }
     placeCamera(snap, dt);
-    runnerFig.update(dt, camera, { moving: Math.abs(tz - runner.position.z) > 0.05 });
+    student.update(dt, camera, { dir: { x: 0, z: -1 } });
   }
 
   runner.position.set(pathX(START_Z) - 0.25, 0, START_Z);
@@ -268,11 +269,11 @@ export function createRoomScene3D({ THREE, root, camera, assets, appearance = 'a
     info: () => ({ shown, target, revealT }),
     dispose() {
       cancelAnimationFrame(raf);
-      runnerFig.dispose();
       root.remove(group);
       for (const g of gateGroups) disposeGroupGeometry(g);
       disposeGroupGeometry(wallGroup);
       kitSc.dispose();
+      student.dispose();
       for (const x of owned) x.dispose?.();
       owned.length = 0;
       camera.position.copy(saved.pos);

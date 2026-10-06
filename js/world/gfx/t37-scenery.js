@@ -3,15 +3,12 @@
 //      thatch(볏짚 지붕), water(시냇물, 무늬가 흐른다), ink(빛 없는 먹 칠: 먼 산 덩이, 안개 띠)
 //  - 소품: 모임지붕·초가지붕(hipRoof), 초가(thatchedHut), 정자(pavilion), 바위(rock), 시내(stream), 땅(groundDisc),
 //          산 덩이(mountainMass), 먹 번짐 띠(mistBand)
-//  - 인물: studentFigure(학생 종이 인형을 세계와 같은 방법으로 만든다)
 // 좌표는 1 = 1m, +y 위, 정면 +z. 역할 하나 = 그리기 호출 하나(꾸러미 builder 규칙 그대로).
 // 다 쓰면 scenery.dispose()로 무늬·재질·기하를 모두 치운다(장면의 Mesh 기하는 부르는 쪽이 치운다).
 import { TOKENS, mixHex } from '../palette.js';
 import { createTextures, seeded } from './textures.js';
 import { createMaterials, addInkHook } from './materials.js';
 import { createKit } from './kit.js';
-import { createFigure, FIGURE_HEIGHT } from './figures.js';
-import { paperDollCanvas } from '../sprites.js';
 
 // ───────── 더하는 무늬 ─────────
 
@@ -542,13 +539,6 @@ function props(THREE, kit) {
   }
 
   return { hipRoof, thatchedHut, pavilion, rock, stream, groundDisc, mountainMass, mistBand, inkRanges };
-}
-
-// 학생 종이 인형: 세계(js/world/scene3d.js)가 학생을 만드는 방법과 같다. 세계가 학생 모습을 바꾸면 여기도 함께 바꾼다.
-export function studentFigure(THREE, { art = null, appearance = 'a', reduceMotion = () => false, name = 'student', height = FIGURE_HEIGHT.student, lean } = {}) {
-  const look = 'student-' + (appearance === 'b' ? 'b' : 'a');
-  const url = art?.image?.('sprite/' + look) ?? null;
-  return createFigure(THREE, { url, canvas: url ? null : paperDollCanvas(look), height, reduceMotion, name, ...(lean === undefined ? {} : { lean }) });
 }
 
 // 장면 무리 안의 Mesh 기하를 모두 치운다(재질·무늬는 scenery.dispose가 치운다)

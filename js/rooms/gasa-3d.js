@@ -1,11 +1,12 @@
 // 「상춘곡」 방의 3D 장면(spec 14): 수묵 담채 봄 풍경. 초가(수간모옥) → 정자 → 시냇가 → 산봉우리 길을 걷는다.
 // 풍경은 gfx 꾸러미(js/world/gfx/t37-scenery.js)로 짓는다: 초가지붕, 모임지붕 정자, 흐르는 시내와 나무다리,
 // 높이 면 산봉우리(꼭대기 먹 → 밑동 한지색), 수묵 병풍 세 줄의 먼 산, 종이 오린 소나무·꽃나무, 떨어지는 꽃잎.
-// 걷는 사람은 종이 인형(gfx/figures.js). 그림자·후처리 없음, 그리기 호출 60 이하(역할마다 하나).
+// 걷는 사람은 세계와 같은 절차 3D 인물(gfx/figures.js createCharacter). 그림자·후처리 없음, 그리기 호출 60 이하(역할마다 하나).
 // three가 주어지면({ THREE, root, camera }) 그 root에 붙이고 카메라만 움직인다(그리기는 부르는 쪽).
 // 없으면 장면 칸 안에 그림판을 스스로 만든다.
 import { createRoute } from './gasa-route.js';
-import { createScenery, studentFigure, disposeGroupGeometry } from '../world/gfx/t37-scenery.js';
+import { createScenery, disposeGroupGeometry } from '../world/gfx/t37-scenery.js';
+import { createCharacter } from '../world/gfx/figures.js';
 import { TOKENS } from '../world/palette.js';
 import { createAssets } from '../world/assets.js';
 
@@ -238,9 +239,10 @@ export async function createScene3D({ host, three = null, assets = null, manifes
     labels[st.id] = sp;
   }
 
-  // 걷는 사람: 학생 종이 인형(세계와 같은 종이 카드, 발밑 그림자, 걸음)
-  const walker = studentFigure(THREE, { art, appearance, reduceMotion, name: 'rg-walker', height: 2.0, lean: 0.3 });
-  group.add(walker.root);
+  // 걷는 사람: 세계와 같은 절차 3D 인물(gfx/figures-3d.js). 카메라가 멀어서 조금 크게 세우고, 움직인 거리로 걸음을 맞춘다
+  const student = createCharacter(THREE, { kind: appearance === 'b' ? 'student-b' : 'student-a', height: 1.85, reduceMotion, name: 'rg-walker', faceCamera: false });
+  const walker = student.root;
+  group.add(walker);
 
   // 떨어지는 꽃잎(움직임 줄이기면 멈춘다): 다섯 장 꽃잎 모양 하나를 인스턴스로
   const rnd = seeded(15);
@@ -273,7 +275,6 @@ export async function createScene3D({ host, three = null, assets = null, manifes
   const look = new THREE.Vector3();
   const tmp = new THREE.Vector3();
 
-  let walkDt = 0;
   function walkerAt(sv) {
     const [x, z] = route.point(sv);
     return tmp.set(x, heightAt(x, z) + 0.05, z);
@@ -281,29 +282,28 @@ export async function createScene3D({ host, three = null, assets = null, manifes
 
   function aimCamera(snap) {
     const w = walkerAt(s);
-    walker.root.position.copy(w);
+    walker.position.copy(w);
     look.set(w.x, w.y + LOOK_UP, w.z);
     const target = new THREE.Vector3(w.x + CAMERA_OFFSET[0], w.y + CAMERA_OFFSET[1], w.z + CAMERA_OFFSET[2]);
     if (snap) camPos.copy(target); else camPos.lerp(target, 0.08);
     camera.position.copy(camPos);
     camera.lookAt(look);
-    walker.update(walkDt, camera, { moving: t < dur && !reduceMotion() });
   }
 
   function update(dt) {
     if (paused) return;
-    walkDt = dt;
     const rm = reduceMotion();
     if (!rm) water.offset.y -= dt * 0.22;
     if (t < dur && !rm) { t = Math.min(dur, t + dt); s = from + (to - from) * (t / dur); } else s = to;
     setWalked(s);
     aimCamera(rm);
+    student.update(dt, camera);
     // 꽃잎
     const time = performance.now() / 1000;
     petalState.forEach((p, i) => {
       if (!rm) { p.y -= p.sp * dt; if (p.y < 0) p.y = 8; }
       m4.makeRotationFromEuler(petalEuler.set(time * p.sp + p.ph, p.ph, 0));
-      m4.setPosition(walker.root.position.x + p.x, walker.root.position.y + p.y, walker.root.position.z + p.z);
+      m4.setPosition(walker.position.x + p.x, walker.position.y + p.y, walker.position.z + p.z);
       petals.setMatrixAt(i, m4);
     });
     petals.instanceMatrix.needsUpdate = true;
@@ -344,9 +344,9 @@ export async function createScene3D({ host, three = null, assets = null, manifes
     info: () => ({ s, drawCalls: lastCalls }),
     dispose() {
       cancelAnimationFrame(raf);
+      student.dispose();
       group.parent?.remove(group);
       for (const x of owned) x.dispose?.();
-      walker.dispose();
       petals.dispose();
       disposeGroupGeometry(scenery);
       peak.mesh.geometry.dispose();
