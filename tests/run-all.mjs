@@ -40,6 +40,7 @@ const files = [
   'check-rooms-in-flow.mjs',
   'check-boss.mjs',
   'check-story.mjs',
+  'check-voice.mjs',
 ];
 
 fs.mkdirSync(path.join(here, 'shots'), { recursive: true });
