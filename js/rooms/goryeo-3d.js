@@ -131,7 +131,8 @@ export function createRoom3D({ THREE, root, camera, assets, reduceMotion }) {
 
   // ── 될 수 없는 일: 카드마다 마루에 솟는 작은 장면(처음에는 숨어 있다) ──
   const scenes = {};
-  function vignette(id, x, z, draw) {
+  // 장면은 무대 앞쪽 마루(카메라 쪽 빈자리)에 한 줄로 놓는다. 방 패널이 오른쪽 반을 덮으므로 보이는 왼쪽 반 안에 둔다
+  function vignette(id, x, z, draw, size = 1) {
     const vb = sc.kit.builder();
     draw(vb);
     const g = vb.build('rg-scene-' + id);
@@ -140,11 +141,12 @@ export function createRoom3D({ THREE, root, camera, assets, reduceMotion }) {
     holder.add(g);
     holder.visible = false;
     holder.scale.setScalar(0.001);
+    holder.userData.size = size;
     stage.add(holder);
     scenes[id] = holder;
   }
   // 모래 벼랑에 구운 밤 다섯 되를 심고, 그 밤에서 싹이 돋는다
-  vignette('gueun-bam', 2.35, -0.75, (v) => {
+  vignette('gueun-bam', -0.5, 1.1, (v) => {
     sc.rock(v, { x: 0, z: 0, s: 0.62, flat: 0.45, seed: 1, color: '#d8c49a' });
     sc.rock(v, { x: 0.35, z: -0.2, s: 0.38, flat: 0.7, seed: 3, color: '#cdb88c', shadow: false });
     for (let i = 0; i < 5; i++) {
@@ -154,9 +156,9 @@ export function createRoom3D({ THREE, root, camera, assets, reduceMotion }) {
     v.add('paint', sc.kit.cylinder(0.012, 0.016, 0.3, 5), { p: [0, 0.32, 0], color: '#5c7a4a', ao: 0 });
     v.box('paint', 0.14, 0.02, 0.07, { p: [0.06, 0.46, 0], r: [0, 0, 0.5], color: '#6f9157', ao: 0 });
     v.box('paint', 0.12, 0.02, 0.06, { p: [-0.05, 0.42, 0], r: [0, 0, -0.5], color: '#6f9157', ao: 0 });
-  });
+  }, 0.75);
   // 바위 위에 옥으로 새긴 연꽃이 핀다
-  vignette('ok-yeonkkot', -0.35, -1.25, (v) => {
+  vignette('ok-yeonkkot', 0.3, 1.3, (v) => {
     sc.rock(v, { x: 0, z: 0, s: 0.48, flat: 0.8, seed: 0, color: '#8f8a80' });
     for (let ring = 0; ring < 2; ring++) {
       for (let i = 0; i < 8; i++) {
@@ -166,9 +168,9 @@ export function createRoom3D({ THREE, root, camera, assets, reduceMotion }) {
       }
     }
     v.add('paint', sc.kit.cylinder(0.05, 0.05, 0.06, 8), { p: [0, 0.55, 0], color: '#d8c27a', ao: 0 });
-  });
+  }, 0.65);
   // 횃대에 건 무쇠 철릭(쇠로 지은 옷)
-  vignette('musoe-cheollik', -2.35, -0.95, (v) => {
+  vignette('musoe-cheollik', 1.12, 1.15, (v) => {
     v.add('wood', sc.kit.cylinder(0.03, 0.04, 1.6, 8), { p: [-0.5, 0.8, 0], color: '#5e4a3a' });
     v.add('wood', sc.kit.cylinder(0.03, 0.04, 1.6, 8), { p: [0.5, 0.8, 0], color: '#5e4a3a' });
     v.add('wood', sc.kit.cylinder(0.025, 0.025, 1.3, 8), { p: [0, 1.52, 0], r: [0, 0, Math.PI / 2], color: '#5e4a3a' });
@@ -178,9 +180,9 @@ export function createRoom3D({ THREE, root, camera, assets, reduceMotion }) {
     v.box('stone', 0.9, 0.12, 0.12, { p: [0, 1.46, 0.02], color: '#5f6366', ao: 0 });
     for (let i = 0; i < 6; i++) v.box('stone', 0.12, 0.62, 0.1, { p: [-0.3 + i * 0.12, 0.78, 0.03 + (i % 2) * 0.02], r: [0, 0, (i - 2.5) * 0.06], color: i % 2 ? '#72767a' : '#63676a', ao: 0 });
     sc.kit.contactShadow(v, { x: 0, z: 0, w: 1.6, d: 0.7 });
-  });
+  }, 0.48);
   // 쇠풀을 뜯는 무쇠 소: 둥근 몸통·등혹, 고개 숙인 머리와 뿔, 네 다리, 꼬리. 발치에 쇠풀
-  vignette('musoe-so', 3.25, 0.55, (v) => {
+  vignette('musoe-so', 1.9, 0.9, (v) => {
     const iron = '#6c7073';
     const dark = '#55595c';
     v.box('stone', 0.95, 0.4, 0.42, { p: [0, 0.6, 0], color: iron, ao: 0, bevel: 0.1 });
@@ -194,12 +196,13 @@ export function createRoom3D({ THREE, root, camera, assets, reduceMotion }) {
     v.add('stone', sc.kit.cylinder(0.015, 0.025, 0.42, 5), { p: [-0.52, 0.52, 0], r: [0, 0, 0.45], color: dark, ao: 0 });
     for (let i = 0; i < 12; i++) v.add('stone', sc.kit.cylinder(0.004, 0.022, 0.16 + (i % 3) * 0.05, 4), { p: [0.82 + (i % 4) * 0.07, 0.08, -0.16 + Math.floor(i / 4) * 0.14], r: [0, 0, (i % 2 ? 0.2 : -0.15)], color: '#3f4447', ao: 0 });
     sc.kit.contactShadow(v, { x: 0.1, z: 0, w: 1.7, d: 0.8 });
-  });
+  }, 0.6);
   function showScene(id) {
     const h = scenes[id];
     if (!h || h.visible) return;
     h.visible = true;
-    tween(620, (k) => { h.scale.setScalar(Math.max(0.001, easeOut(k) * (1 + Math.sin(k * Math.PI) * 0.12))); }, () => h.scale.setScalar(1));
+    const size = h.userData.size;
+    tween(620, (k) => { h.scale.setScalar(Math.max(0.001, size * easeOut(k) * (1 + Math.sin(k * Math.PI) * 0.12))); }, () => h.scale.setScalar(size));
   }
 
   root.add(group);
