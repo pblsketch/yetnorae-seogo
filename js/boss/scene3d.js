@@ -96,10 +96,15 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
     return mesh;
   }
 
-  // ── 빛: 서고의 넓은 면은 빛 계산 없는 재질이라 빛을 두지 않는다. 밝기는 꼭짓점 색(굽은 그늘)과 등불·창호지가 맡는다 ──
-  // 초롱(lantern)과 창호지(paper)만 빛을 받는 재질이므로 그 둘을 위한 반구광 하나만 둔다.
-  const hemi = new THREE.HemisphereLight(0x9aa6bc, 0x2a2622, 1.2);
-  scene.add(hemi);
+  // ── 빛: 서고의 넓은 면은 빛 계산 없는 재질이라 빛을 받지 않는다. 밝기는 꼭짓점 색(굽은 그늘)과 등불·창호지가 맡는다 ──
+  // 빛은 초롱·창호지와 인물(3D 인물은 빛을 받는 재질)을 위한 것이다: 서늘한 반구광, 초롱 쪽 따뜻한 주광,
+  // 뒤 위에서 비추는 달빛 테두리 빛(어두운 방에서 좀 대왕·선대 사서의 윤곽을 떼어 낸다). 그림자는 없다.
+  const hemi = new THREE.HemisphereLight(0xaab4c8, 0x2a2622, 1.5);
+  const keyLight = new THREE.DirectionalLight(0xffd6a0, 1.6);
+  keyLight.position.set(-3, 5, 8);
+  const rimLight = new THREE.DirectionalLight(0xcfe0ff, 2.2);
+  rimLight.position.set(1.5, 6, -8);
+  scene.add(hemi, keyLight, rimLight);
 
   // ── 서고 건축(gfx 꾸러미) ──
   // 밤 장면은 넓은 면(마루, 벽, 서가)이 많고 빛의 결이 작으므로 빛 계산 없는 꼴로 그린다(채움 비용)
@@ -179,6 +184,35 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
   const kingBase = new THREE.Vector3(-2.2, 1.35, 0.4);
   king.root.position.copy(kingBase);
   king.root.visible = false;
+  // 좀 대왕 뒤의 달빛 번짐: 어두운 서고에서 먹구름 몸의 윤곽이 읽히게 뒤를 밝힌다(더하기 섞기, 안개에 묻히지 않음)
+  const haloCanvas = document.createElement('canvas');
+  haloCanvas.width = haloCanvas.height = 128;
+  {
+    const g = haloCanvas.getContext('2d');
+    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(214,226,240,0.75)');
+    gr.addColorStop(0.45, 'rgba(170,186,210,0.32)');
+    gr.addColorStop(1, 'rgba(120,130,150,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 128, 128);
+  }
+  const haloTex = keep(new THREE.CanvasTexture(haloCanvas), texs);
+  haloTex.colorSpace = THREE.SRGBColorSpace;
+  const haloMat = keep(new THREE.MeshBasicMaterial({ map: haloTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0.9 }), mats);
+  const halo = new THREE.Mesh(plane, haloMat);
+  halo.renderOrder = 15;
+  halo.visible = false;
+  scene.add(halo);
+  const haloBack = new THREE.Vector3();
+  function placeHalo(k = 1) {
+    // 카메라에서 본 좀 대왕 바로 뒤(1.2m)에, 몸 가운데 높이로
+    haloBack.copy(king.root.position).sub(camera.position).setY(0).normalize().multiplyScalar(1.2);
+    halo.position.set(king.root.position.x + haloBack.x, king.root.position.y + 1.75 * king.root.scale.y, king.root.position.z + haloBack.z);
+    halo.quaternion.copy(camera.quaternion);
+    halo.scale.setScalar(6.2 * king.root.scale.y);
+    haloMat.opacity = 0.9 * k;
+    halo.visible = king.root.visible;
+  }
   const mentor = figure('boss-mentor', 'mentor', 2.0, { lean: 0.15 });
   const mentorTrapped = new THREE.Vector3(3.9, 0, -2.0);
   const mentorFree = new THREE.Vector3(2.2, 0, 2.2);
@@ -244,6 +278,7 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
       king.root.scale.setScalar(1);
       king.root.position.set(kingBase.x, kingBase.y + (rm ? 0 : Math.sin(time * 0.9) * 0.12), kingBase.z);
       king.update(dt, camera);
+      placeHalo(1);
     } else if (kingState === 'scattered') {
       scatterT = rm ? SCENE_TUNING.scatterSec : scatterT + dt;
       const k = Math.min(1, scatterT / SCENE_TUNING.scatterSec);
@@ -252,10 +287,12 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
       king.root.scale.setScalar(fade);
       king.root.position.set(kingBase.x, kingBase.y + k * 1.2, kingBase.z);
       king.update(dt, camera);
-      if (!rm) king.card.rotation.z += Math.sin(k * Math.PI) * 0.25;
+      if (!rm && king.card) king.card.rotation.z += Math.sin(k * Math.PI) * 0.25;
       king.root.visible = k < 1;
+      placeHalo(1 - k);
     } else {
       king.root.visible = false;
+      halo.visible = false;
     }
     // 선대 사서: 풀려나면 걸어 나오며 빛깔이 돌아온다
     if (mentorState === 'free') {
