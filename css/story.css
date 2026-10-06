@@ -269,7 +269,7 @@ textarea.story-input { resize: none; line-height: 1.4; }
   z-index: 1;
 }
 .story-jom-img { width: 64px; height: 64px; object-fit: contain; filter: drop-shadow(0 0 6px var(--meok-fog)); }
-.story-jom-text { margin: 0; padding: 0.3em 0.6em; border-radius: 6px; background: color-mix(in srgb, var(--meok) 80%, transparent); color: var(--hanji); font-size: calc(13px * var(--text-scale)); line-height: 1.4; }
+.story-jom-text { margin: 0; padding: 0.3em 0.6em; border-radius: 6px; background: color-mix(in srgb, var(--meok) 90%, transparent); color: var(--hanji); font-size: calc(13px * var(--text-scale)); line-height: 1.4; }
 @keyframes story-jom {
   0% { opacity: 0; transform: translateX(24px); }
   12% { opacity: 1; transform: translateX(0); }

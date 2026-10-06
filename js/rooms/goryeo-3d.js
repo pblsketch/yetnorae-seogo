@@ -5,6 +5,7 @@
 // 2D 겹(goryeo-2d.js)과 같은 손잡이를 돌려준다: placeCard, object, speak, showFinal, showMatch, dispose.
 import { TOKENS } from '../world/palette.js';
 import { paperDollCanvas } from '../world/sprites.js';
+import { createFigure } from '../world/gfx/figures.js';
 
 const CAMERA = { position: [0, 2.1, 6.4], target: [0, 1.1, 0] };
 const LEFT_CENTER_NDC = -0.52;   // 무대 가운데를 둘 화면 가로 자리(-1 왼쪽 끝 ~ 1 오른쪽 끝)
@@ -81,12 +82,11 @@ export function createRoom3D({ THREE, root, camera, assets, reduceMotion }) {
   stage.add(pillars);
 
   // ── 임 종이 인형 ──
-  const nimTex = own(new THREE.CanvasTexture(paperDollCanvas('nim')));
-  nimTex.colorSpace = THREE.SRGBColorSpace;
-  const nim = new THREE.Mesh(own(new THREE.PlaneGeometry(1.1, 2.2)), own(new THREE.MeshBasicMaterial({ map: nimTex, transparent: true, alphaTest: 0.4 })));
-  nim.name = 'rg-nim';
-  nim.position.set(-1.35, 1.1, 0.35);
-  stage.add(nim);
+  // 종이 카드 + 발밑 그림자 + 숨쉬기(gfx/figures.js). 마루 위(y = 0)에 발을 딛는다.
+  const nimFigure = createFigure(THREE, { canvas: paperDollCanvas('nim', 256, 512), height: 2.05, reduceMotion, name: 'rg-nim', lean: 0.2 });
+  nimFigure.root.position.set(-1.35, 0, 0.35);
+  stage.add(nimFigure.root);
+  const nim = nimFigure.card;
 
   // ── 약속 탑: 받침 위에 카드 판이 쌓인다 ──
   const altar = new THREE.Mesh(own(new THREE.CylinderGeometry(0.85, 0.95, ALTAR.top, 8)), own(new THREE.MeshLambertMaterial({ color: color(TOKENS.meokSoft) })));
@@ -143,9 +143,12 @@ export function createRoom3D({ THREE, root, camera, assets, reduceMotion }) {
 
   let raf = 0;
   let shake = 0;
+  let last = 0;
   function frame(now) {
     raf = requestAnimationFrame(frame);
     layout();
+    nimFigure.update(Math.min(0.1, last ? (now - last) / 1000 : 0), camera);
+    last = now;
     for (const t of [...tweens]) {
       const k = Math.min(1, (now - t.start) / t.ms);
       t.step(k);
@@ -154,7 +157,7 @@ export function createRoom3D({ THREE, root, camera, assets, reduceMotion }) {
     if (shake > 0 && !reduceMotion()) {
       shake = Math.max(0, shake - 1 / 40);
       nim.rotation.z = Math.sin(now / 45) * 0.08 * shake;
-    } else nim.rotation.z = 0;
+    }
   }
   layout();
   raf = requestAnimationFrame(frame);
@@ -195,6 +198,7 @@ export function createRoom3D({ THREE, root, camera, assets, reduceMotion }) {
     dispose() {
       cancelAnimationFrame(raf);
       tweens.clear();
+      nimFigure.dispose();
       root.remove(group);
       for (const x of owned) x.dispose?.();
       owned.length = 0;

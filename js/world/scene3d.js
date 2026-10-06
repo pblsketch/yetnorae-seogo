@@ -1,12 +1,18 @@
-// 3D 바탕(spec 3.1·14): 장면과 그리기, 자동으로 따라가는 카메라와 제한 각도 회전, 종이 인형 빌보드,
+// 3D 바탕(spec 3.1·14): 장면과 그리기, 자동으로 따라가는 카메라와 제한 각도 회전, 종이 인형 무대,
 // 입구·회랑·관 문, 관 모형을 끼우는 자리, 먹빛→단청 색.
-// 그리기 호출을 아끼려고 회랑의 상자들은 재질 하나의 InstancedMesh 하나로, 관 문도 하나로 그린다.
-// 실시간 그림자와 후처리는 쓰지 않는다.
+// 회랑 건축은 gfx 꾸러미(js/world/gfx/)로 corridor-art.js가 짓는다: 재질 역할마다 합친 기하 하나라 그리기 호출이 적다.
+// 관 문은 InstancedMesh 하나로 그린다. 실시간 그림자와 후처리는 쓰지 않는다(접지는 그림자 번짐 카드).
 import * as THREE from 'three';
 import { WINGS, wingById } from '../data/wings.js';
-import { TOKENS, dancheongColor, getDancheong, meanDancheong, mixHex, inkOf } from './palette.js';
+import { TOKENS, dancheongColor, getDancheong, meanDancheong, mixHex } from './palette.js';
 import { paperDollCanvas } from './sprites.js';
 import { TUNING } from './tuning.js';
+import { createTextures } from './gfx/textures.js';
+import { createMaterials } from './gfx/materials.js';
+import { createKit } from './gfx/kit.js';
+import { createFigure, FIGURE_HEIGHT } from './gfx/figures.js';
+import { applyRenderSettings, createLightRig, setFog } from './gfx/lighting.js';
+import { buildCorridorGallery, buildCorridorGrounds } from './corridor-art.js';
 
 // 배치(1 = 1m). 회랑은 x축을 따라 뻗고, 관 자리는 회랑 북쪽(-z)에 순서대로 놓인다.
 const SLOT_GAP = 16;
@@ -40,45 +46,6 @@ function instancedBoxes(material, list) {
   return mesh;
 }
 
-// 회랑, 입구 문, 관 자리 바닥(먹빛 재질 상자들)
-function corridorBoxes() {
-  const C = CORRIDOR;
-  const len = C.x1 - C.x0;
-  const cx = (C.x0 + C.x1) / 2;
-  const floor = inkOf(TOKENS.hanjiDeep);
-  const wall = mixHex(TOKENS.hanji, TOKENS.meokFog, 0.25);
-  const wood = TOKENS.meokSoft;
-  const pad = mixHex(TOKENS.hanjiDeep, TOKENS.meokFog, 0.35);
-  const out = [];
-  out.push({ p: [cx, -0.05, 0], s: [len, 0.1, C.z1 - C.z0], c: floor });
-  // 북쪽 벽: 관 문 자리는 비운다
-  let x = C.x0;
-  for (let i = 0; i < WINGS.length; i++) {
-    const a = slotX(i) - DOOR_HALF;
-    if (a > x) out.push({ p: [(x + a) / 2, 1.5, WALL_Z], s: [a - x, 3, 0.2], c: wall });
-    x = slotX(i) + DOOR_HALF;
-  }
-  if (C.x1 > x) out.push({ p: [(x + C.x1) / 2, 1.5, WALL_Z], s: [C.x1 - x, 3, 0.2], c: wall });
-  out.push({ p: [cx, 3.1, WALL_Z], s: [len, 0.24, 0.4], c: wood });
-  // 남쪽(카메라 쪽)은 낮은 난간만 둔다. 높으면 카메라를 가린다.
-  for (let px = C.x0 + 2; px <= C.x1 - 0.5; px += 4) out.push({ p: [px, 0.35, C.z1 - 0.1], s: [0.2, 0.7, 0.2], c: wood });
-  out.push({ p: [cx, 0.66, C.z1 - 0.1], s: [len, 0.1, 0.16], c: wood });
-  // 입구 문(서고 문): 큰 기둥 둘, 인방, 지붕판
-  const gx = C.x0 + 0.3;
-  out.push({ p: [gx, 2, C.z0 + 0.2], s: [0.45, 4, 0.45], c: wood });
-  out.push({ p: [gx, 2, C.z1 - 0.2], s: [0.45, 4, 0.45], c: wood });
-  out.push({ p: [gx, 4.1, 0], s: [0.6, 0.35, 5.6], c: wood });
-  out.push({ p: [gx, 4.45, 0], s: [1.6, 0.16, 6.4], c: TOKENS.meok });
-  // 관 자리 바닥과 문에서 이어지는 통로
-  WINGS.forEach((_, i) => {
-    out.push({ p: [slotX(i), -0.04, SLOT_Z], s: [WING_HALF * 2 + 0.6, 0.06, WING_HALF * 2 + 0.6], c: pad });
-    const z0 = WALL_Z;
-    const z1 = SLOT_Z + WING_HALF;
-    out.push({ p: [slotX(i), -0.045, (z0 + z1) / 2], s: [DOOR_HALF * 2, 0.06, Math.abs(z1 - z0)], c: pad });
-  });
-  return out;
-}
-
 // 관 문 하나마다 상자 넷: 기둥 둘(주홍), 인방(녹청), 문짝(잠기면 먹)
 const DOOR_PARTS = 4;
 function doorBox(i, part, state, level) {
@@ -105,10 +72,14 @@ function signBoards() {
   const family = getComputedStyle(document.body).fontFamily || 'sans-serif';
   WINGS.forEach((w, i) => {
     const y = i * cellH;
+    // 현판: 먹빛 테 안에 한지 바탕, 안쪽에 가는 금빛 줄
     g.fillStyle = TOKENS.meok;
     g.fillRect(0, y, cellW, cellH);
     g.fillStyle = TOKENS.hanji;
     g.fillRect(8, y + 8, cellW - 16, cellH - 16);
+    g.strokeStyle = TOKENS.gold;
+    g.lineWidth = 2;
+    g.strokeRect(16, y + 16, cellW - 32, cellH - 32);
     g.fillStyle = TOKENS.meok;
     g.font = `bold 64px ${family}`;
     g.textAlign = 'center';
@@ -124,8 +95,8 @@ function signBoards() {
   const H = W * cellH / cellW;
   WINGS.forEach((_, i) => {
     const x = slotX(i);
-    const y = 3.62;
-    const z = WALL_Z + 0.26;
+    const y = 3.36;
+    const z = WALL_Z + 0.29;
     const v0 = 1 - (i + 1) / WINGS.length;
     const v1 = 1 - i / WINGS.length;
     const b = pos.length / 3;
@@ -138,7 +109,9 @@ function signBoards() {
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeBoundingSphere();
-  return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex }));
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+  mesh.name = 'corridor-signs';
+  return mesh;
 }
 
 export function createScene3D({ view, assets, appearance = 'a', getWingModule, reduceMotion, onArrive }) {
@@ -146,38 +119,58 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   canvas.className = 'world-canvas';
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, TUNING.pixelRatioMax));
-  renderer.shadowMap.enabled = false;
+  applyRenderSettings(renderer, THREE);
   view.prepend(canvas);
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(INK_BG);
   scene.fog = new THREE.Fog(INK_BG, 28, 75);
-  scene.add(new THREE.HemisphereLight(0xfff6e4, 0x4a4640, 2.4));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-  sun.position.set(-6, 12, 8);
-  scene.add(sun);
+  const lights = createLightRig(THREE, scene);
 
-  const boxMaterial = new THREE.MeshLambertMaterial();
-  const corridor = instancedBoxes(boxMaterial, corridorBoxes());
-  scene.add(corridor);
+  // 회랑 건축(gfx 꾸러미). grounds(마당·나무·병풍·먼 산)는 언제나 보이고 바로 짓는다.
+  // gallery(회랑 벽·처마·서가)는 회랑에서만 보이고 무거우므로 처음 회랑을 그릴 때 짓는다(관에서 시작하면 첫 화면이 늦지 않게).
+  const gfxTextures = createTextures(THREE);
+  const gfxMaterials = createMaterials(THREE, gfxTextures);
+  const kit = createKit(THREE, { materials: gfxMaterials });
+  const artLayout = { corridor: CORRIDOR, wallZ: WALL_Z, slotXs: WINGS.map((_, i) => slotX(i)), doorHalf: DOOR_HALF, slotZ: SLOT_Z, wingHalf: WING_HALF };
+  const art = { grounds: null, gallery: null, groundsAdded: false };
+  // 바깥(grounds)은 두 번째 프레임에 짓고, 셰이더를 먼저 따로 엮은 뒤(compileAsync) 장면에 붙인다.
+  // 첫 화면(관 들어가기 글 등)이 늦어지지 않게 한다.
+  function addGroundsLater() {
+    if (art.grounds) return;
+    art.grounds = buildCorridorGrounds(THREE, kit, artLayout);
+    const attach = () => {
+      if (disposed || art.groundsAdded) return;
+      art.groundsAdded = true;
+      scene.add(art.grounds);
+      if (room) { art.grounds.visible = false; room.hidden.push(art.grounds); }
+    };
+    Promise.resolve().then(() => renderer.compileAsync(art.grounds, camera, scene)).then(attach, attach);
+  }
+  let disposed = false;
+  function ensureGallery() {
+    if (art.gallery) return;
+    art.gallery = buildCorridorGallery(THREE, kit, artLayout);
+    scene.add(art.gallery);
+  }
 
   const doorState = new Map(WINGS.map((w) => [w.id, w.id === 'entrance' ? 'open' : 'locked']));
   const doorList = [];
   WINGS.forEach((w, i) => { for (let p = 0; p < DOOR_PARTS; p++) doorList.push(doorBox(i, p, doorState.get(w.id), getDancheong(w.id))); });
-  const doorMaterial = new THREE.MeshLambertMaterial();
+  const doorMaterial = new THREE.MeshLambertMaterial({ map: gfxTextures.get('wood') });
   const doors = instancedBoxes(doorMaterial, doorList);
   scene.add(doors);
   const signs = signBoards();
   scene.add(signs);
 
-  // 학생 종이 인형(빌보드)
-  const dollTexture = assets.texture('sprite/student-' + (appearance === 'b' ? 'b' : 'a')) ?? new THREE.CanvasTexture(paperDollCanvas('student-' + (appearance === 'b' ? 'b' : 'a')));
-  dollTexture.colorSpace = THREE.SRGBColorSpace;
-  const doll = new THREE.Sprite(new THREE.SpriteMaterial({ map: dollTexture, alphaTest: 0.2 }));
-  doll.center.set(0.5, 0);
-  const DOLL_W = 0.95;
-  doll.scale.set(DOLL_W, 1.9, 1);
-  scene.add(doll);
+  // 학생 종이 인형(종이 카드 + 발밑 그림자, gfx/figures.js)
+  const look = 'student-' + (appearance === 'b' ? 'b' : 'a');
+  const dollUrl = assets.image?.('sprite/' + look) ?? null;
+  const doll = createFigure(THREE, {
+    url: dollUrl, canvas: dollUrl ? null : paperDollCanvas(look), height: FIGURE_HEIGHT.student, reduceMotion, name: 'student',
+  });
+  scene.add(doll.root);
+  let dollFlip = false;
 
   // 도착 표시(바닥의 녹청 고리, 누를 수 있는 것을 알리는 색)
   const marker = new THREE.Mesh(
@@ -211,7 +204,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
 
   const START = new THREE.Vector3(CORRIDOR.x0 + 5, 0, 0.6);
   const player = START.clone();
-  doll.position.copy(player);
+  doll.root.position.copy(player);
 
   function bounds() {
     // 북쪽 벽에서는 1m 떨어진다(빌보드 윗부분이 벽 뒤로 기울어 가려지지 않게).
@@ -318,6 +311,8 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   snapCamera();
 
   function render() {
+    // 첫 두 프레임은 건너뛴다: 세션이 곧바로 관으로 들어가면 회랑 건축을 짓지 않아도 된다
+    if (!room && place === 'corridor' && frames >= 2) ensureGallery();
     if (room) fitRoomView();
     renderer.render(scene, camera);
   }
@@ -354,6 +349,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
       hidden,
       fog: scene.fog,
       background: scene.background.getHex(),
+      toneMapping: renderer.toneMapping,
       cam: {
         position: camera.position.clone(), quaternion: camera.quaternion.clone(), up: camera.up.clone(),
         fov: camera.fov, near: camera.near, far: camera.far, zoom: camera.zoom,
@@ -361,6 +357,8 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
     };
     scene.fog = null;
     scene.background.set(TOKENS.hanji);
+    // 작품 방은 톤 매핑 없이 만든 그림(방 그림 판)을 그대로 보인다. 방을 다듬을 때 gfx/lighting.js로 옮길 수 있다.
+    renderer.toneMapping = THREE.NoToneMapping;
     target = null;
     marker.visible = false;
     freeMoving = false;
@@ -376,6 +374,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
     for (const o of r.hidden) o.visible = true;
     scene.fog = r.fog;
     scene.background.setHex(r.background);
+    renderer.toneMapping = r.toneMapping;
     camera.position.copy(r.cam.position);
     camera.quaternion.copy(r.cam.quaternion);
     camera.up.copy(r.cam.up);
@@ -390,10 +389,16 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
 
   function updateBackground() {
     if (room) return;   // 작품 방 무대는 한지색 바탕을 그대로 둔다
-    const level = place === 'corridor' ? meanDancheong() : getDancheong(place);
+    const inCorridor = place === 'corridor';
+    const level = inCorridor ? meanDancheong() : getDancheong(place);
     const c = mixHex(INK_BG, TOKENS.hanji, level);
     scene.background.set(c);
-    scene.fog.color.set(c);
+    setFog(scene, inCorridor ? 'corridor' : 'wing', c);
+    gfxMaterials.setDancheong(level);
+    lights.setPreset(inCorridor ? 'corridor' : 'wing');
+    // 관 카메라는 회랑 벽 위에 서므로, 관 안에서는 회랑 건축(처마·벽)을 숨긴다
+    if (art.gallery) art.gallery.visible = inCorridor;
+    signs.visible = inCorridor;
   }
   updateBackground();
 
@@ -444,7 +449,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
     marker.visible = false;
     freeMoving = false;
     player.set(slotX(i), 0, SLOT_Z + WING_HALF - 1.2);
-    doll.position.copy(player);
+    doll.root.position.copy(player);
     updateBackground();
     if (reduceMotion()) snapCamera();
     return true;
@@ -459,7 +464,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
     freeMoving = false;
     if (i >= 0) player.set(slotX(i), 0, CORRIDOR.z0 + 1);
     else player.copy(START);
-    doll.position.copy(player);
+    doll.root.position.copy(player);
     updateBackground();
     if (reduceMotion()) snapCamera();
   }
@@ -489,6 +494,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
 
   function frame(dt, input) {
     frames++;
+    if (frames >= 2) addGroundsLater();
     if (room) { render(); return; }   // 방이 열린 동안은 그리기만 한다(학생·카메라·관 모형을 움직이지 않는다)
     const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
     const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
@@ -516,10 +522,10 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
         }
       }
     }
-    doll.position.copy(player);
+    doll.root.position.copy(player);
     if (dir) {
       const side = dir.dot(right);
-      if (Math.abs(side) > 0.05) doll.scale.x = side < 0 ? -DOLL_W : DOLL_W;
+      if (Math.abs(side) > 0.05) dollFlip = side < 0;
     }
     if (marker.visible && !reduceMotion()) marker.scale.setScalar(1 + 0.12 * Math.sin(frames / 6));
 
@@ -537,6 +543,8 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
       camera.position.y += (Math.random() - 0.5) * 0.12 * shakeLeft;
     }
     camera.lookAt(camLook);
+    doll.update(dt, camera, { moving: !!dir, flip: dollFlip });
+    lights.aim(player);
     render();
   }
 
@@ -618,7 +626,9 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
     }),
     toScreen,
     dispose() {
+      disposed = true;
       ro.disconnect();
+      if (art.grounds && !art.groundsAdded) scene.add(art.grounds);   // 아래 traverse가 함께 치운다
       endRoom();
       unmountWing();
       scene.traverse((o) => {
@@ -626,6 +636,9 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
         const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
         mats.forEach((m) => { m.map?.dispose?.(); m.dispose?.(); });
       });
+      kit.dispose();
+      gfxTextures.dispose();
+      doll.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       canvas.remove();
