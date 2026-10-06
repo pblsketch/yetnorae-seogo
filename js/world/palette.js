@@ -10,7 +10,7 @@ export const TOKENS = {
   meokSoft: '#5a5650',
   meokFog: '#8d8a85',
   nokcheong: '#2f7d6d',
-  juhong: '#c4462f',
+  juhong: '#b83f2a',
   gold: '#b88a2a',
 };
 

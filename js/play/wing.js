@@ -263,6 +263,7 @@ export function createWingPlay(session, wingId) {
 
   function positionSongs() {
     const rr = session.root.getBoundingClientRect();
+    const placed = [];   // 이미 놓은 노래 자리(가운데 좌표와 크기)
     for (const b of floatBox.children) {
       const i = Number(b.dataset.spot);
       const pt = b.classList.contains('is-premeasured') ? waitingPoint(i) : floatingPoint(i);
@@ -271,8 +272,23 @@ export function createWingPlay(session, wingId) {
       let x = sp.x - rr.left;
       let y = sp.y - rr.top;
       if (b.classList.contains('is-premeasured') && !is3D()) y -= 56;   // 입구 자리 표시와 겹치지 않게 위로
-      x = Math.min(rr.width - 40, Math.max(40, x));
-      y = Math.min(rr.height - 96, Math.max(90, y));
+      const w = b.offsetWidth;
+      const h = b.offsetHeight;
+      // 가운데 좌표를 쓰므로 노래 폭의 반만큼 화면 안쪽에 둔다(가장자리에서 잘리지 않게)
+      const clampX = (v) => Math.min(rr.width - Math.max(40, w / 2 + 4), Math.max(Math.max(40, w / 2 + 4), v));
+      const clampY = (v) => Math.min(rr.height - 96, Math.max(90, v));
+      x = clampX(x);
+      y = clampY(y);
+      // 다른 노래와 겹치면 옆(자리가 없으면 아래)으로 비킨다. 작은 화면 3D에서는 입구에 기다리는 노래 둘이 한 자리에
+      // 포개져 아래 노래를 누를 수 없었다.
+      for (let k = 0; k <= placed.length; k++) {
+        const hit = placed.find((q) => Math.abs(q.x - x) < (q.w + w) / 2 + 4 && Math.abs(q.y - y) < (q.h + h) / 2 + 4);
+        if (!hit) break;
+        const right = hit.x + (hit.w + w) / 2 + 6;
+        if (right <= rr.width - Math.max(40, w / 2 + 4)) x = right;
+        else y = clampY(hit.y + (hit.h + h) / 2 + 6);
+      }
+      placed.push({ x, y, w, h });
       b.style.left = x + 'px';
       b.style.top = y + 'px';
     }

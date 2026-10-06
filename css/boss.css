@@ -101,7 +101,7 @@
 /* 1단계: 회색 글줄(줄바꿈 없이) */
 .boss-song-text {
   margin: 0;
-  color: var(--meok-fog);
+  color: var(--meok-soft);   /* 회색 글줄이어도 바탕과 대비 4.5:1 이상(재기 화면의 회색 글줄과 같은 색) */
   font-family: var(--font-body);
   font-size: calc(17px * var(--text-scale));
   line-height: 1.6;

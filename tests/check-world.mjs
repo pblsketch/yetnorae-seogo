@@ -76,20 +76,44 @@ async function waitArrival(page, before, timeout = 10000) {
 }
 
 // 탭(또는 클릭)으로 이동해 도착하는지. how: 'mouse' | 'touch'. 목표 지점은 걸을 수 있는 곳 안에서 고른다.
+// 카메라와 학생이 멈춘 상태(카메라가 따라갈 자리에 닿았고, 학생 자리가 프레임 사이에 바뀌지 않음)를 기다린다.
+// 시간으로 기다리지 않는다: 바쁜 기기에서는 카메라가 늦게 자리 잡으므로, 움직이는 카메라로 계산한 화면 좌표를 누르면 엇나간다.
+async function settled(page, timeout = 20000) {
+  // 판별 함수는 동기여야 한다(약속을 돌려주면 waitForFunction이 값을 보지 않고 끝난다). 프레임마다 앞 프레임과 비교한다.
+  await ev(page, () => { window.__settle = null; });
+  await page.waitForFunction(() => {
+    const w = window.__t.world;
+    const p = w.getPlayer();
+    const c = w.getCamera();
+    const last = window.__settle;
+    window.__settle = p;
+    const still = !!last && Math.abs(last.x - p.x) < 1e-4 && Math.abs((last.z ?? last.y) - (p.z ?? p.y)) < 1e-4;
+    return still && (!c || c.position === null || c.distanceToDesired < 0.005) && !w.getMarker().visible;
+  }, null, { timeout, polling: 'raf' });
+}
+
 async function checkTapMove(page, how, label) {
   const mode = await ev(page, () => window.__t.world.getMode());
+  await settled(page);
+  // 누를 화면 좌표와 그 자리의 세계 좌표, 그리고 그 자리에서 8px이 세계에서 얼마인지(카메라가 멈춘 상태에서 잰다)
   const goal = await ev(page, (mode) => {
-    const p = window.__t.world.getPlayer();
+    const w = window.__t.world;
+    const p = w.getPlayer();
     const g = mode === '3d' ? { x: p.x + 2.2, z: p.z + 0.6 } : { x: Math.min(90, p.x + 18), y: 86 };
-    return { g, s: window.__t.world.toScreen(g) };
+    const s = w.toScreen(g);
+    const one = w.toScreen(mode === '3d' ? { x: g.x + 1, z: g.z } : { x: g.x + 1, y: g.y });
+    const pxPerUnit = Math.hypot(one.x - s.x, one.y - s.y);
+    return { g, s, tol: 8 / pxPerUnit };
   }, mode);
   const before = await ev(page, () => window.__t.arrivals.length);
   if (how === 'touch') await page.touchscreen.tap(goal.s.x, goal.s.y);
   else await page.mouse.click(goal.s.x, goal.s.y);
   const marker = await ev(page, () => window.__t.world.getMarker());
   assert(marker.visible, label + ': 탭한 곳에 도착 표시가 생긴다');
-  const ms = await ev(page, (m) => window.__t.world.toScreen(m), marker);
-  assert(near(ms.x, goal.s.x, 8) && near(ms.y, goal.s.y, 8), label + ': 도착 표시가 탭한 자리에 있다 (' + Math.round(ms.x) + ',' + Math.round(ms.y) + ')');
+  // 도착 표시는 세계에 놓인다. 탭 뒤로 카메라가 학생을 따라 움직이므로 화면 좌표가 아니라 세계 좌표로 대 본다(허용 오차 = 누른 때의 8px).
+  const k = mode === '3d' ? 'z' : 'y';
+  const dist = Math.hypot(marker.x - goal.g.x, marker[k] - goal.g[k]);
+  assert(dist <= goal.tol, label + ': 도착 표시가 탭한 자리에 있다 (어긋남 ' + dist.toFixed(3) + ' ≤ ' + goal.tol.toFixed(3) + ', 8px)');
   const arrived = await waitArrival(page, before);
   const p = await ev(page, () => window.__t.world.getPlayer());
   const k2 = mode === '3d' ? 'z' : 'y';
