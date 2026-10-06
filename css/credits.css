@@ -1,0 +1,75 @@
+/* 출처 화면(js/ui/credits.js). 색은 base.css 토큰만 쓴다. 누를 수 있는 것(돌아가기, 펼치기)에만 녹청을 쓴다.
+   가로 844×390부터 1366×768까지, 글자 크기 1.3배까지 넘치지 않게 몸통만 스크롤한다. 터치 대상은 48px 이상. */
+.credits {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: max(8px, env(safe-area-inset-top, 0px)) max(14px, var(--safe-r)) max(8px, var(--safe-b)) max(14px, var(--safe-l));
+  background: var(--hanji);
+  color: var(--meok);
+  font-family: var(--font-ui);
+}
+.credits-top {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--meok-soft);
+}
+.credits-title { margin: 0; font-family: var(--font-body); font-size: calc(24px * var(--text-scale)); letter-spacing: 0.08em; line-height: 1.2; }
+.credits-back {
+  flex: 0 0 auto;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 0 1.1em;
+  border: 2px solid var(--nokcheong);
+  border-radius: 8px;
+  background: var(--hanji);
+  color: var(--meok);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: calc(15px * var(--text-scale));
+}
+.credits-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 4px 24px;
+}
+.credits-body:focus-visible { outline-offset: -3px; }
+.credits-body > * { max-width: 980px; margin-left: auto; margin-right: auto; }
+.credits-intro { margin: 0 auto 10px; color: var(--meok-soft); font-size: calc(15px * var(--text-scale)); line-height: 1.5; }
+.credits-section { margin-bottom: 16px; padding: 10px 14px; border: 1px solid var(--meok-fog); border-radius: 10px; background: color-mix(in srgb, var(--hanji-deep) 40%, var(--hanji)); }
+.credits-h { margin: 0 0 6px; font-family: var(--font-body); font-size: calc(19px * var(--text-scale)); line-height: 1.3; }
+.credits-h3 { margin: 10px 0 4px; font-family: var(--font-body); font-size: calc(16px * var(--text-scale)); }
+.credits-p { margin: 0 0 6px; font-size: calc(15px * var(--text-scale)); line-height: 1.6; }
+.credits-note { margin: 6px 0 0; color: var(--meok-soft); font-size: calc(14px * var(--text-scale)); line-height: 1.55; overflow-wrap: anywhere; }
+.credits-list { margin: 4px 0 0; padding-left: 1.2em; font-size: calc(14px * var(--text-scale)); line-height: 1.6; }
+.credits-item { margin: 0 0 4px; overflow-wrap: anywhere; }
+.credits-inline { display: flex; flex-wrap: wrap; gap: 4px 14px; padding-left: 0; list-style: none; }
+.credits-name { font-family: var(--font-body); font-weight: 700; }
+.credits-songs { color: var(--meok); }
+.credits-sub { color: var(--meok-soft); }
+.credits-kogl { margin: 6px 0; padding: 6px 12px; border-left: 4px solid var(--gold); background: var(--hanji); font-size: calc(14px * var(--text-scale)); line-height: 1.6; overflow-wrap: anywhere; }
+.credits-details { margin-top: 2px; }
+.credits-summary {
+  display: list-item;
+  min-height: var(--touch-min);
+  padding: 10px 0.8em;
+  border: 2px solid var(--nokcheong);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: calc(15px * var(--text-scale));
+  list-style-position: inside;
+}
+@media (max-height: 420px) {
+  .credits-title { font-size: calc(20px * var(--text-scale)); }
+  .credits-section { padding: 8px 10px; margin-bottom: 10px; }
+}

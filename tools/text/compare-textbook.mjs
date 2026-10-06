@@ -13,7 +13,8 @@
 // 이 도구는 tests/run-all.mjs에 넣지 않는다(추출본이 있는 제작 기기에서만 손으로 돌린다).
 //
 // 대조 방법
-//   - 공백, 줄바꿈, 쪽 표시 줄(===== pN =====), 낱말 풀이 표시(●, *), 폭 없는 글자는 비교에서 뺀다.
+//   - 추출본의 한양 PUA 옛 글자(아래 HYPUA_MAP)를 첫가끝 자모로 푼다. 표에 없는 PUA 글자는 풀지 않고 따로 알린다.
+//   - 공백, 줄바꿈, 쪽 표시 줄(===== pN =====), 낱말 풀이 표시(●, *), 폭 없는 글자, 제어 문자는 비교에서 뺀다.
 //   - 단위(장·행·구, 고려가요는 줄)마다, 층(원문, 향가는 해독문도)마다 추출본에서 차례대로 찾는다.
 //     향가처럼 원문과 해독문이 줄마다 엇갈려 있어도 층마다 따로 찾으므로 맞출 수 있다.
 //   - 찾지 못한 단위는 그 단위 글의 앞부분이 추출본에서 가장 길게 이어지는 곳을 찾아,
@@ -34,11 +35,47 @@ const EXTRACT_NAME_HINT = {
 const LAYER_NAME = { original: '원문', decipherment: '해독', gloss: '풀이' };
 const UNIT_NAME = { hyangga: '구', goryeo: '연', sijo: '장', saseol: '장', gasa: '행' };
 
-// 비교용 글: NFC로 맞추고, 쪽 표시 줄·공백·풀이 표시·폭 없는 글자를 뺀다.
+// ───────── 한양 PUA(HYPUA) ─────────
+// 교과서 PDF에서 뽑은 글에는 옛 글자(아래아 ᆞ가 든 글자 등)가 첫가끝 자모가 아니라 한양 PUA 코드,
+// 곧 옛 한글 조판에서 옛 글자 한 자를 유니코드 사용자 영역(U+E000–U+F8FF) 한 칸에 넣은 코드로 들어 있다.
+// 아래 표는 공통국어2 2단원 추출본(공통국어2_2단원_전체.txt)에 실제로 나오는 18자만 담는다.
+// 값은 그 추출본의 「상춘곡」 1~21행을 노래 데이터(교과서 수록본을 옮긴 글)와 줄마다 맞춰 정했고,
+// 한양 PUA가 첫소리 순서(ㄱ E1xx, ㄴ E2xx, ㄷ E3xx, ㄹ E4xx, ㅁ E5xx, ㅅ E9xx, ㅇ EExx, ㅊ F3xx, ㅎ F5xx)와
+// 그 안에서 가운뎃소리·끝소리 순서로 놓인 것과 어긋나지 않음을 확인했다. 표에 없는 PUA 글자가 나오면
+// 도구가 '풀지 못한 PUA 글자'로 알리고, 그 글자가 든 자리는 어긋남으로 나온다(조용히 넘기지 않는다).
+export const HYPUA_MAP = new Map([
+  ['', 'ᄀᆞᆺ'],
+  ['', 'ᄂᆞᆫ'], ['', 'ᄂᆞᆯ'],
+  ['', 'ᄃᆡ'],
+  ['', 'ᄅᆞᆯ'], ['', 'ᄅᆞᆷ'], ['', 'ᄅᆞᆸ'], ['', 'ᄅᆡ'],
+  ['', 'ᄆᆞ'], ['', 'ᄆᆞᆯ'], ['', 'ᄆᆞᆺ'],
+  ['', 'ᄉᆞ'],
+  ['', 'ᄋᆡ'],
+  ['', 'ᄎᆞᆯ'], ['', 'ᄎᆞᆷ'],
+  ['', 'ᄒᆞ'], ['', 'ᄒᆞᆫ'], ['', 'ᄒᆡ'],
+]);
+const PUA = /[-]/g;
+
+// 한양 PUA 글자를 첫가끝 자모로 푼다. { text, decoded(푼 글자 수), unknown: Map(글자 → 횟수) }
+export function decodeHypua(text) {
+  let decoded = 0;
+  const unknown = new Map();
+  const out = String(text ?? '').replace(PUA, (ch) => {
+    const v = HYPUA_MAP.get(ch);
+    if (v) { decoded++; return v; }
+    unknown.set(ch, (unknown.get(ch) ?? 0) + 1);
+    return ch;
+  });
+  return { text: out, decoded, unknown };
+}
+export const codePoint = (ch) => 'U+' + ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
+
+// 비교용 글: NFC로 맞추고, 쪽 표시 줄·공백·풀이 표시·폭 없는 글자·제어 문자를 뺀다.
 export function normalizeText(text) {
   return String(text ?? '')
     .normalize('NFC')
     .replace(/^=+\s*p\d+\s*=+\s*$/gm, '')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
     .replace(/[\s 　]+/g, '')
     .replace(/[●*­​-‍⁠﻿]/g, '');
 }
@@ -168,8 +205,19 @@ async function main() {
   const extractOf = (sourceType) => {
     if (!extractCache.has(sourceType)) {
       const files = extractFilesFor(sourceType, dir);
-      const text = files.map((f) => normalizeText(fs.readFileSync(f, 'utf8'))).join('\u0000');
-      extractCache.set(sourceType, { files, text });
+      let decoded = 0;
+      const unknown = new Map();
+      const text = files.map((f) => {
+        const d = decodeHypua(fs.readFileSync(f, 'utf8'));
+        decoded += d.decoded;
+        for (const [ch, n] of d.unknown) unknown.set(ch, (unknown.get(ch) ?? 0) + n);
+        return normalizeText(d.text);
+      }).join('\u0000');
+      if (files.length) {
+        console.log('  ' + sourceType + ' 추출본: 한양 PUA 옛 글자 ' + decoded + '자를 첫가끝 자모로 풀어 대조함');
+        if (unknown.size) console.log('  ! 풀지 못한 PUA 글자 ' + unknown.size + '종: ' + [...unknown].map(([ch, n]) => codePoint(ch) + '×' + n).join(', ') + ' — 이 글자가 든 자리는 어긋남으로 나온다(HYPUA_MAP에 더하세요)');
+      }
+      extractCache.set(sourceType, { files, text, unknown });
     }
     return extractCache.get(sourceType);
   };

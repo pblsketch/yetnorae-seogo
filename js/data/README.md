@@ -1467,3 +1467,30 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - **도구 더하기**: 실제 조각은 승인 배정대로만 만든다(`--voice`는 견본·빠르기 재기에만). `--max-usd`(기본 3)를 넘을 요청은 보내지 않고 멈춘다. 실제 조각을 만든 뒤 '듣기 대신 점검'으로 받아쓰기 일치가 0.6 아래인 줄과 음절 비율로 자른(`cut: 'energy'`) 조각을 알린다.
 - **자르기 되짚기**: 받아쓰기 낱말 시각이 엉뚱하면(여러 낱말을 한 덩어리로 듣는 등) 음보 하나가 줄 대부분을 삼키고 다른 음보가 0.1초 남짓이 된다. 받아쓰기로 자른 조각이 0.15초보다 짧거나, 조각 길이의 몫이 음절 수 몫의 0.35배보다 작거나, 두 음절 이상인 조각이 2.5배보다 크면 그 줄은 음절 비율로 다시 자른다(`cut: 'energy'`, 들어 볼 조각).
 - **빠르기**: 노래 데이터의 `tempo`는 승인 배정된 목소리로 그 노래의 모든 줄을 읽혀 잰 자연 빠르기(`--write-tempo`)다.
+
+## 추가 제안(T30a) — 글꼴, 출처 화면, 글 확인 문서
+
+마무리 통합 앞쪽 작업(T30a)이 정한 것이다. 연결 단계가 확인해 본문에 옮긴다. 위의 정의는 바꾸지 않았고, 새 사건 이름도 없다.
+
+### 글꼴(spec 16.6)
+
+- 부분 글꼴 `assets/fonts/yetnorae-text-400.woff2`·`yetnorae-text-700.woff2`(글꼴 이름 `Yetnorae Text`, Noto Serif KR에서 만듦, SIL OFL 1.1 — `assets/fonts/OFL.txt`). 만드는 도구 `python tools/fonts/build_fonts.py`(원본은 `tools/fonts_src/`, git 제외). 게임 글(`js/**/*.js`, `css/*.css`, `index.html`, `manifest.webmanifest`)의 글자와 KS X 1001 현대 한글 2,350자(기록 이름용)를 담고, 옛한글을 모으는 GSUB 기능(ljmo·vjmo·tjmo·ccmp)을 남긴다.
+- `css/base.css`의 `@font-face`: `YetnoraeText`(본문, 400·700)와 `YetnoraeUI`(같은 파일을 옛한글 자모·한자 범위 `unicode-range`로만 묶음 — 화면 글은 고딕 계열 기기 글꼴을 쓰고 옛 표기와 향찰만 부분 글꼴로). `--font-body`·`--font-ui`는 그대로다.
+- 완성형 글자 뒤에 끝소리 자모가 붙은 옛 글자(예: 「모죽지랑가」 해독의 '허ᇰ')는 `YetnoraeUI`에서 완성형이 기기 글꼴로 가 모이지 않는다. 그런 글은 본문 글꼴(`--font-body`)로 보인다.
+- Noto Serif KR에 없는 글자(향찰 이체자 9자와 연필 표시 ✎)는 기기 글꼴로 그려진다. `tests/check-fonts.mjs`의 `FALLBACK`에 하나하나 적고, 그 밖의 글자가 빠지면 점검이 실패한다(그때는 글꼴을 다시 만든다).
+- 자산 목록 조각 `assets/manifest.parts/font.json`(`kind: 'font'`)을 도구가 함께 쓴다.
+
+### 출처 화면 — `js/ui/credits.js`
+
+- 화면 약속(7.4)과 위 '추가 제안(T18)'의 출처 화면 약속을 따른다: `show(container, { go, params: { back: 'start' } })` → `{ dispose(), ready }`. '돌아가기'(`.credits-back`)나 Esc를 누르면 `go(params.back ?? 'start')`를 한 번 부른다. `ready`는 자산 목록을 읽어 쓴 곡·낭송·그림 출처를 채운 뒤 끝나는 약속이다.
+- 고정 글은 `js/data/credits.js`의 `CREDITS`(교사 확인 대상). 교과서 노래·학자별 노래·옛 문헌별 노래·수능 지문·노래마다 출처는 노래 데이터의 `citation`과 이어 붙인 단위의 `sourceNote`에서, 쓴 곡·낭송·그림 출처는 `assets/manifest.json`에서 만든다. 학자·옛 문헌·공개 자료 이름은 노래 출처 문구에 실제로 있는 것만 쓰고, 노래 출처 문구의 『책』이 화면에 빠지면 `tests/check-credits.mjs`가 실패한다.
+- 스타일 `css/credits.css`(갈래 `section.credits-section[data-section]`: textbook, scholars, old-texts, exam, references, songs, music, voice, art, fonts, code).
+
+### 글 확인 문서(spec 16.4)
+
+- `docs/글-확인-문서.md`는 `node tools/text/review-doc.mjs`가 만든다(손으로 고치지 않는다). 그림은 `node tools/text/review-shots.mjs`(`docs/images/`).
+- 노래 데이터, 새로 쓴 글 파일(`js/data/story.js`, `boss-text.js`, `remix.js`, `concepts.js`, `wings.js`, `credits.js`, `rooms-*.js`, `notebook-*.js`, `js/measure/labels.js`, `js/play/labels.js`, `js/result/card.js`의 `WORDS`·`SIJO_THINGS`), 낭송 배정이나 생성 기록을 고치면 문서를 다시 만든다. `tests/check-review-doc.mjs`가 최신인지와 빠진 글을 본다. 새로 쓴 글을 담는 파일이 늘면 두 곳(`review-doc.mjs`의 `SOURCES`, 점검의 `TEXT_FILES`)에 더한다.
+
+### 교과서 대조 도구 — 한양 PUA
+
+- `tools/text/compare-textbook.mjs`는 추출본의 한양 PUA 옛 글자(공통국어2 추출본에 나오는 18자, `HYPUA_MAP`)를 첫가끝 자모로 풀어 대조한다. 표에 없는 PUA 글자는 '풀지 못한 PUA 글자'로 알리고 그 자리는 어긋남으로 나온다.
