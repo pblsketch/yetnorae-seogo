@@ -5,9 +5,9 @@
 
 | 관 | 파일 | 보여야 할 것 |
 | --- | --- | --- |
-| 향가관 | `hyangga.js`(3D), `hyangga-board.js`(2D), `hyangga-shared.js` | 4·8·10구 층이 쌓이는 탑, 층마다 칸 한 자리, 10구 층 마지막 두 칸 앞의 '아아' 문 |
-| 고려가요관 | `goryeo.js` → `goryeo-3d.js`, `goryeo-2d.js`, `goryeo-state.js` | 똑같은 방이 줄지은 복도(연 방 일곱 칸), 방 사이 후렴 고리 |
-| 시조관 | `sijo.js` → `sijo-3d.js`, `sijo-2d.js`, `sijo-model.js` | 3층 정자, 층마다 계단참 둘, 종장 첫 계단 세 칸, '선대 사서의 자리' |
+| 향가관 | `hyangga.js`(3D), `hyangga-art.js`(3D 건축), `hyangga-board.js`(2D), `hyangga-shared.js` | 4·8·10구 층이 쌓이는 탑, 층마다 칸 한 자리, 10구 층 마지막 두 칸 앞의 '아아' 문 |
+| 고려가요관 | `goryeo.js` → `goryeo-3d.js`, `goryeo-art.js`(3D 건축), `goryeo-2d.js`, `goryeo-state.js` | 똑같은 방이 줄지은 복도(연 방 일곱 칸), 방 사이 후렴 고리 |
+| 시조관 | `sijo.js` → `sijo-3d.js`, `sijo-art.js`(3D 건축), `sijo-2d.js`, `sijo-model.js` | 3층 정자, 층마다 계단참 둘, 종장 첫 계단 세 칸, '선대 사서의 자리' |
 | 가사관 | `gasa.js` → `gasa-3d.js`, `gasa-2d.js`, `gasa-shared.js`, `gasa-corridor.js` | 기둥이 넷씩 되풀이되는 끝없는 회랑. 걸을 때마다 기둥 넷과 처마가 생기며 길어진다 |
 | 사설시조관 | `saseol.js` → `saseol-3d.js`, `saseol-2d.js`, `saseol-model.js` | 가운데 층만 엿가락처럼 늘어나 장터까지 삐져나간 정자 |
 
@@ -34,6 +34,8 @@
 - 움직임 줄이기(`ctx.reduceMotion()`)면 흔들림과 큰 움직임을 줄인다.
 
 ## 구현 방식
+- 3D 건축과 반응을 나눈다(향가관·고려가요관·시조관). `*-art.js`는 gfx 꾸러미(`js/world/gfx/t35-wing.js`를 거쳐)로 돌·나무·기와·창호를 역할마다 합친 기하로 짓고, 모형 파일은 반응하는 부분(칸 불, 기둥 불, 계단, 고리, 책, 이름표, 먹안개)만 InstancedMesh로 그린다. 건축은 관에 들어간 뒤 두 번째 프레임에 짓고(`gfx.deferred`), 단청 값은 `gfx.setDancheong`으로 같은 값을 건축 재질에 옮긴다. 점검이 찾는 메시 이름(`goryeo-static`의 `roomDoorPost` 꼬리표와 개수, `sijo-fixed`의 0번 벽과 `landing` 꼬리표, `sijo-roof`의 재질 색 등)은 그대로 둔다.
+- 관 건축 재질은 꼭짓점에서 빛을 계산하는 빛 없는 재질(`t35-wing.js`의 `vertexLightHook`)이다. 점검 브라우저(SwiftShader)에서 픽셀마다 빛을 계산하는 램버트 재질과 삼선형 무늬 거르기가 관 화면 비용의 큰 몫이었다. 가려지는 넓은 면(기단 가운데, 탑신 윗면)은 아예 짓지 않는다(가려진 면도 칠한다).
 - 판 도중에 관을 나갔다 들어오면 한 판 화면이 지금 상태를 `slot-set` → `shelf-bound` → `fog-recede` 순으로 다시 낸다. 모형은 이 순서로 받아도 같은 그림이 되게 만든다.
 - 재기 흔적(후렴 고리, 음보 표시, 접힌 경계 빛)은 `slot-set`·`shelf-bound`가 오면 걷는다. 새 노래의 첫 박(`pillar-light { unit: 0, foot: 0 }`, 향가 `floor-fill { gu ≤ 1 }`)이 오면 앞 노래의 흔적을 지운다.
 - 시조관 `stair-step`: 첫 계단 세 칸을 `step`마다 밝히고, `step: 1`이 오면 새로 시작한다. `step`이 3을 넘으면 '맞지 않는 계단'이 하나씩(최대 넷) 드러난다.
