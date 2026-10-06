@@ -8,12 +8,33 @@ import { genreById } from '../data/wings.js';
 const arr = (v) => (Array.isArray(v) ? v : []);
 const HANJA_CHUNK = 3;
 
-// 띄어쓰기로 나누고, 띄어 쓰지 않은 긴 글은 몇 글자씩 끊는다.
+// 글자 묶음(화면에 한 글자로 보이는 단위)으로 나눈다. 옛한글은 첫소리·가운뎃소리·끝소리 자모가
+// 따로 된 코드 포인트라서 코드 포인트로 자르면 'ᄂᆞᆫ'이 'ᄂ', 'ᆞ', 'ᆫ'으로 흩어진다.
+const graphemeSeg = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('ko', { granularity: 'grapheme' }) : null;
+export function graphemes(text) {
+  const s = String(text ?? '');
+  if (graphemeSeg) return [...graphemeSeg.segment(s)].map((g) => g.segment);
+  return splitByJamo(s);
+}
+// Intl.Segmenter가 없을 때: 가운뎃소리·끝소리 자모를 앞 글자에 붙인다.
+function splitByJamo(s) {
+  const out = [];
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    const joining = (c >= 0x1160 && c <= 0x11ff) || (c >= 0xd7b0 && c <= 0xd7ff) || c === 0x302e || c === 0x302f;
+    if (joining && out.length) out[out.length - 1] += ch;
+    else out.push(ch);
+  }
+  return out;
+}
+const isHangul = (g) => { const c = g.codePointAt(0); return (c >= 0xac00 && c <= 0xd7a3) || (c >= 0x1100 && c <= 0x11ff) || (c >= 0xa960 && c <= 0xa97f) || (c >= 0xd7b0 && c <= 0xd7ff) || (c >= 0x3131 && c <= 0x318e); };
+
+// 띄어쓰기로 나누고, 띄어 쓰지 않은 긴 한자 글(향찰)만 몇 글자씩 끊는다. 한글이 섞인 말은 끊지 않는다.
 export function splitWords(text) {
   const parts = String(text ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length > 1) return parts;
-  const chars = [...(parts[0] ?? '')];
-  if (chars.length <= HANJA_CHUNK + 1) return parts.length ? parts : [''];
+  const chars = graphemes(parts[0] ?? '');
+  if (chars.length <= HANJA_CHUNK + 1 || chars.some(isHangul)) return parts.length ? parts : [''];
   const out = [];
   for (let i = 0; i < chars.length; i += HANJA_CHUNK) out.push(chars.slice(i, i + HANJA_CHUNK).join(''));
   return out;

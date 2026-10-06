@@ -25,6 +25,7 @@ import { SINGER_GROUPS } from '../data/concepts.js';
 import { remix as REMIX } from '../data/remix.js';
 import { BOSS_TEXT as T, BOSS_SPEAKERS } from '../data/boss-text.js';
 import { openMeasure } from '../measure/measure.js';
+import { graphemes } from '../measure/text.js';
 import { detectMode } from '../world/mode.js';
 import { createSession } from '../play/session.js';
 import { createScene2D } from './scene2d.js';
@@ -351,7 +352,7 @@ export async function start(ctx = {}) {
     c.dataset.song = id;
     c.append(el('p', 'boss-card-label', T.stage3.swallowedLabel));
     const line = el('p', 'boss-swallowed-text');
-    [...songText(song, 'original').replace(/\s*\n\s*/g, ' ')].forEach((ch, i) => {
+    graphemes(songText(song, 'original').replace(/\s*\n\s*/g, ' ')).forEach((ch, i) => {
       const s = el('span', i % BOSS_TUNING.erasedEvery !== 0 && ch.trim() ? 'is-erased' : 'boss-char', ch);
       line.append(s);
     });

@@ -41,6 +41,7 @@ const files = [
   'check-boss.mjs',
   'check-story.mjs',
   'check-voice.mjs',
+  'check-text-split.mjs',
   'check-fonts.mjs',
   'check-credits.mjs',
   'check-review-doc.mjs',
