@@ -231,6 +231,26 @@ function makeUi(page, touch = false) {
   const waitGone = (sel, timeout = 20000) => waitFn((s) => !document.querySelector(s), sel, timeout);
   const has = (sel) => ev((s) => !!document.querySelector(s), sel);
   async function press(sel, timeout = 20000) {
+    // 떠도는 노래 단추는 늘 둥실거려(play-float) Playwright가 '멈춘 요소'를 기다리다 시간이 다 될 수 있다.
+    // 학생처럼 지금 보이는 자리의 가운데를 누른다(그 자리 맨 위가 그 단추일 때만).
+    if (sel.startsWith('.play-song')) {
+      await waitSel(sel, timeout);
+      const end = Date.now() + timeout;
+      while (Date.now() < end) {
+        const pt = await ev((s) => {
+          const b = document.querySelector(s);
+          if (!b) return null;
+          const r = b.getBoundingClientRect();
+          const x = r.x + r.width / 2;
+          const y = r.y + r.height / 2;
+          const top = document.elementFromPoint(x, y);
+          return top && (top === b || b.contains(top)) ? { x, y } : null;
+        }, sel);
+        if (pt) { if (touch) await page.touchscreen.tap(pt.x, pt.y); else await page.mouse.click(pt.x, pt.y); return; }
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      throw new Error('떠도는 노래를 누르지 못함 ' + sel);
+    }
     const loc = page.locator(sel).first();
     if (touch) await loc.tap({ timeout }); else await loc.click({ timeout });
   }
