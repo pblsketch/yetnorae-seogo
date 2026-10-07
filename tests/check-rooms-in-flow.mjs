@@ -458,8 +458,9 @@ async function runWing(server, run, W, extra = {}) {
       ok(inRoom.room?.wingHidden === true, L + ' 방이 열린 동안 관 모형을 숨긴다');
       await sleep(400);
       const c1 = await ev(page, () => window.__world.getStats().frames);
-      await sleep(600);
-      const c2 = await ev(page, () => window.__world.getStats().frames);
+      // 방을 막 연 뒤 첫 프레임은 셰이더를 만드느라 소프트웨어 그리기에서 0.6초를 넘길 수 있다. 3초 안에 다음 프레임이 오는지 본다.
+      let c2 = c1;
+      for (let t = 0; t < 30 && c2 <= c1; t++) { await sleep(100); c2 = await ev(page, () => window.__world.getStats().frames); }
       ok(c2 > c1, L + ' 방이 열린 동안에도 세계가 프레임마다 그린다(' + c1 + '→' + c2 + ')');
     }
     await ROOMS[W].partial(page);
