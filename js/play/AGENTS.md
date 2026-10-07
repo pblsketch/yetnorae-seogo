@@ -15,7 +15,10 @@
 - 이 폴더의 `.js` 파일에는 주소 인자 읽기(`location.search`, `location.hash`, `URLSearchParams`), 점검용 낱말(`__wf`, `__test`, `stub`), 평가를 매기는 한국어 낱말이 **주석을 포함해** 하나도 없다(`check-wingflow`가 파일 글 전체를 훑는다).
 - 디오라마 사건(`diorama:*`)은 이 화면이 낸다. 관에 들어온 직후 지금 상태를 다시 낸다: `diorama:slot-set`(칸·덤·판정 전 바구니, `returned` 0~3, 보스를 마쳤으면 시조관 `mentor`) → 묶였으면 `diorama:shelf-bound` → `diorama:fog-recede`. 바구니에서 이미 보낸 노래는 다시 그리지 않는다. 처음 띄울 때 기록의 관 상태를 `wing:state`로 한 번씩 다시 내고 마친 관은 `setDancheong(관, 1)`로 알린다.
 - 판정에서 돌아온 노래마다 `diorama:pop-out`을 내고, `popOutMs`(2.4초) 뒤 그 자리가 비어 있으면 `slot-set { songId: null }`. 바구니에서 보낸 노래는 `sentMs`(1.2초) 뒤 비운다.
-- 맞대어 보기: 돌아온 노래마다 `mismatches(노래, 결과의 target, 감정서 동작)`(`js/core/contrast.js`)가 비지 않으면 `contrastAfterMs`(1.2초, 움직임 줄이기면 0) 뒤 `openContrast`를 하나씩 연다. 어긋나는 줄을 눌러야 짝이 밝아지고 '손에 다시 들기'가 나온다. 어긋나지 않는 줄은 흔들림만(두 번이면 어긋나는 줄이 살짝 빛남). Esc로 닫힌다. 진행 엔진을 부르지 않고 저장하지 않으며 오답 수에도 들지 않는다. 판정 중(`busy`)이라 그동안 다른 조작은 받지 않는다.
+- 맞대어 보기: 돌아온 노래마다 `mismatches(노래, 결과의 target, 감정서 동작)`(`js/core/contrast.js`)가 비지 않으면 `contrastAfterMs`(1.2초, 움직임 줄이기면 0) 뒤 `openContrast`를 하나씩 연다. 어긋나는 줄을 눌러야 짝이 밝아지고 '손에 다시 들기'가 나온다. 짝이 되는 수첩 줄은 `pairedLineIds`(그 개념의 가장 좁은 줄)로만 고른다. 어긋나지 않는 줄은 흔들림만(두 번이면 어긋나는 줄이 살짝 빛남). Esc로 닫힌다. 진행 엔진을 부르지 않고 저장하지 않으며 오답 수에도 들지 않는다. 판정 중(`busy`)이라 그동안 다른 조작은 받지 않는다.
+- 위 띠의 수첩 단추가 도움으로 반짝이는 동안(`is-glow`) 수첩을 열면 가장 최근 도움(`session.glows`의 끝)의 대상 갈래 쪽부터 펼친다. 노래 자기 갈래는 쓰지 않는다. 반짝임이 없으면 지금 관의 갈래 쪽부터(Codex 점검 B1).
+- 관의 재기에는 `canQuit: true`를 넘긴다('재기 그만두기'). 그만두면 `openMeasure`가 `AbortError`로 끝나므로 `markMeasured`를 부르지 않고 노래는 다시 떠다닌다. 관의 중단 신호(`ac`)는 그대로다.
+- 가객 이름은 `ceremony.js`의 `singerHeading`(`.play-singer-name`은 이름만, `singer.traditional`이면 앞에 `L.traditionalSinger` '전하는 작자: ')으로 보인다. 엔딩 행렬 그림의 대체 글도 `L.singerName`을 쓴다.
 - 재기 화면에 `revealed: P.isRevealed(id)`, `marksKnown: P.marksKnown(id)`를 넘긴다. 드러나기 전에는 단위를 '덩이'로 부른다. 칸(탑)이 묶이면 `L.unitReveal[갈래]`를 가객 연출 첫 카드 위에 보인다.
 - 서가 빈자리는 제목 없는 빈 책등이고, 제목은 묶인 뒤에만 보인다.
 - 떠도는 노래: 판 중이면 칸 노래와 길 잃은 노래, 마친 관이면 덤 노래. 이미 잰 노래, 꽂힌 노래, 입구에서 기다리는 미리 잰 노래는 빼고 관 모형의 `floatingSpots`에 이 화면이 직접 그린다. 손에 든 노래 = 그 관에서 잰 노래 가운데 아직 꽂지 않은 것.

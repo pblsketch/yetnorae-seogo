@@ -33,7 +33,7 @@ engine.attachUnlock(document);
 
 // skipOffbeat: 고려가요 여음·후렴 칸(박자 칸의 offbeat)은 치지 않는다(학생처럼 박에만 친다)
 // grids: 낸 박자 칸의 모양(낭송 조각이 있는지, 효과음 박, 박 수) — 걷기가 낭송 대신 장구를 내는지 본다
-const auto = { enabled: true, skip: 0, skipOffbeat: false, plays: [], grids: [] };
+const auto = { enabled: true, skip: 0, skipOffbeat: false, plays: [], grids: [], beats: 0, ends: [] };
 
 function drumTap() {
   const drum = document.querySelector('.measure .m-drum');
@@ -46,9 +46,10 @@ const wrappedEngine = new Proxy(engine, {
       return (grid, segs, opts = {}) => {
         auto.plays.push((segs ?? grid.segments.map((s) => s.index)).slice());
         auto.grids.push({ voice: grid.beats.some((b) => !!b.path), sounds: [...new Set(grid.beats.map((b) => b.sound).filter(Boolean))], beats: grid.beats.length, countIn: !!opts.countIn });
-        return target.play(grid, segs, {
+        const h = target.play(grid, segs, {
           ...opts,
           onBeat: (b) => {
+            auto.beats++;
             opts.onBeat?.(b);
             if (!auto.enabled) return;
             if (auto.skipOffbeat && grid.beats[b.beat]?.offbeat) return;
@@ -56,6 +57,8 @@ const wrappedEngine = new Proxy(engine, {
             drumTap();
           },
         });
+        Promise.resolve(h?.finished).then((r) => auto.ends.push(r ?? 'done'), () => auto.ends.push('error'));
+        return h;
       };
     }
     const v = target[key];
@@ -84,6 +87,8 @@ function open(o) {
   fixture.calls.react.length = 0;
   auto.plays.length = 0;
   auto.grids.length = 0;
+  auto.beats = 0;
+  auto.ends.length = 0;
   auto.enabled = o.autoTap !== false;
   auto.skip = o.skip ?? 0;
   auto.skipOffbeat = !!o.skipOffbeat;
@@ -109,6 +114,7 @@ function open(o) {
     onIntroSeen: (kind) => { flags[kind] = true; state.introCalls.push(kind); },
     setSlashMode: (v) => { state.slashCalls.push(v); engine.setSlashMode(v); },
     signal: state.controller.signal,
+    canQuit: o.canQuit,
   });
   p.then((r) => { state.result = r; }, (e) => { state.error = (e?.name ?? 'Error') + ': ' + (e?.message ?? e); });
   return true;

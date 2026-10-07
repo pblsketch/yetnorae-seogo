@@ -11,7 +11,9 @@ import {
   SAVE_KEY, SAVE_VERSION, createStore, validateName, defaultProgress, normalizeData,
 } from '../js/core/save.js';
 import { createProgress, openRecord, TUNABLES } from '../js/core/progress.js';
-import { mismatches, targetGenre, tapCounts, CONTRAST_RULES } from '../js/core/contrast.js';
+import { mismatches, targetGenre, tapCounts, pairedLineIds, CONTRAST_RULES } from '../js/core/contrast.js';
+import { notebookPage as SASEOL_PAGE } from '../js/data/notebook-saseol.js';
+import { notebookPage as HYANGGA_PAGE } from '../js/data/notebook-hyangga.js';
 import { songs as REAL_SONGS } from '../js/data/songs/index.js';
 import {
   judgeArea, routeStray, judgeUnseenPlacement, judgeSingerGroup, judgeRemixTap, judgeRemixLine,
@@ -19,6 +21,7 @@ import {
 } from '../js/core/judge.js';
 import { buildWingCard, buildFinalCard } from '../js/core/cards.js';
 import { graphemeCount, fallbackGraphemeCount, cleanText } from '../js/core/text.js';
+import { deriveTapEvidence, deriveFoldEvidence } from '../js/core/song-shape.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 let failures = 0;
@@ -249,7 +252,7 @@ section('2. 저장 형식(js/data/README.md 9절)과 의미 있는 행동마다 
 }
 
 // ── 3. 저장 실패, 버전, 여러 창 ──
-section('3. 저장 실패, 버전이 다를 때, 여러 창(나중 쓴 쪽이 이긴다)');
+section('3. 저장 실패, 버전이 다를 때, 여러 창(다른 기록은 남고, 같은 기록은 나중 쓴 쪽이 이긴다)');
 {
   // 가득 참
   const storage = memoryStorage();
@@ -325,15 +328,109 @@ section('3. 저장 실패, 버전이 다를 때, 여러 창(나중 쓴 쪽이 �
   const iB = sB.load();
   check(iB.status === 'loaded' && sB.getRecord(ra.record.id)?.name === '강', '같은 버전 저장은 그대로 이어 읽는다');
 
-  // 여러 창: 막지 않고 나중에 쓴 쪽이 이긴다
+  // 여러 창: 막지 않는다. 쓸 때마다 저장소를 다시 읽어 이 창에서 바뀐 기록·설정만 얹는다(읽고 고쳐 쓰기).
+  const stored = (st) => JSON.parse(st.map.get(SAVE_KEY));
+  const storedNames = (st) => sorted(Object.values(stored(st).slots).map((x) => x.name));
   const st9 = memoryStorage();
   const tab1 = createStore({ storage: st9, emit: recorder(), now: clock() });
   const tab2 = createStore({ storage: st9, emit: recorder(), now: clock() });
   tab1.load(); tab2.load();
   tab1.createRecord('첫 창');
   tab2.createRecord('둘째 창');
-  const names = Object.values(JSON.parse(st9.map.get(SAVE_KEY)).slots).map((x) => x.name);
-  check(same(names, ['둘째 창']), '두 창이 저장하면 나중에 쓴 쪽이 이긴다(막지 않음)');
+  check(same(storedNames(st9), sorted(['첫 창', '둘째 창'])), '두 창이 저마다 새 기록을 만들면 둘 다 남는다');
+
+  // Codex B3 재현: 창 A가 기록을 만들고, 창 B가 다른 기록을 만든 뒤, 창 A가 설정(박자 맞추기 건너뛰기)과 진행을 저장한다
+  const st10 = memoryStorage();
+  const winA = createStore({ storage: st10, emit: recorder(), now: clock() });
+  winA.load();
+  const recA = winA.createRecord('열두글자별명기록이에요').record;
+  const winB = createStore({ storage: st10, emit: recorder(), now: clock() });
+  winB.load();
+  const recB = winB.createRecord('다른별명기록').record;
+  winA.updateDevice({ calibrated: true, calibrationOffsetMs: 0 });
+  const gameA = openRecord(winA, recA.id, { songs: SONGS, emit: recorder(), now: clock() });
+  gameA.completeTutorial();
+  check(!!stored(st10).slots[recB.id] && stored(st10).slots[recA.id].progress.tutorialDone === true, '오래 열린 창의 설정·진행 저장이 다른 창이 만든 기록을 지우지 않는다(B3)');
+  const reloadA = createStore({ storage: st10, emit: recorder(), now: clock() });
+  reloadA.load();
+  check(same(sorted(reloadA.listRecords().map((r) => r.name)), sorted(['열두글자별명기록이에요', '다른별명기록'])), '창 A를 새로 열어도 두 기록이 목록에 있다');
+  check(winA.listRecords().some((r) => r.id === recB.id), '열려 있던 창 A의 기록 목록에도 다른 창의 기록이 들어온다');
+  // 음성 사례: 예전 방식(메모리 문서 전체를 그대로 쓰기)이면 다른 창의 기록이 사라진다 — 위 점검이 그 차이를 잡는다
+  const stOld = memoryStorage();
+  const oldA = createStore({ storage: stOld, emit: recorder(), now: clock() });
+  oldA.load(); oldA.createRecord('옛 창 A');
+  const oldB = createStore({ storage: stOld, emit: recorder(), now: clock() });
+  oldB.load(); oldB.createRecord('옛 창 B');
+  stOld.setItem(SAVE_KEY, JSON.stringify(oldA.data));   // 예전 save(): 이 창의 메모리 문서 전체를 덮어씀
+  check(same(storedNames(stOld), ['옛 창 A']), '음성 사례: 문서 전체를 덮어쓰면 다른 창의 기록이 사라진다(예전 방식은 점검에 걸린다)');
+
+  // 기기 설정은 이 창에서 바꾼 값만 얹는다(소리 크기는 갈래마다)
+  const st11 = memoryStorage();
+  const d1 = createStore({ storage: st11, emit: recorder(), now: clock() });
+  const d2 = createStore({ storage: st11, emit: recorder(), now: clock() });
+  d1.load(); d2.load();
+  d2.updateDevice({ textScale: 1.3, volume: { voice: 0.5 } });
+  d1.updateDevice({ muted: true, volume: { bgm: 0.2 } });
+  const dev11 = stored(st11).device;
+  check(dev11.muted === true && dev11.textScale === 1.3 && dev11.volume.bgm === 0.2 && dev11.volume.voice === 0.5 && dev11.volume.sfx === 0.8, '두 창이 서로 다른 설정을 바꾸면 둘 다 남는다(바꾸지 않은 설정은 덮지 않는다)');
+  d2.updateDevice({ muted: false });
+  check(stored(st11).device.muted === false, '같은 설정은 나중에 바꾼 창이 이긴다');
+
+  // 지우기: 저장소를 다시 읽고 그 기록의 자리만 뺀다
+  const st12 = memoryStorage();
+  const e1 = createStore({ storage: st12, emit: recorder(), now: clock() });
+  e1.load();
+  const keepRec = e1.createRecord('남을 기록').record;
+  const e2 = createStore({ storage: st12, emit: recorder(), now: clock() });
+  e2.load();
+  const goneRec = e2.createRecord('지울 기록').record;
+  const lateRec = e2.createRecord('늦게 만든 기록').record;
+  e1.listRecords();
+  check(e1.deleteRecord(goneRec.id, { confirmed: true }).status === 'deleted', '다른 창이 만든 기록도 목록에서 골라 지울 수 있다');
+  check(same(storedNames(st12), sorted(['남을 기록', '늦게 만든 기록'])), '지우기는 그 기록만 빼고 다른 창이 만든 기록은 남긴다');
+  const gameE2 = openRecord(e2, lateRec.id, { songs: SONGS, emit: recorder(), now: clock() });
+  gameE2.completeTutorial();
+  check(!stored(st12).slots[goneRec.id] && !!stored(st12).slots[keepRec.id], '다른 창이 지운 기록은 이 창이 다른 기록을 저장해도 되살아나지 않는다');
+  check(!e2.getRecord(goneRec.id), '다른 창이 지운 기록은 이 창의 메모리에서도 빠진다');
+
+  // 같은 기록 충돌: 막지 않고 나중에 쓴 창이 이긴다(spec 13)
+  const st13 = memoryStorage();
+  const w1 = createStore({ storage: st13, emit: recorder(), now: clock() });
+  w1.load();
+  const shared = w1.createRecord('같은 기록').record;
+  const w2 = createStore({ storage: st13, emit: recorder(), now: clock() });
+  w2.load();
+  const g1 = openRecord(w1, shared.id, { songs: SONGS, emit: recorder(), now: clock() });
+  const g2 = openRecord(w2, shared.id, { songs: SONGS, emit: recorder(), now: clock() });
+  g1.completeTutorial();
+  g2.place('sijo', 'shelf', 0, 'dongjitdal');   // 막힌 행동: 저장하지 않는다
+  check(stored(st13).slots[shared.id].progress.tutorialDone === true, '막힌 행동은 같은 기록을 덮어쓰지 않는다');
+  w2.setAppearance(shared.id, 'b');
+  check(stored(st13).slots[shared.id].appearance === 'b' && stored(st13).slots[shared.id].progress.tutorialDone === false, '같은 기록을 두 창에서 바꾸면 나중에 쓴 창이 이긴다(막지 않음)');
+
+  // 고르면 다른 창이 이어 한 최신 진행을 새로 읽는다(오래 열린 목록에서 골라도 진행이 뒤로 가지 않는다)
+  const st14 = memoryStorage();
+  const f1 = createStore({ storage: st14, emit: recorder(), now: clock() });
+  f1.load();
+  const fr = f1.createRecord('이어 할 기록').record;
+  const other = f1.createRecord('다른 기록').record;
+  const f2 = createStore({ storage: st14, emit: recorder(), now: clock() });
+  f2.load();
+  openRecord(f2, fr.id, { songs: SONGS, emit: recorder(), now: clock() }).completeTutorial();
+  const gf1 = openRecord(f1, fr.id, { songs: SONGS, emit: recorder(), now: clock() });
+  check(gf1.progress.tutorialDone === true && stored(st14).slots[fr.id].progress.tutorialDone === true, '오래 열린 창에서 기록을 골라도 다른 창의 진행을 새로 읽는다');
+  check(!!stored(st14).slots[other.id], '고르기만 해서는 다른 기록을 건드리지 않는다');
+
+  // 더 새 버전 보호는 쓰기 직전에 다시 읽어도 지킨다
+  const st15 = memoryStorage();
+  const n1 = createStore({ storage: st15, emit: recorder(), now: clock() });
+  n1.load(); n1.createRecord('지금 버전');
+  const newer = JSON.stringify({ version: 2, slots: {} });
+  st15.map.set(SAVE_KEY, newer);
+  const emit15 = recorder();
+  const n2 = createStore({ storage: st15, emit: emit15, now: clock() });
+  n1.updateDevice({ muted: true });
+  check(st15.map.get(SAVE_KEY) === newer && n1.failure === 'unknown', '다른 창이 더 새 버전으로 저장했으면 덮어쓰지 않는다');
 }
 
 // ── 4. 관 열림과 건너뛰기 ──
@@ -572,7 +669,31 @@ section('6-2. 맞대어 보기: 감정서에서 그 자리와 어긋나는 줄 �
   const gap = S('gapminga');
   check(!mismatches(gap, { genre: 'sijo' }, []).some((m) => m.lineKind === 'action') && mismatches(gap, { genre: 'sijo' }, ['stairs']).some((m) => m.conceptId === 'sijo-final3'), '쓰지 않은 도구의 줄은 어긋남에 들지 않는다');
   check(targetGenre({ towerUnits: 4 }) === 'hyangga' && targetGenre({ genre: 'gasa' }) === 'gasa', '대상 갈래: 탑은 향가');
-  check(same(tapCounts({ mode: 'gu', gu: 3 }), [1, 1, 1]) && same(tapCounts({ mode: 'lines', feet: [[3, 0], [2]] }), [3, 2]), '두드리기 박 수: 향가는 덩이마다 한 박, 고려가요는 후렴만 있는 줄을 뺀다');
+  check(same(tapCounts({ mode: 'gu', gu: 3 }), [1, 1, 1]) && same(tapCounts({ mode: 'lines', feet: [[3, 0], [2]] }), [3, 2]), '두드린 수: 향가는 덩이 하나에 한 번(구 세기), 고려가요는 후렴만 있는 줄을 뺀다');
+  // 향가의 두드리기 방식(구 세기)은 프로그램이 고른 것이라 증거가 아니다(C3): 두드리기 줄로 향가·탑과 어긋난다고 하지 않는다
+  check(!mismatches(S('gasiri'), { genre: 'hyangga' }, 'aa-door').some((m) => m.lineKind === 'tap') && !mismatches(S('dongjitdal'), { towerUnits: 4 }, 'aa-door').some((m) => m.lineKind === 'tap'), '두드리기 방식(구마다 한 번이 아님)을 향가·탑과 어긋나는 근거로 쓰지 않는다');
+  check(same(kinds(mismatches(S('dongjitdal'), { towerUnits: 4 }, 'aa-door')), ['fold/hyangga-lines']), '시조를 4구 층에: 접기 줄(세 덩이)만 어긋난다');
+  // 고려가요 세 음보(C2): 음보로 센 줄에 세 음보가 하나도 없을 때만. 향가의 구 세기는 증거가 아니다
+  check(!mismatches(S('seodongyo'), { genre: 'goryeo' }, 'aa-door').some((m) => m.conceptId === 'goryeo-3beat'), '향가(구 세기)를 고려가요 바구니에: 세 음보 줄로 어긋난다고 하지 않는다');
+  check(mismatches(S('gwandong-byeolgok'), { genre: 'goryeo' }, 'walk').some((m) => m.conceptId === 'goryeo-3beat') === !tapCounts(deriveTapEvidence(S('gwandong-byeolgok'))).includes(3), '가사를 고려가요 바구니에: 세 음보 행이 하나도 없을 때만 세 음보 줄과 어긋난다');
+
+  // 맞대어 보기의 짝(B2): 어긋남의 개념을 가장 좁게 설명하는 수첩 줄만 밝힌다
+  const nuhang = mismatches(S('nuhangsa'), { genre: 'saseol' }, 'rapid-unroll');
+  const foldMis = nuhang.find((m) => m.lineKind === 'fold');
+  check(foldMis?.conceptId === 'saseol-frame' && deriveFoldEvidence(S('nuhangsa')).units === 15, '「누항사」(15덩이)를 사설시조 칸에: 접기 줄이 세 장 개념(saseol-frame)과 어긋난다');
+  const foldPair = pairedLineIds([foldMis?.conceptId], SASEOL_PAGE.lines);
+  const lineText = (id) => SASEOL_PAGE.lines.find((l) => l.id === id)?.text ?? '';
+  check(same(foldPair, ['saseol-frame']) && /세 장/.test(lineText('saseol-frame')), '[15 덩이]는 세 장을 말하는 수첩 줄과만 짝이 된다 ' + JSON.stringify(foldPair.map(lineText)));
+  check(!foldPair.includes('saseol-stretch') && !foldPair.includes('saseol-vs-gasa'), '덩이 수 어긋남이 늘어나는 장 줄이나 가사와 견주는 줄을 함께 밝히지 않는다');
+  const stairsMis = mismatches(S('gwandong-byeolgok'), { genre: 'saseol' }, 'stairs').find((m) => m.lineKind === 'action');
+  const stairsPair = pairedLineIds([stairsMis?.conceptId], SASEOL_PAGE.lines);
+  check(stairsMis?.action === 'stairs' && same(stairsPair, ['saseol-frame']) && /종장/.test(lineText('saseol-frame')), '계단(종장 첫 음보) 어긋남은 종장을 말하는 수첩 줄과 짝이 된다');
+  check(same(pairedLineIds(['saseol-middle'], SASEOL_PAGE.lines), ['saseol-stretch']), '늘어나는 장 어긋남은 늘어나는 장 줄과 짝이 된다');
+  // 음성 사례: 예전 짝짓기(개념이 하나라도 같으면 모두)는 가사와 견주는 줄까지 밝힌다
+  const oldPair = SASEOL_PAGE.lines.filter((l) => l.conceptIds.includes('saseol-frame')).map((l) => l.id);
+  check(oldPair.includes('saseol-vs-gasa') && oldPair.length > foldPair.length, '(음성) 예전 짝짓기는 같은 개념을 묶은 넓은 줄까지 밝힌다 ' + JSON.stringify(oldPair));
+  const towerLines = [{ id: 'floor', conceptIds: ['hyangga-lines'] }, ...HYANGGA_PAGE.lines];
+  check(same(pairedLineIds(['hyangga-lines'], towerLines), ['floor', 'hyangga-count']), '좁기가 같은 줄(층 줄과 구 세기 줄)은 함께 짝이 된다');
   // 음성 사례: 처음 제안된 '세 음보 줄 80% 미만' 규칙은 고려가요 노래를 건다(건전하지 않다)
   const ratioRule = { genre: 'goryeo', lineKind: 'tap', conceptId: 'goryeo-3beat', test: (e) => { const c = tapCounts(e.tap); return c.filter((x) => x === 3).length / c.length < 0.8; } };
   check(mismatches(S('dongdong'), { genre: 'goryeo' }, null, [...CONTRAST_RULES, ratioRule]).length > 0, '(음성) 비율 규칙을 넣으면 「동동」이 자기 갈래 칸과 어긋난다고 나온다');

@@ -17,7 +17,16 @@ export function firstLine(song) {
   return joinFeet(feet ?? [], 'original');
 }
 
-// host: 연출을 띄울 요소. list: 노래 객체 셋. engine: 소리 엔진(한 소절을 낸다). signal: 중단 신호.
+// 가객 이름 머리. 지은이가 전해지는 귀속(singer.traditional)이면 '전하는 작자: '를 앞에 붙인다(이름은 그대로 .play-singer-name).
+export function singerHeading(singer) {
+  const h = el('h3', 'play-singer-heading');
+  const prefix = L.singerPrefix(singer);
+  if (prefix) h.append(el('span', 'play-singer-traditional', prefix));
+  h.append(el('span', 'play-singer-name', singer?.name ?? ''));
+  return h;
+}
+
+// host:연출을 띄울 요소. list: 노래 객체 셋. engine: 소리 엔진(한 소절을 낸다). signal: 중단 신호.
 // lead: 첫 가객 카드 위에 보일 한 줄(칸이 묶일 때 드러나는 단위 이름, 없으면 생략).
 // 학생이 '도감에 담기'를 누르면 끝난다(중단되면 바로 끝난다).
 export function playCeremony(host, { list, manifest, engine, signal, reduceMotion = () => false, lead = null }) {
@@ -51,7 +60,7 @@ export function playCeremony(host, { list, manifest, engine, signal, reduceMotio
       info.append(el('p', 'play-singer-count', L.singersTitle + ' (' + (i + 1) + '/' + list.length + ')'));
       if (s.legend === true) info.append(el('p', 'play-legend', L.legend));
       info.append(
-        el('h3', 'play-singer-name', s.singer?.name ?? ''),
+        singerHeading(s.singer),
         el('p', 'play-singer-class', s.singer?.class ?? ''),
         el('p', 'play-singer-song', quoted(s.title)),
         el('blockquote', 'play-singer-line', firstLine(s)),

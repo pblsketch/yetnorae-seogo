@@ -418,6 +418,8 @@ export function createWingPlay(session, wingId) {
         onIntroSeen: (kind) => { if (kind === 'unique') P.markUniqueActionIntroSeen(wingId); },
         reduceMotion: () => world.reduceMotion(),
         signal: ac.signal,
+        // '재기 그만두기': 마치지 않고 관으로 돌아온다(잰 것으로 기록하지 않음, 노래는 다시 떠다닌다)
+        canQuit: true,
       });
       if (sheet) sheets.set(id, sheet);
       if (!disposed) P.markMeasured(wingId, id);

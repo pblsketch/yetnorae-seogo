@@ -106,8 +106,9 @@ export async function createSession({
   // ── 기록 ──
   const store = givenStore ?? createStore({ storage: storage === undefined ? safeLocalStorage() : storage });
   if (!givenStore) store.load();
-  const record = store.currentRecord();
-  const progress = record ? openRecord(store, record.id) : null;
+  const picked = store.currentRecord();
+  const progress = picked ? openRecord(store, picked.id) : null;
+  const record = picked ? store.currentRecord() : null;   // 고르면서 최신 값으로 새로 읽은 객체
   const device = store.data.device;
 
   // ── 소리 ──
@@ -190,8 +191,11 @@ export async function createSession({
     return p;
   }
 
+  // 처음 펼칠 쪽: 도움 반짝임이 기다리는 중이면(위 띠 수첩 단추가 반짝임) 가장 최근 도움의 대상 갈래 쪽(학생이 고른 자리의
+  // 갈래이지 노래 자기 갈래가 아니다). 그 밖에는 지금 관의 갈래 쪽(Codex 점검 B1).
   function openNotebook() {
-    const genre = current ? wingById(current.wingId)?.genre ?? null : null;
+    const pending = nbBtn.classList.contains('is-glow') ? glows.at(-1)?.genre ?? null : null;
+    const genre = pending ?? (current ? wingById(current.wingId)?.genre ?? null : null);
     return open('notebook', L.notebookTitle, (body) => renderNotebook(body, { notebook, glows, genre }));
   }
   function openJournal() {

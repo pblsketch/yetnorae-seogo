@@ -291,6 +291,11 @@ console.log('— 감정서 글(화면 없이 sheetLines로)');
   const oldWalk = (a) => '[' + a.steps + '걸음 — ' + (a.stopsAtThree ? '세 걸음에서 멈춘다' : '세 걸음에서 멈추지 않고 이어진다') + ']';
   ok(oldWalk(deriveActionEvidence('walk', song('samogok'))).includes('이어진다'), '음성 사례: 예전 두 가지 말은 한 연짜리 노래를 이어진다고 적어 잡힌다');
   ok(walkWords(2) !== walkWords(3) && walkWords(3) !== walkWords(4) && walkWords(2) !== walkWords(4), '걷기 말은 세 가지가 서로 다르다');
+  // 향가 두드리기 줄: 구 수를 세는 두드리기임을 밝히고 '박'이 아니라 '번'으로 센다(C3)
+  const guNeutral = lineTexts(deriveSheet(song('chan-giparangga'), 'aa-door'), song('chan-giparangga'), { neutral: true }).find((t) => t.includes('두드려')) ?? '';
+  const guRevealed = lineTexts(deriveSheet(song('seodongyo'), 'aa-door'), song('seodongyo'), { neutral: false }).find((t) => t.includes('두드려')) ?? '';
+  ok(guNeutral === '[덩이 하나에 한 번씩 두드려 셈, 모두 열 번]' && guRevealed === '[구 하나에 한 번씩 두드려 셈, 모두 네 번]', '향가 두드리기 줄은 구 수를 세는 두드리기로 적는다 ' + JSON.stringify([guNeutral, guRevealed]));
+  ok(!lineTexts(deriveSheet(song('chan-giparangga'), 'aa-door'), song('chan-giparangga'), { neutral: true }).some((t) => /박/.test(t)), "(음성) 향가 감정서에 '박'이라는 말이 없다(예전 '[덩이마다 한 박, 모두 열 박]'은 걸린다)");
 
   // 보스(neutral): 「사모곡」 감정서에 '줄'이 없고 단위는 '덩이'. 후렴 고리 걸기를 쓰기 전에는 여음·후렴 줄이 없다
   const sm = song('samogok');
@@ -907,6 +912,40 @@ try {
     ok(await ev(page, () => !document.querySelector('.world.is-split') && !document.querySelector('.measure')), '중단되면 반반 틀을 닫는다');
   }
 
+  console.log("— '재기 그만두기'(관, B5): 낭송 도중 그만두면 감정서 없이 끝나고 소리·사건이 남지 않는다");
+  {
+    await openM(page, { songId: 'dongjitdal', wing: 'sijo', canQuit: true });
+    const qb = await ev(page, () => { const b = document.querySelector('.measure .m-head .m-quit'); return b ? { tag: b.tagName, text: b.textContent, w: b.getBoundingClientRect().width, h: b.getBoundingClientRect().height } : null; });
+    ok(qb?.tag === 'BUTTON' && qb.text === '재기 그만두기' && qb.h >= 48, "관 재기 머리에 '재기 그만두기' 단추(48px 이상)가 있다 " + JSON.stringify(qb));
+    ok((await ev(page, () => window.__layoutProblems())).length === 0, '그만두기 단추가 있어도 배치 문제가 없다 ' + JSON.stringify(await ev(page, () => window.__layoutProblems())));
+    await ev(page, () => window.__solveFold());
+    await waitStep(page, 'tap');
+    await page.click('.measure .m-listen');
+    await page.waitForFunction(() => window.__m.auto.beats >= 2, null, { timeout: 10000 });
+    await page.focus('.measure .m-quit');
+    await page.keyboard.press('Enter');
+    const r = await waitResult(page);
+    ok(/AbortError/.test(r.error ?? '') && !r.result, "낭송 도중 '재기 그만두기'(키보드 Enter)를 누르면 감정서 없이 AbortError로 끝난다 " + r.error);
+    ok(await ev(page, () => !document.querySelector('.world.is-split') && !document.querySelector('.measure')), '그만두면 반반 틀을 닫는다');
+    await page.waitForFunction(() => window.__m.auto.ends.length >= window.__m.auto.plays.length, null, { timeout: 5000 });
+    const before = await ev(page, () => ({ beats: window.__m.auto.beats, log: window.__m.log.length, ends: window.__m.auto.ends.slice(), plays: window.__m.auto.plays.length }));
+    await new Promise((res) => setTimeout(res, 1500));
+    const after = await ev(page, () => ({ beats: window.__m.auto.beats, log: window.__m.log.length, plays: window.__m.auto.plays.length }));
+    ok(before.ends.length === before.plays && after.beats === before.beats && after.log === before.log && after.plays === before.plays, '그만둔 뒤 예약한 낭송은 거두어지고 박·디오라마 사건이 더 나지 않는다 ' + JSON.stringify({ before, after }));
+    const again = await measureSong(page, { songId: 'dongjitdal', wing: 'sijo', canQuit: true }, 'beat');
+    ok(deepEqual(again.result, again.expected), '그만둔 뒤 다시 잡으면 처음부터 재어 같은 감정서를 받는다');
+    // 음성 사례: canQuit이 없으면(입구 튜토리얼), 보스이면 단추가 없다
+    await openM(page, { songId: 'dongjitdal', wing: 'sijo' });
+    const noQuit = await ev(page, () => !document.querySelector('.measure .m-quit'));
+    await ev(page, () => window.__m.state.controller.abort());
+    await waitResult(page);
+    await openM(page, { songId: 'dongjitdal', mode: 'boss', canQuit: true });
+    const noQuitBoss = await ev(page, () => !document.querySelector('.measure .m-quit'));
+    await ev(page, () => window.__m.state.controller.abort());
+    await waitResult(page);
+    ok(noQuit && noQuitBoss, "(음성) 그만두기를 허락하지 않은 재기와 보스 재기에는 '재기 그만두기'가 없다");
+  }
+
   console.log('— 움직임 줄이기');
   {
     await openM(page, { songId: 'dongjitdal', wing: 'sijo', introSeen: { common: false, unique: true } });
@@ -955,7 +994,7 @@ try {
     await ev(pp, (v) => { document.documentElement.style.setProperty('--text-scale', String(v)); window.__m.events.emit('settings:text-scale', { value: v }); }, scale);
     const list = scale === 1.3 ? long : long.slice(0, 2);
     for (const [wing, id] of list) {
-      await openM(pp, { songId: id, wing, slash: true });
+      await openM(pp, { songId: id, wing, slash: true, canQuit: true });   // 관 재기처럼 '재기 그만두기'가 머리에 있다
       const a = await ev(pp, () => window.__scanAllPages());
       ok(a.problems.length === 0, scale + ' ' + id + ' 접기 전(이어진 글줄): ' + a.pages + '쪽 넘침 없음 ' + JSON.stringify(a.problems));
       await ev(pp, () => window.__solveFold());
@@ -974,7 +1013,7 @@ try {
   }
   {
     // 감정서·보스 도구 화면도 1.3에서
-    await openM(pp, { songId: 'nimi-oma', wing: 'saseol', preMeasured: true });
+    await openM(pp, { songId: 'nimi-oma', wing: 'saseol', preMeasured: true, canQuit: true });
     const s1 = await ev(pp, () => window.__layoutProblems());
     ok(s1.length === 0, '1.3 감정서 화면 넘침 없음 ' + JSON.stringify(s1));
     await pp.click('.measure .m-finish');

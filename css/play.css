@@ -453,6 +453,7 @@
   font-weight: 700;
 }
 .play-singer-name { font-family: var(--font-body); font-size: calc(20px * var(--text-scale)); }
+.play-singer-traditional { font-size: calc(14px * var(--text-scale)); font-weight: 400; color: var(--meok-soft); }
 .play-singer-class { color: var(--meok-soft); }
 .play-singer-song { font-family: var(--font-body); }
 .play-singer-line { padding-left: 10px; border-left: 3px solid var(--gold); font-family: var(--font-body); font-size: calc(16px * var(--text-scale)); line-height: 1.5; }

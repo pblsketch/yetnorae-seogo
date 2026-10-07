@@ -174,9 +174,31 @@ console.log('\n[6] 맞대어 보기 규칙의 건전성과 맞대어 볼 줄이 
     }
   }
   const inherent = empty.filter((e) => { const [w, id] = e.split(' '); return SONG_TABLE.wings[w].shelf.includes(id) && e.endsWith('바구니 → ' + wingById(w).genre); });
+  // 학생의 재기에서 대상 갈래와 어긋나는 증거가 나오지 않는 경우(2026-10-07, Codex 점검 C2·C3 반영 뒤).
+  // 두드리기 방식(향가의 구 세기)은 프로그램이 고른 것이라 증거로 쓰지 않고, 고려가요는 세 음보 줄이 하나도 없을 때만 어긋난다.
+  // 그래서 아래 여덟 가지는 창 없이 손으로만 돌아온다(수첩 도움은 대상 갈래 개념 모두). 목록과 실제가 한 가지라도 다르면 실패한다.
+  const NO_EVIDENCE = [
+    'hyangga seodongyo → 바구니 → goryeo',          // 향가(구 세기)·'아아' 문 열기: 고려가요의 연·후렴·세 음보를 가를 증거 없음
+    'hyangga cheoyongga → 바구니 → goryeo',
+    'hyangga chan-giparangga → 바구니 → goryeo',
+    'hyangga gasiri → 탑 4구 층',                   // 네 덩이(연) = 4구 층, 감탄사는 10구 층만
+    'hyangga gasiri → 바구니 → hyangga',            // 네 덩이는 4구 향가와 같은 수
+    'goryeo cheongsan-byeolgok → 바구니 → hyangga', // 여덟 덩이는 8구 향가와 같은 수
+    'goryeo gasiri → 바구니 → hyangga',
+    'gasa gyuwonga → 바구니 → goryeo',              // 세 음보 행이 섞여 있고 걷기는 고려가요 개념과 맞대지 않는다
+  ];
+  const expected = new Set([...inherent, ...NO_EVIDENCE]);
   console.log('  · 틀린 자리 ' + total + '가지 가운데 맞대어 볼 줄이 없는 것 ' + empty.length + '가지(지금처럼 손으로만 돌아온다)');
-  for (const e of empty) console.log('      - ' + e);
-  check(empty.length === inherent.length, '맞대어 볼 줄이 없는 경우는 칸 노래를 자기 갈래 행선지로 바구니에 넣은 것뿐이다 (' + inherent.length + '/' + empty.length + ')');
+  for (const e of empty) console.log('      - ' + e + (NO_EVIDENCE.includes(e) ? '  (어긋나는 증거 없음)' : ''));
+  const unexpected = empty.filter((e) => !expected.has(e));
+  const vanished = NO_EVIDENCE.filter((e) => !empty.includes(e));
+  check(inherent.length === 15 && !unexpected.length && !vanished.length, '맞대어 볼 줄이 없는 경우는 칸 노래를 자기 갈래 행선지로 바구니에 넣은 것(' + inherent.length + ')과 어긋나는 증거가 없는 정해진 ' + NO_EVIDENCE.length + '가지뿐이다 (뜻밖 ' + JSON.stringify(unexpected) + ', 사라짐 ' + JSON.stringify(vanished) + ')');
+  // 음성 사례: 예전 '향가는 구마다 한 번이 아니면 어긋남' 규칙을 다시 넣으면 목록의 향가 자리가 사라진다(목록이 실제를 따라가는지)
+  const oldHyangga = [...CONTRAST_RULES, { genre: 'hyangga', lineKind: 'tap', conceptId: 'hyangga-lines', test: (e) => e.tap.mode !== 'gu' }];
+  check(mismatches(byId.get('gasiri'), { genre: 'hyangga' }, 'aa-door', oldHyangga).length > 0 && mismatches(byId.get('gasiri'), { genre: 'hyangga' }, 'aa-door').length === 0, "(음성) 두드리기 방식을 증거로 쓰던 예전 향가 규칙은 「가시리」를 향가 바구니에서 걸고, 지금 규칙은 걸지 않는다");
+  // 고려가요 세 음보 규칙: 네 음보 줄이 섞여 있어도 세 음보 줄이 있으면 걸지 않고, 세 음보 줄이 하나도 없으면 건다
+  const goryeoTap = CONTRAST_RULES.find((r) => r.genre === 'goryeo' && r.lineKind === 'tap');
+  check(!goryeoTap.test({ tap: { mode: 'lines', feet: [[3, 4], [2]] } }) && goryeoTap.test({ tap: { mode: 'feet', feet: [4, 4, 4] } }) && !goryeoTap.test({ tap: { mode: 'gu', gu: 10 } }), '고려가요 두드리기 규칙: 세 음보 줄이 하나라도 있으면 걸지 않고(네 음보 줄이 섞여도), 하나도 없을 때만 건다. 향가의 구 세기는 증거로 쓰지 않는다');
 }
 
 console.log('\n' + (failures ? '✗ 실패 ' + failures + '건' : '✓ 데이터 점검 통과'));

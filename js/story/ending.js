@@ -10,6 +10,7 @@ import { SINGER_GROUPS, conceptsOfGenre } from '../data/concepts.js';
 import { STORY } from '../data/story.js';
 import { showCard } from '../result/card-view.js';
 import { el, button, spriteImg, boardUrl, charCount } from './dom.js';
+import { L as PLAY_L } from '../play/labels.js';
 
 const N = STORY.ending;
 
@@ -88,7 +89,7 @@ export function runEnding({ host, session, manifest, signal } = {}) {
         const dolls = el('div', 'story-group-dolls');
         for (const id of g.songIds) {
           const s = session.songById(id);
-          const img = spriteImg(manifest, 'sprite/singer-' + id, 'story-singer', s?.singer?.name ?? '');
+          const img = spriteImg(manifest, 'sprite/singer-' + id, 'story-singer', PLAY_L.singerName(s?.singer));
           img.dataset.song = id;
           dolls.append(img);
         }

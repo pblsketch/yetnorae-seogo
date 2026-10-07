@@ -77,6 +77,12 @@ export const L = {
   // 가객과 기념품
   singersTitle: '가객이 나타났어요',
   legend: '전해지는 이야기',
+  // 가객 이름: 지은이가 전해지는 귀속(singer.traditional)이면 한정해 적는다(「규원가」 허난설헌 등). 이름 자체는 바꾸지 않는다
+  traditionalSinger: '전하는 작자: ',
+  // 이름 없이 '이름 모를 …'로 전해지는 귀속(「정읍사」 행상인의 아내)은 '작자'가 아니라 전하는 이야기 속 인물로 적는다
+  traditionalUnnamed: '전하는 이야기 속 ',
+  singerPrefix: (singer) => (!singer?.traditional ? '' : String(singer.name ?? '').startsWith('이름 모를') ? L.traditionalUnnamed : L.traditionalSinger),
+  singerName: (singer) => L.singerPrefix(singer) + (singer?.name ?? ''),
   nextSinger: '다음',
   keepsakesTitle: '기념품을 남겼어요',
   keepsakesDone: '도감에 담기',

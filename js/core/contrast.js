@@ -17,8 +17,8 @@ import { deriveFoldEvidence, deriveTapEvidence, deriveActionEvidence, HYANGGA_GU
 
 const arr = (v) => (Array.isArray(v) ? v : []);
 
-// 두드리기 증거가 감정서에 보이는 모양 그대로의 박 수 목록.
-// 향가는 덩이마다 한 박, 고려가요는 박에 드는 음보가 있는 줄마다, 나머지는 덩이마다 음보 수.
+// 두드리기 증거가 감정서에 보이는 모양 그대로의 두드린 수 목록.
+// 향가는 덩이 하나에 한 번(구 수를 세는 두드리기라 음보가 아니다), 고려가요는 박에 드는 음보가 있는 줄마다, 나머지는 덩이마다 음보 수.
 export function tapCounts(tap) {
   if (!tap) return [];
   if (tap.mode === 'gu') return Array.from({ length: tap.gu ?? 0 }, () => 1);
@@ -38,18 +38,18 @@ const tower = (lineKind, conceptId, test, action) => ({ tower: true, lineKind, c
 const rule = (genre, lineKind, conceptId, test, action) => ({ genre, lineKind, conceptId, test, action });
 
 export const CONTRAST_RULES = Object.freeze([
-  // ── 향가: 4·8·10구, 구마다 한 박, 10구체 9구 첫머리 감탄사 ──
+  // ── 향가: 4·8·10구, 10구체 9구 첫머리 감탄사 ──
+  // 두드리기 방식(구 하나에 한 번 두드려 구 수를 셈)은 프로그램이 노래 갈래를 보고 고른 것이라 학생의 증거가 아니다.
+  // 그래서 '구마다 한 번이 아니다'를 향가와 어긋나는 근거로 쓰지 않는다(Codex 점검 C3, 2026-10-07).
   rule('hyangga', 'fold', 'hyangga-lines', (e) => !HYANGGA_GU_COUNTS.includes(e.fold.units)),
-  rule('hyangga', 'tap', 'hyangga-lines', (e) => e.tap.mode !== 'gu'),
   rule('hyangga', 'action', 'hyangga-exclaim', (e, a) => e.fold.units === 10 && !a.present, 'aa-door'),
   // ── 향가관 탑의 n구 층 ──
   tower('fold', 'hyangga-lines', (e, a, t) => e.fold.units !== t.towerUnits),
-  tower('tap', 'hyangga-lines', (e) => e.tap.mode !== 'gu'),
   tower('action', 'hyangga-exclaim', (e, a, t) => t.towerUnits === 10 && !a.present, 'aa-door'),
-  // ── 고려가요: 한 줄 세 음보 안팎, 후렴·여음이 있다 ──
-  // 세 음보 줄이 80%를 넘지 않는 고려가요도 있으므로(「동동」·「정읍사」·「사모곡」) 비율로 걸지 않는다.
-  // 고려가요의 줄은 박에 드는 음보가 둘이나 셋이다. 한 박짜리 덩이나 네 음보 이상인 덩이가 있으면 어긋난다.
-  rule('goryeo', 'tap', 'goryeo-3beat', (e) => tapCounts(e.tap).some((c) => c >= 4 || c <= 1)),
+  // ── 고려가요: 한 줄이 대개 세 음보, 후렴·여음이 있다 ──
+  // 세 음보가 중심이지만 네 음보·두 음보 줄도 끼는 갈래라(한국민족문화대백과사전 「속요」) 비율이나 '네 음보 줄 하나'로 걸지 않는다.
+  // 음보로 센 두드리기(향가의 구 세기가 아님)에서 세 음보인 줄·덩이가 하나도 없을 때만 어긋난다(Codex 점검 C2, 2026-10-07).
+  rule('goryeo', 'tap', 'goryeo-3beat', (e) => { if (e.tap.mode === 'gu') return false; const c = tapCounts(e.tap); return c.length > 0 && !c.includes(3); }),
   rule('goryeo', 'action', 'goryeo-refrain', (e, a) => !a.present, 'refrain-link'),
   // ── 시조: 세 장, 장마다 네 음보, 종장 첫 음보 세 글자 ──
   rule('sijo', 'fold', 'sijo-3jang', (e) => e.fold.units !== 3),
@@ -71,6 +71,22 @@ export const CONTRAST_RULES = Object.freeze([
   rule('saseol', 'action', 'saseol-frame', (e, a) => !a.applicable || a.syllables !== 3, 'stairs'),
   rule('saseol', 'action', 'saseol-frame', (e, a) => a.steps !== 3, 'walk'),
 ]);
+
+// 맞대어 보기에서 어긋나는 줄의 개념과 짝지을 『분류 수첩』 줄을 고른다.
+// 개념마다 그 개념을 가진 줄 가운데 가장 좁은 줄(개념 수가 가장 적은 줄)만 고른다. 여러 개념을 묶은 줄(예: 사설시조와 가사를
+// 견주는 줄)은 더 좁은 줄이 없을 때만 짝이 된다(Codex 점검 B2: 덩이 수 어긋남에 무관한 줄까지 밝아지지 않게).
+// lines: [{ id, conceptIds }] → 짝이 되는 줄 id 목록(수첩 순서)
+export function pairedLineIds(conceptIds, lines) {
+  const ids = new Set();
+  const list = arr(lines);
+  for (const c of arr(conceptIds)) {
+    const having = list.filter((l) => arr(l?.conceptIds).includes(c));
+    if (!having.length) continue;
+    const narrow = Math.min(...having.map((l) => arr(l.conceptIds).length));
+    for (const l of having) if (arr(l.conceptIds).length === narrow) ids.add(l.id);
+  }
+  return list.filter((l) => ids.has(l.id)).map((l) => l.id);
+}
 
 function evidenceOf(song, actionIds) {
   const ids = actionIds == null ? [] : (Array.isArray(actionIds) ? actionIds : [actionIds]);

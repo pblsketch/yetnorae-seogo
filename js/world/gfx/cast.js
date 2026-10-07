@@ -88,7 +88,7 @@ export const SINGERS = {
   'chan-giparangga': { look: 'monk-bowl', singer: '충담사', class: '승려' },
   jemangmaega: { look: 'monk-flute', singer: '월명사', class: '승려' },
   heonhwaga: { look: 'old-cowherd', singer: '이름 모를 노인', class: '민간' },
-  mojukjirangga: { look: 'hwarang', singer: '득오', class: '화랑' },
+  mojukjirangga: { look: 'hwarang', singer: '득오', class: '낭도' },
   anminga: { look: 'monk-bowl', singer: '충담사', class: '승려' },
   wonwangsaengga: { look: 'monk-straw', singer: '광덕', class: '승려' },
   // 고려가요관(지은이를 모르는 속요는 궁중 악공 한 그림)

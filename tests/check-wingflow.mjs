@@ -494,8 +494,17 @@ try {
     await waitSel(page, '.play-panel[data-panel="notebook"]', 5000);
     const nb = await ev(page, () => ({ tabs: [...document.querySelectorAll('.play-nb-tab')].map((t) => t.dataset.genre), glowLines: document.querySelectorAll('.play-panel[data-panel="notebook"] .is-glow').length, current: document.querySelector('.play-nb-tab.is-current')?.dataset.genre, glowTabs: [...document.querySelectorAll('.play-nb-tab.is-glow')].map((t) => t.dataset.genre) }));
     ok(nb.current !== 'gasa' && !nb.glowTabs.includes('gasa'), '수첩은 틀린 노래의 갈래(가사) 쪽으로 넘어가거나 반짝이지 않는다 ' + JSON.stringify({ current: nb.current, glowTabs: nb.glowTabs }));
+    ok(nb.current === 'saseol', '도움 반짝임이 기다리는 중에 수첩을 열면 가장 최근 도움의 대상(행선지 사설시조관) 쪽이 펼쳐진다(지금 관 시조 쪽이 아니다) ' + JSON.stringify({ current: nb.current }));
     ok(same(nb.tabs, ['hyangga', 'goryeo', 'sijo', 'gasa', 'saseol']), '『분류 수첩』 다섯 갈래 쪽이 모두 있다');
     ok(nb.glowLines > 0, '수첩의 관련 줄이 반짝인다 (' + nb.glowLines + ')');
+    await click(page, '.play-panel .play-panel-close');
+    // 반짝임을 본 뒤 다시 열면(기다리는 도움 없음) 평소처럼 지금 관(시조) 쪽에서 펼쳐진다
+    await page.waitForFunction(() => !document.querySelector('.play-panel[data-panel="notebook"]'), null, { timeout: 5000, polling: 100 });
+    const glowAfter = await ev(page, () => document.querySelector('.play-btn[data-open="notebook"]')?.classList.contains('is-glow'));
+    await click(page, '.play-btn[data-open="notebook"]');
+    await waitSel(page, '.play-panel[data-panel="notebook"]', 5000);
+    const nb2 = await ev(page, () => document.querySelector('.play-nb-tab.is-current')?.dataset.genre);
+    ok(!glowAfter && nb2 === 'sijo', '기다리는 도움이 없으면 수첩은 지금 관(시조) 쪽에서 펼쳐진다 ' + JSON.stringify({ glowAfter, nb2 }));
     await click(page, '.play-panel .play-panel-close');
 
     console.log('— 칸 묶기: 제본, 먹안개, 가객, 기념품');
@@ -510,6 +519,22 @@ try {
     ok(same(c1.singers.map((s) => s.id), ['dongjitdal', 'ireondeul', 'imomi-jukgo']), '가객 셋이 차례로 나온다 ' + JSON.stringify(c1.singers.map((s) => s.id)));
     ok(c1.singers.every((s) => s.name === song(s.id).singer.name && s.img && s.line.length > 0), '가객은 이름과 종이 인형, 한 소절로 나온다');
     ok(same(c1.singers.map((s) => s.legend), [false, true, true]) && c1.singers.filter((s) => s.legend).every((s) => s.legendText === '전해지는 이야기'), "설화 장면에는 '전해지는 이야기'를 붙인다");
+    // 지은이가 전해지는 귀속(singer.traditional)이면 가객 머리에 '전하는 작자: '를 붙인다(Codex 점검 B4·C7). 이름은 그대로 둔다
+    const trad = await page.evaluate(async () => {
+      const at = (f) => new URL('../../js/' + f, document.baseURI).href;
+      const { singerHeading } = await import(at('play/ceremony.js'));
+      const { L } = await import(at('play/labels.js'));
+      const { songs } = await import(at('data/songs/index.js'));
+      const gyu = songs.find((x) => x.id === 'gyuwonga');
+      const jin = songs.find((x) => x.id === 'dongjitdal');
+      const jeong = songs.find((x) => x.singer?.traditional && String(x.singer.name).startsWith('이름 모를'));
+      const a = singerHeading(gyu.singer);
+      const b = singerHeading(jin.singer);
+      return { a: a.textContent, aName: a.querySelector('.play-singer-name')?.textContent, b: b.textContent, bTrad: !!b.querySelector('.play-singer-traditional'), alt: L.singerName(gyu.singer), altPlain: L.singerName(jin.singer), name: gyu.singer.name, unnamed: jeong ? singerHeading(jeong.singer).textContent : null, unnamedName: jeong?.singer.name ?? null };
+    });
+    ok(trad.a === '전하는 작자: 허난설헌' && trad.aName === trad.name && trad.alt === trad.a, "전해지는 귀속인 가객(「규원가」)은 '전하는 작자: 허난설헌'으로 보이고 이름 자체는 그대로다 " + JSON.stringify(trad));
+    ok(trad.unnamed === '전하는 이야기 속 ' + trad.unnamedName && !trad.unnamed.includes('작자'), "이름 없이 전해지는 귀속('이름 모를 …')은 '전하는 작자'가 아니라 '전하는 이야기 속'으로 보인다 " + JSON.stringify(trad));
+    ok(!trad.bTrad && trad.b === trad.altPlain && !trad.b.includes('전하는'), '(음성) 귀속이 분명한 가객(「동짓달 기나긴 밤을」)에는 한정 말이 붙지 않는다 ' + JSON.stringify(trad));
     ok(same(c1.cards.map((c) => c.id), ['dongjitdal', 'ireondeul', 'imomi-jukgo']) && c1.cards[0].name === song('dongjitdal').keepsake.name, '기념품 카드 석 장 ' + JSON.stringify(c1.cards.map((c) => c.name)));
     pr = await progressOf(page);
     ok(pr.wings.sijo.shelfBound && ['dongjitdal', 'ireondeul', 'imomi-jukgo'].every((id) => pr.keepsakes.includes(id)), '칸 묶음과 기념품을 기록한다');
@@ -722,6 +747,18 @@ try {
     await setup(page);
     await page.waitForFunction(() => document.querySelector('.play')?.dataset.place === 'sijo', null, { timeout: 15000, polling: 100 });
     ok((await playLayoutCheck(page)).length === 0, label + ': 배치 문제 없음 ' + JSON.stringify(await playLayoutCheck(page)));
+    // '재기 그만두기'(B5): 재기 도중 그만두면 잰 것으로 기록하지 않고 관으로 돌아오며, 다시 잡아 잴 수 있다
+    if (!(await click(page, '.play-song[data-song="dongjitdal"]'))) throw new Error('잡을 노래가 없음');
+    await waitContext(page, '잡기');
+    await click(page, '.world-context');
+    await waitSel(page, '.world.is-split .measure .m-quit', 10000);
+    const quitSeen = await ev(page, () => ({ hudHidden: getComputedStyle(document.querySelector('.play-hud')).display === 'none', text: document.querySelector('.measure .m-quit')?.textContent }));
+    ok(quitSeen.hudHidden && quitSeen.text === '재기 그만두기', label + ": 재기 동안 위 띠는 숨고 재기 머리에 '재기 그만두기'가 있다 " + JSON.stringify(quitSeen));
+    await page.focus('.measure .m-quit');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => !document.querySelector('.world.is-split') && !document.querySelector('.measure') && !document.querySelector('.play')?.classList.contains('is-measuring'), null, { timeout: 5000, polling: 100 });
+    const quitAfter = await ev(page, () => ({ hud: getComputedStyle(document.querySelector('.play-hud')).display !== 'none', hand: [...document.querySelectorAll('.play-hand-song')].map((e) => e.dataset.song), floating: !!document.querySelector('.play-song[data-song="dongjitdal"]') }));
+    ok(quitAfter.hud && !quitAfter.hand.includes('dongjitdal') && quitAfter.floating && !(await progressOf(page)).wings.sijo.measured.includes('dongjitdal'), label + ': 그만두면(키보드 Enter) 관으로 돌아오고 위 띠가 보이며, 잰 것으로 기록하지 않아 노래가 다시 떠다닌다 ' + JSON.stringify(quitAfter));
     await catchAndMeasure(page, 'sijo', 'dongjitdal');
     await placeInto(page, 'shelf', 0, 'dongjitdal');
     ok(same((await progressOf(page)).wings.sijo.placements.shelf[0], { songId: 'dongjitdal', fixed: false }), label + ': 잡고 꽂는다');
@@ -729,9 +766,20 @@ try {
     await waitSel(page, '.play-dialog', 5000);
     ok((await playLayoutCheck(page)).length === 0, label + ': 대화 상자 배치 문제 없음 ' + JSON.stringify(await playLayoutCheck(page)));
     await click(page, '.play-dialog .play-dialog-close');
+    // 도움이 기다리는 중(위 띠 반짝임)에 열면 그 도움의 대상 갈래(여기서는 향가) 쪽이, 아니면 지금 관 쪽이 펼쳐진다(B1)
+    await ev(page, () => window.__wf.events.emit('help:notebook-glow', { wing: 'sijo', genre: 'hyangga', conceptIds: ['hyangga-lines'], songId: 'chang-naegoja' }));
+    await page.waitForFunction(() => document.querySelector('.play-btn[data-open="notebook"]')?.classList.contains('is-glow'), null, { timeout: 5000, polling: 100 });
     await click(page, '.play-btn[data-open="notebook"]');
     await waitSel(page, '.play-panel[data-panel="notebook"]', 5000);
     ok((await playLayoutCheck(page)).length === 0, label + ': 수첩 배치 문제 없음 ' + JSON.stringify(await playLayoutCheck(page)));
+    const firstTab = await ev(page, () => document.querySelector('.play-nb-tab.is-current')?.dataset.genre);
+    ok(firstTab === 'hyangga', label + ': 도움이 기다리는 중에 열면 도움의 대상 갈래(향가) 쪽이 펼쳐진다 ' + firstTab);
+    await click(page, '.play-panel .play-panel-close');
+    await page.waitForFunction(() => !document.querySelector('.play-panel[data-panel="notebook"]'), null, { timeout: 5000, polling: 100 });
+    await click(page, '.play-btn[data-open="notebook"]');
+    await waitSel(page, '.play-panel[data-panel="notebook"]', 5000);
+    const plainTab = await ev(page, () => document.querySelector('.play-nb-tab.is-current')?.dataset.genre);
+    ok(plainTab === 'sijo', label + ': (음성) 기다리는 도움이 없으면 지금 관(시조) 쪽이 펼쳐진다 ' + plainTab);
     await click(page, '.play-panel .play-panel-close');
     ok(game.errors.length === 0 && game.external.length === 0, label + ': 콘솔 오류·바깥 요청 없음 ' + game.errors.slice(0, 3).join(' | '));
     await game.close();

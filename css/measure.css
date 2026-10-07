@@ -42,6 +42,7 @@
 .measure .m-prev, .measure .m-next { padding: 0; font-size: calc(22px * var(--text-scale)); }
 .measure .m-book-btn, .measure .m-journal-btn { flex: 0 0 auto; }
 .measure .m-book-btn.is-glow, .measure .m-journal-btn.is-glow { box-shadow: 0 0 0 3px var(--gold); }
+.measure .m-quit { flex: 0 1 auto; min-width: var(--touch-min); border-color: var(--juhong); white-space: nowrap; font-size: calc(13px * var(--text-scale)); }
 
 .m-hint {
   margin: 0;

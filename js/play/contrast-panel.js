@@ -1,11 +1,12 @@
 // 맞대어 보기 창(오답 뒤): 판정에서 돌아온 노래 한 편을 학생이 고른 자리와 견주어 본다.
 //   왼쪽: 그 노래의 감정서 줄(누를 수 있다). 오른쪽: 그 자리의 『분류 수첩』 쪽 줄(탑이면 '이 층은 … 덩이' 줄을 더한다).
-//   어긋나는 줄을 누르면 그 줄과 같은 개념을 가진 수첩 줄이 짝으로 밝아지고, '손에 다시 들기'로 창을 닫는다.
+//   어긋나는 줄을 누르면 그 줄과 같은 개념을 가장 좁게 설명하는 수첩 줄이 짝으로 밝아지고, '손에 다시 들기'로 창을 닫는다.
 //   어긋나지 않는 줄을 누르면 살짝 흔들릴 뿐 아무것도 남지 않는다. 같은 노래에서 두 번 그러면 어긋나는 줄이 살짝 빛난다.
 //   Esc를 누르면 그대로 닫힌다(노래는 이미 손에 돌아와 있다). 3D·2D가 같은 DOM이다.
 // 판정과 기록은 진행 엔진이 이미 했다. 이 창은 아무것도 저장하지 않고 오답 수에도 들지 않는다.
 // 어느 줄이 어긋나는지는 js/core/contrast.js의 mismatches가 정한다(부르는 쪽이 넘긴다). 비어 있으면 이 창을 열지 않는다.
 import { sheetLines } from '../measure/sheet.js';
+import { pairedLineIds } from '../core/contrast.js';
 import { el, button } from './dom.js';
 import { L } from './labels.js';
 
@@ -68,7 +69,7 @@ export function openContrast(host, { song, sheet, neutral = true, found = [], pa
       const li = el('li', 'play-contrast-note', line.text);
       li.dataset.lineId = line.id;
       rightList.append(li);
-      return { li, concepts: line.conceptIds ?? [] };
+      return { li, id: line.id };
     });
     right.append(rightList);
 
@@ -113,7 +114,9 @@ export function openContrast(host, { song, sheet, neutral = true, found = [], pa
         paired = true;
         b.classList.add('is-pair');
         b.setAttribute('aria-pressed', 'true');
-        for (const r of rights) if (r.concepts.some((c) => concepts.includes(c))) r.li.classList.add('is-pair');
+        // 그 어긋남의 개념을 가장 좁게 설명하는 수첩 줄만 짝으로 밝힌다(같은 개념을 함께 묶은 넓은 줄은 빼고)
+        const pairIds = pairedLineIds(concepts, pageLines);
+        for (const r of rights) if (pairIds.includes(r.id)) r.li.classList.add('is-pair');
         for (const it of items) if (it.b !== b) it.b.disabled = true;
         status.textContent = L.contrastFound;
         back.hidden = false;

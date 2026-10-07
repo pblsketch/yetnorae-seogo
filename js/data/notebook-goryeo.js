@@ -1,5 +1,7 @@
 // 『분류 수첩』 고려가요 쪽(spec 8). 선대 사서가 남긴 갈래 설명이며 교사 확인 대상이다.
 // lines는 오답 도움에서 반짝이는 줄(spec 6.4)이고, conceptIds는 고려가요 개념(spec 7.1)만 쓴다.
+// 세 음보는 고려가요(속요)의 중심 율격이지만 네 음보가 끼는 노래도 있어 '대개'로 한정하고, '세 번 끊기'(경계 셋 = 덩이 넷)와
+// 헷갈리지 않게 '세 음보로 나누어'라고 쓴다(Codex 점검 C2·C8, 2026-10-07; 한국민족문화대백과사전 「속요」[S1]).
 // 본문의 보기 구절은 덤 노래(「동동」·「정읍사」·「상저가」)에서만 그 노래 데이터 그대로 옮긴다. 칸·길 잃은 노래·작품 방 노래를
 // 인용하면 그 구절을 본 학생이 판단 없이 노래를 알아보게 되므로 쓰지 않는다(tests/check-goryeo.mjs가 확인한다).
 
@@ -16,6 +18,6 @@ export const notebookPage = {
   lines: [
     { id: 'goryeo-stanza', conceptIds: ['goryeo-stanza'], text: '여러 연으로 나뉘고, 연마다 비슷한 말이 되풀이된다.' },
     { id: 'goryeo-refrain', conceptIds: ['goryeo-refrain'], text: '연이나 줄 끝에 후렴이 돌아오고, 뜻 없는 소리(여음)가 끼어든다.' },
-    { id: 'goryeo-3beat', conceptIds: ['goryeo-3beat'], text: '한 줄을 세 번 끊어 읽는다. 세 음보다.' },
+    { id: 'goryeo-3beat', conceptIds: ['goryeo-3beat'], text: '한 줄을 대개 세 음보로 나누어 읽는다.' },
   ],
 };

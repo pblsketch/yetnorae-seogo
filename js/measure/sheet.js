@@ -19,7 +19,8 @@ function foldLine(sheet, unit) {
 // '덩이'로 부를 때(neutral: 보스, 그리고 관·입구에서 드러나기 전의 노래)는 '줄'이라는 말도 갈래를 드러내므로 '덩이'로 쓴다.
 function tapLine(sheet, unit, neutral) {
   const t = sheet.tap;
-  if (t.mode === 'gu') return '[' + unit + '마다 한 박, 모두 ' + count(t.gu, '박') + ']';
+  // 향가는 구 수를 세려고 구 하나에 한 번씩 두드린다(향가의 운율이 '구마다 한 박'이라는 뜻이 아니다, Codex 점검 C3)
+  if (t.mode === 'gu') return L.sheetTapGu(unit, count(t.gu, '번'));
   const list = t.mode === 'lines' ? t.feet.flat().filter((c) => c > 0) : t.feet;
   const per = t.mode === 'lines' && !neutral ? '줄' : unit;
   if (list.length && list.every((c) => c === list[0])) return '[' + per + '마다 ' + count(list[0], '음보') + ']';

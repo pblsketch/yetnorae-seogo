@@ -1,7 +1,7 @@
 # js/core — 화면 없는 엔진
 
 ## 맡는 것
-- `save.js`: 로컬 저장소 열쇠 하나(`yetnorae-seogo-v1`)의 문서 읽기·쓰기, 이름 기록(만들기·고르기·지우기·모습 바꾸기), 기기 공통 설정, 불러올 때 바로잡기(`normalizeData`·`normalizeProgress`), 버전 옮기기(`MIGRATIONS`).
+- `save.js`: 로컬 저장소 열쇠 하나(`yetnorae-seogo-v1`)의 문서 읽기·쓰기(읽고 고쳐 쓰기), 이름 기록(만들기·고르기·지우기·모습 바꾸기), 기기 공통 설정, 불러올 때 바로잡기(`normalizeData`·`normalizeProgress`), 버전 옮기기(`MIGRATIONS`).
 - `progress.js`: 기록 하나의 진행 규칙(관 열림, 꽂기·빼기·판정, 행선지, 개념 확인, 작품 방 완료, 보스 단계, 엔딩, 이어 하기 위치). 조정 값은 `TUNABLES`.
 - `judge.js`: 판정 규칙 순수 함수(`judgeArea`, `routeStray`, `judgeUnseenPlacement`, `judgeSingerGroup` 등)와 자리 수 `AREA_SIZES`.
 - `rhythm.js`: 박자 칸(`buildGrid`), 탭 판정 회차(`createTapSession`, ±150ms), 박자 보정(`calibrationOffset`, 차이의 중앙값), 효과음 박 칸(`pulseGrid`, 보정 종소리 `calibrationGrid`, 걷기 한 걸음 `walkStepGrid` 장구 넷), 리믹스 칸과 회차(`buildRemixGrid`, `createRemixSession`), 박자 없는 상태(`noBeatState`). 시각만 다루고 소리를 내지 않는다.
@@ -9,7 +9,7 @@
 - `events.js`: 앱 하나의 사건 버스(`on`, `off`, `emit`).
 - `cards.js`: 결과 카드 자료(`buildWingCard`, `buildFinalCard`), 파일 이름.
 - `song-shape.js`: 노래 모양 계산(글자 수, 낭송 조각 경로, 감정서 `deriveSheet`, 개념 도출). 재기 화면·소리·검증기·도구가 함께 쓴다.
-- `contrast.js`: 맞대어 보기 규칙(`mismatches(노래, 대상, 동작들)` → 감정서에서 대상과 어긋나는 줄과 그 개념, `CONTRAST_RULES`, 건전성 점검 `contrastSoundness`). 진행 엔진의 오답 도움 개념과 한 판 화면의 맞대어 보기 창이 함께 쓴다.
+- `contrast.js`: 맞대어 보기 규칙(`mismatches(노래, 대상, 동작들)` → 감정서에서 대상과 어긋나는 줄과 그 개념, `CONTRAST_RULES`, 건전성 점검 `contrastSoundness`), 짝지을 수첩 줄 고르기(`pairedLineIds`: 개념마다 그 개념을 가진 가장 좁은 줄만). 진행 엔진의 오답 도움 개념과 한 판 화면의 맞대어 보기 창이 함께 쓴다.
 - `text.js`: 학생이 입력한 글의 글자 세기. `cleanText`(NFC + 앞뒤 공백 빼기), `graphemeCount`(눈에 보이는 글자 단위 = 확장 자소 덩어리, `Intl.Segmenter`), `Intl.Segmenter`가 없을 때의 어림 `fallbackGraphemeCount`. 이름(`save.js`), 엔딩 한 줄·한마디(`progress.js`), 엔딩 입력 글자 수 표시(`js/story/dom.js`의 `charCount`)가 모두 이것을 쓴다.
 - `validate.js`: 데이터 검증기(오류 코드 `FIELD`·`FORM`·`EVIDENCE`·`KEEPSAKE`·`CITATION`·`TABLE`·`ROUTING`·`TABLE_SHAPE`·`MISSING`·`DUPLICATE`·`INK`·`REMIX`·`NOTEBOOK`).
 
@@ -24,10 +24,12 @@
 - 모든 행동은 `{ ok, reason?, … }`을 돌려준다. `ok: false`인 행동은 아무것도 바꾸지 않고 저장하지 않는다. 기록을 바꾼 행동은 끝에서 `save()`를 부른다(보스 2단계의 중간 지점 맞힘만 저장하지 않는다).
 - 개념 상태는 되돌아가지 않는다. 여러 노래를 한꺼번에 확인하면 다 더한 뒤 상태를 정한다.
 - 불러올 때 관·보스·엔딩 상태는 저장된 `state`가 아니라 표시와 순서에서 다시 계산한다. 앞 관이 `done`이 아니면 `locked`, 다섯 관이 `done`이 아니면 보스 `locked`, 낯선 노래 다섯이 `done`이 아니면 보스는 `stage1`을 넘지 않는다, 보스가 `done`이 아니면 `ending.completed`는 거짓.
-- 더 새 버전의 저장 문서는 절대 덮어쓰지 않는다(`writable = false`).
+- 더 새 버전의 저장 문서는 절대 덮어쓰지 않는다(`writable = false`). 쓰기 직전에 다시 읽었을 때 더 새 버전이어도 같다.
+- 저장은 읽고 고쳐 쓰기다: 쓸 때마다 저장소를 다시 읽고 이 창에서 바뀐 것(바뀐 기록 자리 `dirtySlots`, 바꾼 설정 값 `dirtyDevice`, 지운 기록 `removedSlots`, 바꾼 `lastSlotId`)만 얹는다. 다른 기록은 저장소의 것 그대로 남는다(여러 창, Codex 점검 B3). 같은 기록은 나중 쓴 창이 이긴다. 기록을 바꾸는 길은 `touchRecord`(진행 엔진의 `save`), `createRecord`, `setAppearance`, `deleteRecord`, `updateDevice`뿐이고, 바깥에서 부르는 `save()`는 지금 연 기록을 바뀐 것으로 친다.
+- 지금 연 기록(`lastSlotId`)의 객체는 다른 창 값으로 바꾸지 않는다(진행 엔진이 쥐고 고친다). `selectRecord`만 진행 엔진을 붙이기 전에 저장소의 최신 값으로 새로 읽으므로, `openRecord`는 고른 **뒤**에 기록을 받는다.
 - 글자 수는 코드 포인트(`[...s].length`)나 UTF-16 길이로 세지 않는다. 이름·엔딩 글은 `cleanText`로 맞춘 뒤 `graphemeCount`로 센다(가족 이모지 하나 = 1자, 첫가끝으로 풀어 쓴 한글 한 글자 = 1자). 저장하는 글도 `cleanText`한 모양이다. `text.js`는 특수 글자를 글자 그대로 쓰지 않는다(글꼴 점검이 게임 소스의 모든 글자를 글꼴에 있어야 할 글자로 본다).
 - 보스 1단계의 '누가 불렀을까' 전 상태(`pendingSinger`)와 2단계 찾은 지점(`stage2Found`)은 메모리에만 둔다. 보스를 나갔다 오면 그 노래와 2단계를 처음부터 한다.
-- 오답 도움(`help:notebook-glow`, 보스 1·3단계 `help:journal-glow`)은 노래 자기 갈래가 아니라 **대상**(학생이 고른 자리) 갈래의 개념 가운데 그 노래의 감정서와 어긋나는 것을 싣는다(없으면 대상 갈래 개념 모두). 보스는 학생이 쓴 도구(`actions`)의 증거만 본다. 맞대어 보기 규칙은 건전해야 한다: 어떤 규칙도 대상 갈래의 노래를 걸지 않는다(`check-data` [6]).
+- 오답 도움(`help:notebook-glow`, 보스 1·3단계 `help:journal-glow`)은 노래 자기 갈래가 아니라 **대상**(학생이 고른 자리) 갈래의 개념 가운데 그 노래의 감정서와 어긋나는 것을 싣는다(없으면 대상 갈래 개념 모두). 보스는 학생이 쓴 도구(`actions`)의 증거만 본다. 맞대어 보기 규칙은 건전해야 한다: 어떤 규칙도 대상 갈래의 노래를 걸지 않는다(`check-data` [6]). 학생의 증거가 아닌 것(프로그램이 갈래를 보고 고른 두드리기 방식 `tap.mode`)은 규칙의 근거로 쓰지 않는다. 짚을 줄이 없는 자리 목록은 `check-data` [6]의 `NO_EVIDENCE`가 정확히 지킨다.
 - 드러남(`isRevealed`·`marksKnown`)은 기록의 고정·행선지·`measured`에서 다시 계산하고 저장에 새 값을 두지 않는다.
 - 카드 자료에 매기는 값이 없다. `check-engine`은 카드 자료의 모든 열쇠 이름(속까지)에서 `score|grade|rank|point|percent`와 한국어 낱말을 찾으므로, 새 열쇠 이름에 `point` 같은 말을 쓰지 않는다.
 

@@ -22,6 +22,8 @@
 //   ctx.introSeen     { common, unique } 첫 사용 안내를 이미 보았는지. ctx.onIntroSeen(kind)로 본 것을 알린다
 //   ctx.reduceMotion  () → 움직임 줄이기
 //   ctx.signal        중단 신호(AbortSignal). 중단되면 AbortError로 끝나고 반반 틀을 닫는다
+//   ctx.canQuit       참이면 머리에 '재기 그만두기'를 둔다(관). 누르면 같은 중단 길로 AbortError로 끝난다:
+//                     예약한 낭송·장구를 거두고 반반 틀을 닫으며, 감정서를 돌려주지 않으므로 부르는 쪽은 잰 것으로 기록하지 않는다
 import * as bus from '../core/events.js';
 import { deriveSheet } from '../core/song-shape.js';
 import { ACTION_IDS, wingById, wingOfGenre } from '../data/wings.js';
@@ -76,8 +78,13 @@ export async function openMeasure(ctx = {}) {
   const song = ctx.song;
   if (!song || !Array.isArray(song.units)) throw new Error('재기할 노래가 없다');
   const boss = ctx.mode === 'boss';
-  const signal = ctx.signal ?? null;
-  if (signal?.aborted) throw abortError(signal);
+  const outer = ctx.signal ?? null;
+  if (outer?.aborted) throw abortError(outer);
+  // 재기 안의 중단 신호: 바깥 중단(관을 떠남 등)이나 '재기 그만두기'가 같은 길로 재기를 끝낸다
+  const quitCtl = new AbortController();
+  const onOuterAbort = () => quitCtl.abort(abortError(outer));
+  outer?.addEventListener('abort', onOuterAbort, { once: true });
+  const signal = quitCtl.signal;
   const emit = bus.emit;
   const wingAction = boss ? null : (actionForWing(ctx.wing) ?? actionForWing(wingOfGenre(song.genre)?.id));
   const engine = ctx.rhythm?.engine ?? null;
@@ -96,6 +103,11 @@ export async function openMeasure(ctx = {}) {
   const pager = el('div', 'm-pager');
   pager.append(prev, pageLabel, next);
   head.append(layerBtn, pager);
+  if (ctx.canQuit && !boss) {
+    const quit = button('m-quit', L.quit);
+    quit.addEventListener('click', () => quitCtl.abort(new DOMException(L.quit, 'AbortError')), { once: true });
+    head.append(quit);
+  }
   const hint = el('p', 'm-hint');
   hint.setAttribute('aria-live', 'polite');
   const main = el('div', 'm-main');
@@ -237,6 +249,7 @@ export async function openMeasure(ctx = {}) {
     await showSheet(sheet);
     return sheet;
   } finally {
+    outer?.removeEventListener('abort', onOuterAbort);
     for (const off of offs) off?.();
     view.dispose();
     if (useWorld) ctx.world.closeSplit();

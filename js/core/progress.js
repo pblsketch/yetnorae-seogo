@@ -525,9 +525,11 @@ export function createProgress({
 }
 
 // 저장 엔진의 기록 하나에 진행 엔진을 붙인다. 행동마다 기록의 updatedAt을 고치고 저장한다.
+// 고르면서 저장소의 최신 값으로 새로 읽으므로(save.js selectRecord) 기록 객체는 고른 뒤에 받는다.
 export function openRecord(store, recordId, opts = {}) {
+  if (!store.getRecord(recordId)) return null;
+  store.selectRecord(recordId);
   const record = store.getRecord(recordId);
   if (!record) return null;
-  store.selectRecord(recordId);
   return createProgress({ ...opts, progress: record.progress, save: () => store.touchRecord(recordId) });
 }
