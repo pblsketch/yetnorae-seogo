@@ -453,7 +453,12 @@ function measureNext(info) {
       const inRange = (w) => info.ranges.some((r) => r.unit === Number(w.dataset.u) && r.line === Number(w.dataset.l) && Number(w.dataset.f) >= r.from && Number(w.dataset.f) <= r.to);
       const w = [...root.querySelectorAll('.m-text button.m-word:not(.is-linked)')].find(inRange);
       if (w) return { kind: 'refrain', sel: sel(w) };
+      // 마지막 쪽까지 왔는데 앞쪽에 아직 잇지 않은 후렴이 남았으면(누르기가 빗나간 경우 등) 첫 쪽으로 되돌아가 다시 찾는다
+      const prev = root.querySelector('.m-prev');
+      const prevOk = prev && !prev.disabled && !prev.closest('[hidden]');
+      if (info.rewinding && prevOk) return { kind: 'page-back', sel: '.measure .m-prev' };
       if (nextOk) return { kind: 'page', sel: '.measure .m-next' };
+      if (prevOk) return { kind: 'page-back', sel: '.measure .m-prev' };
     } else if (act === 'walk') {
       const b = box.querySelector('button.m-walk-step');
       if (b && !b.disabled) return { kind: 'walk', sel: '.measure .m-action button.m-walk-step' };
@@ -604,6 +609,8 @@ async function solveMeasure(page, ui, S, info, stats) {
     if (n.kind === 'intro') intros.push(n.intro);
     if (n.kind === 'sheet') sheet = n.sheet;
     if (n.kind === 'tool') info.toolUsed = true;
+    if (n.kind === 'page-back') info.rewinding = true;
+    else if (n.kind === 'page' || n.kind === 'refrain') info.rewinding = false;
     try {
       await ui.press(n.sel, 8000);
     } catch (e) {
@@ -702,7 +709,8 @@ async function pressFloatingSong(ui, id) {
 
 async function catchAndMeasure(page, ui, S, wingId, id, stats) {
   await pressFloatingSong(ui, id);
-  await ui.press('.world-context');
+  // 잡기 단추를 누르는 사이 재기 화면이 이미 열렸으면(단추가 사라져 Playwright가 기다리다 끝남) 그대로 잇는다
+  try { await ui.press('.world-context'); } catch (e) { if (!(await ui.has('.world.is-split .measure'))) throw e; }
   await ui.waitSel('.world.is-split .measure', 20000);
   const r = await solveMeasure(page, ui, S, actionInfo(ACTION_OF[wingId], song(id)), stats);
   await ui.waitSel(`.play-hand-song[data-song="${id}"]`, 20000);
