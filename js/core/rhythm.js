@@ -185,14 +185,27 @@ export function calibrationBells({ count = CALIBRATION_BEATS, intervalSec = CALI
   return Array.from({ length: count }, (_, i) => startAt + i * intervalSec);
 }
 
-// 보정용 박자 칸: 단위 하나, 종소리 박 count개(낭송 조각 없음)
-export function calibrationGrid({ count = CALIBRATION_BEATS, intervalSec = CALIBRATION_INTERVAL_SEC } = {}) {
-  const beats = Array.from({ length: count }, (_, i) => ({ unit: 0, line: null, foot: i, path: null, sound: 'bell' }));
+// 효과음 박만 있는 박자 칸: 단위 하나, sound 박 count개(낭송 조각 없음)
+export function pulseGrid({ count, intervalSec, sound }) {
+  if (!(count > 0) || !(intervalSec > 0)) throw new Error('박 수와 간격은 0보다 커야 한다');
+  const beats = Array.from({ length: count }, (_, i) => ({ unit: 0, line: null, foot: i, path: null, sound }));
   return { songId: null, genre: null, tempo: 60 / intervalSec, beatSec: intervalSec, ...layout([{ unit: 0, line: null, beatSec: intervalSec, beats }], 0) };
 }
 
-// 종소리 시각과 탭 시각으로 보정값(ms)을 계산한다. 보정값 = 탭 - 종의 평균(늦게 치는 기기면 양수).
+// 보정용 박자 칸: 단위 하나, 종소리 박 count개(낭송 조각 없음)
+export function calibrationGrid({ count = CALIBRATION_BEATS, intervalSec = CALIBRATION_INTERVAL_SEC } = {}) {
+  return pulseGrid({ count, intervalSec, sound: 'bell' });
+}
+
+// 걷기 한 걸음의 박자 칸: 노래 빠르기로 장구 네 번(spec 5.4 '네 박마다 한 걸음')
+export const WALK_STEP_BEATS = 4;
+export function walkStepGrid(song, opts = {}) {
+  return pulseGrid({ count: WALK_STEP_BEATS, intervalSec: 60 / tempoOf(song, opts), sound: 'janggu' });
+}
+
+// 종소리 시각과 탭 시각으로 보정값(ms)을 계산한다. 보정값 = 탭 - 종의 중앙값(늦게 치는 기기면 양수).
 // 탭마다 가장 가까운 종에 짝짓고, 한 종에는 가장 가까운 탭 하나만 둔다. 너무 먼 탭은 버린다.
+// 평균이 아니라 중앙값을 쓴다: 미리 알 수 없는 첫 종에 늦게 반응한 탭 하나가 보정값을 끌고 가지 않게.
 // 짝이 minMatched보다 적으면(건너뜀 포함) ok: false, 보정값 0.
 export function calibrationOffset(bellTimes, tapTimes, opts = {}) {
   const bells = arr(bellTimes);
@@ -210,8 +223,10 @@ export function calibrationOffset(bellTimes, tapTimes, opts = {}) {
   }
   const deltas = [...best.values()];
   if (deltas.length < minMatched) return { ok: false, offsetMs: CALIBRATION_SKIP_OFFSET_MS, matched: deltas.length };
-  const mean = deltas.reduce((a, b) => a + b, 0) / deltas.length;
-  return { ok: true, offsetMs: Math.round(mean), matched: deltas.length };
+  const sorted = deltas.slice().sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  return { ok: true, offsetMs: Math.round(median), matched: deltas.length };
 }
 
 // ── 리믹스(spec 10.2 2단계, js/data/README.md 5절) ──

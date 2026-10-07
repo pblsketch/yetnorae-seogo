@@ -54,6 +54,26 @@ export const L = {
   sentReturned: (title, wing) => '「' + title + '」은(는) ' + wing + " '돌아온 노래' 선반에 꽂혔어요.",
   helpGlow: '『분류 수첩』의 관련 줄이 반짝여요. 펼쳐 보세요.',
 
+  // 맞대어 보기(판정에서 돌아온 노래를 그 자리와 견주어 본다). 틀렸다는 말이나 기록은 없다
+  contrastTitle: (title) => '「' + title + '」 맞대어 보기',
+  contrastPrompt: '이 노래의 감정서에서 이 자리와 맞지 않는 줄을 짚어 보자.',
+  contrastSheet: '이 노래의 감정서',
+  contrastPage: (name) => '『분류 수첩』 ' + name + ' 쪽',
+  contrastFloor: (gu) => gu + '구 층',
+  floorLine: (gu) => '이 층은 ' + ({ 4: '네', 8: '여덟', 10: '열' }[gu] ?? gu) + ' 덩이로 된 노래의 자리다.',
+  contrastFound: '이 줄이 이 자리와 어긋나요. 수첩의 줄과 견주어 보세요.',
+  contrastNudge: '살짝 빛나는 줄을 다시 읽어 보세요.',
+  contrastBack: '손에 다시 들기',
+
+  // 칸이 묶일 때 그 관의 단위 이름이 드러난다(그 전에는 '덩이'라 부른다)
+  unitReveal: {
+    hyangga: '이 관의 덩이는 ‘구’라 부른다.',
+    goryeo: '이 관의 큰 덩이는 ‘연’, 연 안의 작은 덩이는 ‘줄’이라 부른다.',
+    sijo: '이 관의 덩이는 ‘장’이라 부른다.',
+    gasa: '이 관의 덩이는 ‘행’이라 부른다.',
+    saseol: '이 관의 덩이도 ‘장’이라 부른다.',
+  },
+
   // 가객과 기념품
   singersTitle: '가객이 나타났어요',
   legend: '전해지는 이야기',

@@ -8,14 +8,17 @@
 // 꾸밈(불 켜짐, 빗금, 고리, 접힘)은 글자 배치를 바꾸지 않는 표시만 쓴다. 그래서 꾸밈을 바꿔도 쪽이 넘치지 않는다.
 // 고려가요의 여음·후렴·되풀이 머리(박에 들지 않는 음보)는 단위 덩이에서 이름표(글자)와 점선 테두리로 늘 표시한다.
 // 색에만 기대지 않는다. 이름표는 같은 표시가 이어지는 첫 음보(쪽이 그 가운데서 시작하면 쪽 첫 음보)에만 붙인다.
-// 보스(neutral)에서는 이름표를 달지 않고 종류도 가리지 않는다. 같은 점선 테두리로만 묶어 박에 들지 않는 곳임을 보인다
-// (이름표가 갈래를 알려 주기 때문이다. spec 10.2). 그 말은 여전히 누를 수 없다.
+// 이름표를 달지 않는 방식(neutral)에서는 종류도 가리지 않는다. 같은 점선 테두리로만 묶어 박에 들지 않는 곳임을 보인다
+// (이름표가 갈래를 알려 주기 때문이다. spec 10.2). 그 말은 여전히 누를 수 없다. 보스는 늘 이 방식이고,
+// 관과 입구에서도 그 노래가 드러나기 전(판정에서 맞기 전)이거나 고려가요관의 후렴 고리 걸기가 찾기 전에는 이 방식이다.
+// setPlainMarks(false)로 재기 도중에 이름표를 달 수 있다(후렴 고리 걸기가 되풀이 구절을 찾은 뒤).
 // 낱말 안에서 나눈 음보(joined)는 앞 음보와 띄우지 않고 가는 경계선만 보인다.
 import { piecesOf } from './text.js';
 import { MARK_NAMES } from './labels.js';
 
-// opts.neutral: 보스 방식. 박 밖 음보의 이름표와 종류 표시를 숨긴다.
-export function createTextView(area, { song, layer = 'original', neutral = false } = {}) {
+// opts.neutral: 박 밖 음보의 이름표와 종류 표시를 숨긴다(보스, 드러나기 전의 노래).
+export function createTextView(area, { song, layer = 'original', neutral: plainMarks = false } = {}) {
+  let neutral = !!plainMarks;
   let curLayer = layer;
   let pieces = piecesOf(song, curLayer);
   let mode = { flow: false, interactive: null };
@@ -261,6 +264,13 @@ export function createTextView(area, { song, layer = 'original', neutral = false
       relayout();
     },
     relayout,
+    // 박 밖 음보의 이름표를 숨길지(true) 달지(false). 글자 배치가 바뀔 수 있어 다시 나눈다.
+    setPlainMarks(v) {
+      if (neutral === !!v) return;
+      neutral = !!v;
+      relayout();
+    },
+    get plainMarks() { return neutral; },
     refresh: decorate,
     show,
     next() { show(page + 1); },

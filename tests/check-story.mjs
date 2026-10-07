@@ -144,9 +144,10 @@ async function solveMeasure() {
   const intros = [];
   let last = null;
   let tapMode = null;
+  let sheet = null;
   for (let i = 0; i < 6000; i++) {
     const root = document.querySelector('.measure');
-    if (!root) return { done: true, intros, tapMode };
+    if (!root) return { done: true, intros, tapMode, sheet };
     const intro = root.querySelector('.m-intro');
     if (intro) { intros.push(intro.dataset.intro); intro.querySelector('.m-intro-ok').click(); await sleep(30); continue; }
     const step = root.dataset.step;
@@ -177,6 +178,7 @@ async function solveMeasure() {
       const none = box?.querySelector('button.m-none');
       if (none) { none.click(); await sleep(30); continue; }
     } else if (step === 'sheet') {
+      sheet = [...root.querySelectorAll('.m-sheet-line')].map((e) => e.textContent);
       root.querySelector('.m-finish')?.click();
       await sleep(30);
       continue;
@@ -449,8 +451,10 @@ async function playEntrance(page, label) {
   ok(r.done, label + ': 튜토리얼 재기를 마친다 ' + JSON.stringify(r));
   ok(r.tapMode === 'slash', label + ': 빗금 모드로 잰다');
   ok(same(r.intros, ['fold', 'tap', 'unique']), label + ': 접기 → 두드리기 → 계단 순서로 하나씩 안내 ' + JSON.stringify(r.intros));
+  ok(r.sheet?.[0] === '[세 덩이]' && r.sheet?.[1] === '[덩이마다 네 음보]', label + ": 튜토리얼 감정서도 단위를 '덩이'라 부른다 " + JSON.stringify(r.sheet));
   await waitSel(page, '.story-entrance[data-step="done"]');
   const doneText = await text(page, '.story-entrance');
+  ok(doneText.includes(STORY.entrance.unitReveal) && (await text(page, '.story-entrance .story-reveal')) === STORY.entrance.unitReveal, label + ': 재기를 마치면 이 노래의 단위 이름(장)이 드러난다');
   ok(doneText.includes('선대 사서의 첫 노래') && doneText.includes('향가관'), label + ': 첫 노래가 일지에 담기고 향가관이 열린다는 글');
   const rec = await record(page);
   ok(rec.progress.tutorialDone === true && rec.progress.wings.hyangga.state === 'open' && rec.progress.wings.goryeo.state === 'locked', label + ': 튜토리얼을 마치면 향가관만 열린다');
@@ -765,6 +769,30 @@ try {
     ok(true, '저장 없이도 새 기록으로 입구까지 간다');
     ok(game.errors.length === 0, '저장 불가: 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
     await game.close();
+    sessions.pop();
+  }
+
+  // ══════════ 이 게임보다 새 버전의 저장 ══════════
+  // 저장 엔진은 새 버전의 저장을 덮어쓰지 않고 이번 창 메모리로만 간다(failure 'unknown'). 시작 화면도 같은 글로 알린다.
+  console.log('— 더 새 버전의 저장: 덮어쓰지 않고 이번 창에서만 이어 간다고 알린다');
+  {
+    const newer = { ...defaultData(), version: 99 };
+    const game = await openGame(server.url, { viewport: VIEWPORTS.chromebook, disable3d: true, seed: { [SAVE_KEY]: newer } });
+    sessions.push(game);
+    const { page } = game;
+    await waitStart(page);
+    ok((await text(page, '.story-start'))?.includes(STORY.start.saveFailed), '더 새 버전의 저장이면 시작 화면에서 저장되지 않는다고 알린다');
+    ok((await ev(page, (k) => JSON.parse(localStorage.getItem(k)).version, SAVE_KEY)) === 99, '더 새 버전의 저장은 그대로 남는다');
+    ok(game.errors.length === 0, '더 새 버전: 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
+    await game.close();
+    sessions.pop();
+    // 음성 사례: 보통 저장(지금 버전)에서는 알림이 없다
+    const plain = await openGame(server.url, { viewport: VIEWPORTS.chromebook, disable3d: true, seed: seedAllDone({ name: '보통' }) });
+    sessions.push(plain);
+    await waitStart(plain.page);
+    const notice = await ev(plain.page, () => { const n = document.querySelector('.story-start .story-notice'); return { text: document.querySelector('.story-start')?.textContent ?? '', hidden: n ? n.hidden : true }; });
+    ok(notice.hidden && !notice.text.includes(STORY.start.saveFailed), '(음성) 지금 버전의 저장이면 저장 실패 알림이 없다');
+    await plain.close();
     sessions.pop();
   }
 

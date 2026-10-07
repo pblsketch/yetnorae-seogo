@@ -36,14 +36,14 @@
 | `js/result/` | 결과 카드 PNG 그리기와 내려받기 | core/cards의 자료, world(palette·sprites·assets) |
 | `js/ui/credits.js` | 출처 화면. 목록을 노래 데이터와 자산 목록에서 그때그때 만든다 | data(songs·credits), `assets/manifest.json` |
 | `js/world/` | 세계 바탕 `world.js`(바깥 손잡이): 3D 장면(`scene3d.js`) 또는 2D 그림 판(`board2d.js`), 조작, 화면 방향 멈춤, 움직임 줄이기, 반반 틀, 방 무대. 관 모형 `wings/` | three, core/events, data/wings, registry(관 모형) |
-| `js/core/` | 화면 없는 엔진: 저장(`save`), 진행(`progress`), 판정 규칙(`judge`), 박자(`rhythm`), 소리(`audio`), 사건 버스(`events`), 카드 자료(`cards`), 노래 모양(`song-shape`), 검증기(`validate`) | data만 |
+| `js/core/` | 화면 없는 엔진: 저장(`save`), 진행(`progress`), 판정 규칙(`judge`), 박자(`rhythm`), 소리(`audio`), 사건 버스(`events`), 카드 자료(`cards`), 노래 모양(`song-shape`), 맞대어 보기 규칙(`contrast`), 검증기(`validate`) | data만 |
 | `js/data/` | 노래 45편, 노래 표, 관·갈래·개념, 수첩·이야기·방·보스·출처 글 | 없음(데이터끼리만) |
 
 `js/core/events.js`의 사건 버스는 모든 화면 모듈이 함께 쓰는 단 하나의 신호 통로다. 진행 엔진은 진행 사건(`wing:state`, `concept:changed`, `help:*`, `save:failed`)만 내고, 디오라마 반응 사건(`diorama:*`)은 화면이 낸다. 세계 바탕이 `diorama:*`를 받아 지금 관 모형의 `react`로 넘긴다. 관 모형은 사건 버스를 직접 듣지 않고 진행 기록도 읽지 않는다.
 
 ## 3D와 2D 두 갈래
 
-창이 열릴 때 `js/world/mode.js`가 WebGL2를 한 번 확인한다(Three.js 0.186은 WebGL2만 쓴다). 있으면 3D, 없거나 3D 그림판을 만들다 실패하면 그 창이 끝날 때까지 2D다. 두 갈래는 같은 약속을 쓴다.
+창이 열릴 때 `js/world/mode.js`가 WebGL2를 한 번 확인한다(Three.js 0.186은 WebGL2만 쓴다). 있으면 3D, 없거나 3D 그림판을 만들다 실패하면 그 창이 끝날 때까지 2D다. 쓰는 도중 그림판을 잃고(GPU 재시작 등) 3초 안에 되찾지 못해도 그 창은 2D로 가고, 세계는 지금 자리에서 2D 그림 판으로 바뀌며 판 중인 관에 다시 들어간다(`js/world/webgl.js`, `world.js` '그림판 잃음'). 저장하지 않으므로 다음 창은 다시 확인한다. 두 갈래는 같은 약속을 쓴다.
 
 - 관 모형: 모듈마다 `create3D(ctx)`와 `create2D(ctx)`가 같은 모양의 손잡이(`anchors`, `floatingSpots`, `measureFocus`, `react`, `update`, `dispose`)를 돌려준다.
 - 작품 방: `ctx.mode`가 `'3d'`면 세계가 `openRoom(el)`으로 빈 무대(`{ THREE, root, camera }`)를 빌려주고 그 칸에만 그린다. `'2d'`면 방이 자기 그림 판을 그린다. 「십 년을 경영하야」 방은 3D에서도 자기 그림판을 따로 만든다.

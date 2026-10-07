@@ -492,8 +492,79 @@
   .play-toasts { top: calc(var(--play-pad) + 54px); }
 }
 
+/* ── 칸이 묶일 때 드러나는 단위 이름(첫 가객 카드 위) ── */
+.play-reveal {
+  margin: 0;
+  max-width: min(40em, 94%);
+  padding: 6px 12px;
+  background: var(--hanji);
+  border: 2px solid var(--gold);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: calc(15px * var(--text-scale));
+  font-weight: 700;
+}
+.play-singers:has(.play-reveal) .play-singer { max-height: calc(100% - 64px - 3.2em); }
+
+/* ── 맞대어 보기(오답 뒤): 감정서 줄과 수첩 줄을 견준다 ── */
+.play-contrast {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(46em, 94%);
+  max-height: 94%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--hanji);
+  border: 3px solid var(--meok);
+  border-radius: 10px;
+  box-shadow: 0 8px 0 color-mix(in srgb, var(--meok) 40%, transparent);
+  pointer-events: auto;
+  z-index: 12;
+}
+.play-contrast-title { margin: 0; font-family: var(--font-body); font-size: calc(17px * var(--text-scale)); }
+.play-contrast-prompt, .play-contrast-status { margin: 0; font-size: calc(14px * var(--text-scale)); line-height: 1.4; }
+.play-contrast-status:empty { display: none; }
+.play-contrast-sides { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.play-contrast-side { min-width: 0; }
+.play-contrast-sub { margin: 2px 0 4px; font-size: calc(14px * var(--text-scale)); }
+.play-contrast-lines { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.play-contrast-line {
+  width: 100%;
+  min-height: var(--touch-min);
+  padding: 4px 10px;
+  border: 2px solid var(--nokcheong);
+  border-radius: 8px;
+  background: var(--hanji);
+  color: var(--meok);
+  font-family: var(--font-body);
+  font-size: calc(14px * var(--text-scale));
+  text-align: left;
+}
+.play-contrast-line:disabled { opacity: 0.55; cursor: default; }
+.play-contrast-line.is-hint { outline: 3px dashed var(--gold); outline-offset: 1px; }
+.play-contrast-line.is-pair, .play-contrast-note.is-pair { background: color-mix(in srgb, var(--gold) 35%, var(--hanji)); outline: 3px solid var(--gold); opacity: 1; }
+.play-contrast-note { padding: 4px 8px; border-left: 3px solid var(--meok-fog); border-radius: 4px; font-family: var(--font-body); font-size: calc(14px * var(--text-scale)); line-height: 1.45; }
+.play-contrast-actions { display: flex; justify-content: flex-end; }
+.play-contrast-back {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 0 1.2em;
+  border: 3px solid var(--nokcheong);
+  border-radius: 8px;
+  background: var(--hanji);
+  color: var(--meok);
+  font-weight: 700;
+}
+.play-contrast .is-shake { animation: play-contrast-shake 0.4s ease-in-out; }
+@keyframes play-contrast-shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
 /* 움직임 줄이기 */
+.reduce-motion .play-contrast .is-shake { animation: none; outline: 2px dotted var(--meok-soft); }
 .reduce-motion .play-singer, .reduce-motion .play-toast, .reduce-motion .play-btn.is-glow, .reduce-motion .play-nb-line.is-glow { animation: none; }
 @media (prefers-reduced-motion: reduce) {
-  .play-song, .play-singer, .play-toast, .play-btn.is-glow, .play-nb-line.is-glow { animation: none; }
+  .play-song, .play-singer, .play-toast, .play-btn.is-glow, .play-nb-line.is-glow, .play-contrast .is-shake { animation: none; }
 }

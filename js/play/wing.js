@@ -1,6 +1,7 @@
 // 관 한 판(spec 2·3.2·4.3·5·6·8·12·20). 관 하나에서 학생이 하는 일을 처음부터 끝까지 잇는다.
 //   들어가기 → 떠도는 노래 잡기 → 재기(js/measure) → 칸·탑·바구니에 꽂기(바구니는 갈 관도 고른다)
-//   → 다 차면 판정(진행 엔진) → 제본·금박·먹안개 / 틀린 노래만 삐져나와 손으로 → 가객과 기념품
+//   → 다 차면 판정(진행 엔진) → 제본·금박·먹안개(그 관의 단위 이름이 드러남) / 틀린 노래만 삐져나와 손으로
+//     → 돌아온 노래마다 맞대어 보기(감정서에서 그 자리와 어긋나는 줄을 짚는다, contrast-panel.js) → 가객과 기념품
 //   → 작품 방(js/registry.js의 rooms, 세계는 방 무대가 된다 — README '연결 결정(F3)') → 판의 끝: 단청, 판 카드, 다음 관 문틈 소리, 덤 칸
 // 마친 관에 다시 들어오면 덤 칸과 다시 듣기만 한다. 판정 기록은 바뀌지 않는다.
 //
@@ -11,13 +12,16 @@ import * as bus from '../core/events.js';
 import { TUNABLES } from '../core/progress.js';
 import { buildWingCard } from '../core/cards.js';
 import { buildGrid, createTapSession } from '../core/rhythm.js';
+import { deriveSheet } from '../core/song-shape.js';
+import { mismatches, targetGenre } from '../core/contrast.js';
 import { SONG_TABLE } from '../data/song-table.js';
 import { PLAY_WING_IDS, WINGS, wingById } from '../data/wings.js';
-import { openMeasure } from '../measure/measure.js';
+import { openMeasure, actionForWing } from '../measure/measure.js';
 import { showCard } from '../result/card-view.js';
 import { el, button, openPanel, quoted } from './dom.js';
 import { playCeremony } from './ceremony.js';
 import { renderListen } from './screens.js';
+import { openContrast } from './contrast-panel.js';
 import { L } from './labels.js';
 
 // 조정할 수 있는 값
@@ -27,6 +31,7 @@ export const PLAY_TUNING = Object.freeze({
   leakMs: 8000,        // 문틈으로 다음 관 배경음이 새어 나오는 시간
   toastMs: 8000,       // 알림 한 줄이 머무는 시간
   toastMax: 4,
+  contrastAfterMs: 1200,   // 삐져나오는 모양을 본 뒤 맞대어 보기 창을 열기까지(움직임 줄이기면 바로)
 });
 
 const AREA_OF_ANCHOR = { slots: 'shelf', bonus: 'bonus', basket: 'basket' };
@@ -51,6 +56,7 @@ export function createWingPlay(session, wingId) {
   let dialog = null;
   let leakEl = null;
   let chain = Promise.resolve();
+  const sheets = new Map();   // 이번에 잰 노래의 감정서(맞대어 보기에 쓴다. 저장하지 않는다)
 
   const later = (fn, ms) => {
     const id = setTimeout(() => { timers.delete(id); if (!disposed) fn(); }, ms);
@@ -261,19 +267,27 @@ export function createWingPlay(session, wingId) {
     return is3D() ? { x: e.x + i * 0.9, y: (e.y ?? 0) + 1.2, z: e.z } : { x: e.x + i * 6, y: e.y };
   }
 
+  // 떠도는 노래를 세계의 자리 위에 놓는다. 프레임마다 부르므로 먼저 모두 읽고(자리, 크기) 그다음 한꺼번에 쓴다:
+  // 읽기와 쓰기를 섞으면 노래마다 레이아웃을 다시 계산하게 된다.
   function positionSongs() {
+    const songs = [...floatBox.children];
+    if (!songs.length) return;
+    // ── 읽기 ──
     const rr = session.root.getBoundingClientRect();
-    const placed = [];   // 이미 놓은 노래 자리(가운데 좌표와 크기)
-    for (const b of floatBox.children) {
+    const reads = songs.map((b) => {
       const i = Number(b.dataset.spot);
-      const pt = b.classList.contains('is-premeasured') ? waitingPoint(i) : floatingPoint(i);
+      const waiting = b.classList.contains('is-premeasured');
+      const pt = waiting ? waitingPoint(i) : floatingPoint(i);
       const sp = pt ? world.toScreen(pt) : null;
-      if (!sp) { b.style.left = (12 + i * 12) + '%'; b.style.top = '45%'; continue; }
+      return { b, i, waiting, sp, w: b.offsetWidth, h: b.offsetHeight };
+    });
+    // ── 자리 셈 ──
+    const placed = [];   // 이미 놓은 노래 자리(가운데 좌표와 크기)
+    const writes = reads.map(({ b, i, waiting, sp, w, h }) => {
+      if (!sp) return { b, left: (12 + i * 12) + '%', top: '45%' };
       let x = sp.x - rr.left;
       let y = sp.y - rr.top;
-      if (b.classList.contains('is-premeasured') && !is3D()) y -= 56;   // 입구 자리 표시와 겹치지 않게 위로
-      const w = b.offsetWidth;
-      const h = b.offsetHeight;
+      if (waiting && !is3D()) y -= 56;   // 입구 자리 표시와 겹치지 않게 위로
       // 가운데 좌표를 쓰므로 노래 폭의 반만큼 화면 안쪽에 둔다(가장자리에서 잘리지 않게)
       const clampX = (v) => Math.min(rr.width - Math.max(40, w / 2 + 4), Math.max(Math.max(40, w / 2 + 4), v));
       const clampY = (v) => Math.min(rr.height - 96, Math.max(90, v));
@@ -289,14 +303,20 @@ export function createWingPlay(session, wingId) {
         else y = clampY(hit.y + (hit.h + h) / 2 + 6);
       }
       placed.push({ x, y, w, h });
-      b.style.left = x + 'px';
-      b.style.top = y + 'px';
+      return { b, left: x + 'px', top: y + 'px' };
+    });
+    // ── 쓰기(바뀐 것만) ──
+    for (const { b, left, top } of writes) {
+      if (b.style.left !== left) b.style.left = left;
+      if (b.style.top !== top) b.style.top = top;
     }
   }
 
   function loop() {
     raf = requestAnimationFrame(loop);
-    if (!session.root.classList.contains('is-measuring')) positionSongs();
+    // 재기 중, 세계가 꽉 덮는 겹에 가려졌을 때, 회전 안내가 떠 있을 때는 노래 자리를 다시 재지 않는다(보이지 않는 것을 위한 레이아웃 계산)
+    if (session.root.classList.contains('is-measuring') || world.isCovered?.() || world.isPaused?.()) return;
+    positionSongs();
   }
 
   function goTo(point, intent) {
@@ -381,13 +401,16 @@ export function createWingPlay(session, wingId) {
     const pre = waitingSongs().includes(id);
     session.root.classList.add('is-measuring');
     try {
-      await openMeasure({
+      const sheet = await openMeasure({
         song: s,
         wing: wingId,
         world,
         rhythm: session.rhythm,
         setSlashMode: session.setSlashMode,
         preMeasured: pre ? true : undefined,
+        // 판정에서 맞기 전에는 단위를 '덩이'라 부르고 박 밖 음보 이름표를 달지 않는다
+        revealed: P.isRevealed?.(id) === true,
+        marksKnown: P.marksKnown?.(id) === true,
         notebook: session.notebook,
         notebookGlow: session.glows,
         // 공통 동작 안내는 입구 튜토리얼에서 본다(튜토리얼을 마쳤으면 본 것). 고유 동작 안내는 관마다 한 번.
@@ -396,6 +419,7 @@ export function createWingPlay(session, wingId) {
         reduceMotion: () => world.reduceMotion(),
         signal: ac.signal,
       });
+      if (sheet) sheets.set(id, sheet);
       if (!disposed) P.markMeasured(wingId, id);
     } catch (e) {
       if (e?.name !== 'AbortError') console.error('[play] 재기 실패', e);
@@ -548,6 +572,10 @@ export function createWingPlay(session, wingId) {
         toast(L.helpGlow);
         hud.glow(true);
       }
+      if (r.returned.length) {
+        render();
+        await contrastReturned(area, r.returned);
+      }
       if (area === 'basket' && r.routes?.length) {
         audio.sfx('basket');
         for (const route of r.routes) {
@@ -568,7 +596,9 @@ export function createWingPlay(session, wingId) {
           audio.sfx('fog');
         }
         toast(area === 'shelf' ? L.bound : L.bonusBound);
-        await playCeremony(session.root, { list: ids.map(song).filter(Boolean), manifest: session.manifest, engine: audio, signal: ac.signal, reduceMotion: () => world.reduceMotion() });
+        // 칸이 묶이면 그 관의 단위 이름이 드러난다(첫 가객 카드 위에 한 줄)
+        const lead = area === 'shelf' ? L.unitReveal[wing.genre] : null;
+        await playCeremony(session.root, { list: ids.map(song).filter(Boolean), manifest: session.manifest, engine: audio, signal: ac.signal, reduceMotion: () => world.reduceMotion(), lead });
         if (area === 'shelf' && !disposed) toast(L.roomOpen);
         render();
       }
@@ -576,6 +606,53 @@ export function createWingPlay(session, wingId) {
     } finally {
       busy = false;
       render();
+    }
+  }
+
+  // ───────── 맞대어 보기(오답 뒤) ─────────
+  // 그 노래의 감정서: 이번에 잰 것, 없으면(다시 연 기록) 노래 데이터에서 계산한다. 미리 잰 노래는 보낸 관의 동작으로 잰 것이다.
+  function sheetFor(id) {
+    if (sheets.has(id)) return sheets.get(id);
+    const s = song(id);
+    let action = wing.action;
+    if ((p.prewaiting[wingId] ?? []).includes(id)) {
+      const from = (s?.roles ?? []).find((r) => r.role === 'stray' && r.to === wingId)?.wing;
+      action = actionForWing(from) ?? action;
+    }
+    return deriveSheet(s, action);
+  }
+
+  const pause = (ms) => new Promise((resolve) => {
+    if (ms <= 0 || disposed) { resolve(); return; }
+    const id = setTimeout(() => { timers.delete(id); resolve(); }, ms);
+    timers.add(id);
+    ac.signal.addEventListener('abort', () => resolve(), { once: true });
+  });
+
+  // 돌아온 노래마다 하나씩: 감정서에서 그 자리와 어긋나는 줄을 짚는다. 어긋나는 줄이 없으면 열지 않는다(손으로 돌아온 그대로).
+  // 기록도 오답 수도 바꾸지 않는다.
+  async function contrastReturned(area, returned) {
+    let waited = false;
+    for (const x of returned) {
+      if (disposed) return;
+      const s = song(x.songId);
+      if (!s) continue;
+      const target = x.target ?? (area === 'basket' ? { genre: wingById(x.to)?.genre } : { genre: wing.genre });
+      const sheet = sheetFor(x.songId);
+      const actionIds = (sheet.actions ?? [sheet.action]).filter(Boolean).map((a) => a.action);
+      const found = mismatches(s, target, actionIds);
+      if (!found.length) continue;
+      if (!waited) { waited = true; await pause(world.reduceMotion() ? 0 : PLAY_TUNING.contrastAfterMs); }
+      if (disposed) return;
+      await openContrast(session.root, {
+        song: s,
+        sheet,
+        neutral: !P.isRevealed?.(x.songId),
+        found,
+        page: session.notebook?.[targetGenre(target)] ?? null,
+        target,
+        signal: ac.signal,
+      });
     }
   }
 

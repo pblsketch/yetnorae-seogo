@@ -13,7 +13,7 @@ import { STORY } from '../data/story.js';
 import { registry } from '../registry.js';
 import { createSession, safeLocalStorage, loadManifest } from '../play/session.js';
 import { showCard } from '../result/card-view.js';
-import { installScreen } from '../world/screen.js';
+import { installScreen, isPaused } from '../world/screen.js';
 import { el, button, spriteImg, ensureStyle, toast } from './dom.js';
 import { applyDevice, openSettings } from './settings.js';
 import { runCalibration } from './calibration.js';
@@ -37,6 +37,8 @@ export async function startApp(container) {
   const store = createStore({ storage: safeLocalStorage() });
   store.load();
   const audio = createAudioEngine();
+  // 세로로 켠 기기: 회전 멈춤 신호는 소리 엔진이 생기기 전에 났으므로 지금 상태를 직접 알린다
+  if (isPaused()) audio.pause('orientation');
   audio.attachUnlock(document);
   applyDevice(store.data.device, audio);
   const manifest = await loadManifest();
@@ -58,7 +60,8 @@ export async function startApp(container) {
     startView = renderStart(container, {
       store,
       manifest,
-      saveNotice: store.failure === 'unavailable' ? STORY.start.saveFailed : null,
+      // 이 기기에 저장되지 않는 까닭이 무엇이든(저장소를 쓸 수 없음, 이 게임보다 새 버전의 저장이라 덮어쓰지 않음, 저장소 가득 참) 같은 글로 알린다
+      saveNotice: store.failure ? STORY.start.saveFailed : null,
       onOpen: (id) => { store.selectRecord(id); enterGame(); },
       onSettings: () => openDeviceSettings(container),
       onCredits: credits && typeof credits.show === 'function' ? () => openCredits(credits) : null,

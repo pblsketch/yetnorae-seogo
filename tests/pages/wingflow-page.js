@@ -49,7 +49,8 @@ const audioDeps = {
   },
 };
 
-window.__wf = { ready: false, log, roomCalls, events };
+// createSession: 세션을 치우고 다시 띄우는 점검(저장 실패 알림은 앱이 열려 있는 동안 한 번)에 쓴다
+window.__wf = { ready: false, log, roomCalls, events, createSession, audioDeps };
 try {
   const session = await createSession({ container: document.getElementById('app'), rooms, audioDeps });
   session.resume();

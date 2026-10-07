@@ -11,11 +11,13 @@ for (const name of ['orientation:pause', 'orientation:resume', 'audio:pause', 'a
 
 const arrivals = [];
 const contextCalls = [];
+const modeChanges = [];
 
 world.mount(document.getElementById('app'), {
   wings: { hyangga: fixture, goryeo: fixture },
   appearance: 'a',
   onArrive: (a) => arrivals.push(a),
+  onModeChange: (mode, info) => modeChanges.push({ mode, place: info?.place ?? null }),
 });
 
-window.__t = { world, events, log, arrivals, contextCalls, fixture: fixture.calls, ready: true };
+window.__t = { world, events, log, arrivals, contextCalls, modeChanges, fixture: fixture.calls, ready: true };

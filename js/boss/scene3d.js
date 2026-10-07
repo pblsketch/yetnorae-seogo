@@ -5,6 +5,8 @@
 // 그리기 호출은 서른 남짓이다(역할마다 하나, 책등은 인스턴스 하나).
 // 손잡이: setFog('normal'|'thick'), setKing('hidden'|'present'|'scattered'), setMentor('trapped'|'free'),
 //         setFilled(칸 번호, bool), resize(), stats(), dispose()
+// 그림판 살림(js/world/webgl.js): 치울 때 GPU 맥락까지 돌려준다(forceContextLoss). 인물은 세계와 재질을 나누지 않는 'boss' 묶음으로 짓는다.
+// 회전 안내가 떠 있거나 창이 숨으면 그리지 않는다. 그림판을 잃고 되찾지 못하면 onContextFailed()로 알린다(보스 화면이 2D 그림 판으로 바꾼다).
 import * as THREE from 'three';
 import { TOKENS } from '../world/palette.js';
 import { createAssets } from '../world/assets.js';
@@ -13,6 +15,8 @@ import { createFigure } from '../world/gfx/figures.js';
 import { createScenery, disposeGroupGeometry } from '../world/gfx/t37-scenery.js';
 import { fogDisc, softwareRendering } from '../world/gfx/t39-perf.js';
 import { qualityInfo } from '../world/quality.js';
+import { isPaused } from '../world/screen.js';
+import { pixelRatioNow, releaseRenderer, watchContextLoss, watchPixelRatio } from '../world/webgl.js';
 
 export const SCENE_TUNING = Object.freeze({
   pixelRatioMax: 1.5,
@@ -57,11 +61,24 @@ function blobCanvas(kind) {
   return c;
 }
 
-export function createScene3D(host, { manifest = null, reduceMotion = () => false } = {}) {
+// 세계 바탕이 낮춘 화질 단계가 있으면 같은 몫으로 픽셀 비율을 줄인다(js/world/quality.js)
+const bossPixelRatio = () => pixelRatioNow(SCENE_TUNING.pixelRatioMax) * qualityInfo().pixelScale;
+
+export function createScene3D(host, opts = {}) {
   // 소프트웨어 그리기(GPU를 못 쓰는 기기)에서는 MSAA를 끈다(프레임 시간의 약 3분의 1, gfx/t39-perf.js)
   const renderer = new THREE.WebGLRenderer({ antialias: !softwareRendering() });
-  // 세계 바탕이 낮춘 화질 단계가 있으면 같은 몫으로 픽셀 비율을 줄인다(js/world/quality.js)
-  renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, SCENE_TUNING.pixelRatioMax) * qualityInfo().pixelScale);
+  try {
+    return buildScene(renderer, host, opts);
+  } catch (e) {
+    // 그림판을 만든 뒤 짓다가 실패하면 맥락을 돌려주고 던진다(부르는 쪽이 2D로 간다)
+    releaseRenderer(renderer);
+    renderer.domElement.remove();
+    throw e;
+  }
+}
+
+function buildScene(renderer, host, { manifest = null, reduceMotion = () => false, onContextFailed = null } = {}) {
+  renderer.setPixelRatio(bossPixelRatio());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.domElement.className = 'boss-canvas';
   host.append(renderer.domElement);
@@ -179,7 +196,7 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
   const figure = (name, kind, height, opts = {}) => {
     const url = assets.image('sprite/' + kind);
     const canvas = url ? null : kind === 'mentor' ? paperDollCanvas('mentor', 128, 256) : blobCanvas(kind === 'jom-king' ? 'king' : 'jom');
-    const f = createFigure(THREE, { url, canvas, height, reduceMotion, name, ...opts });
+    const f = createFigure(THREE, { url, canvas, height, reduceMotion, name, pool: 'boss', ...opts });
     scene.add(f.root);
     return f;
   };
@@ -239,6 +256,9 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
   let raf = 0;
   let disposed = false;
   let calls = 0;
+  let frames = 0;
+  // 그림판을 잃으면 Three.js가 그리기를 건너뛴다. 되찾으면 다음 프레임부터 다시 그린다(프레임마다 그리므로 따로 표시할 것이 없다)
+  const contextWatch = watchContextLoss(renderer.domElement, { onGiveUp: () => onContextFailed?.() });
 
   function layoutPuffs(t) {
     PUFFS.forEach((p, i) => {
@@ -266,8 +286,11 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
   function frame(now) {
     if (disposed) return;
     raf = requestAnimationFrame(frame);
+    // 회전 안내·숨은 창·잃은 그림판 동안은 그리지 않는다(세계 바탕과 같다). 돌아오면 시간이 튀지 않게 그 자리에서 잇는다
+    if (isPaused() || document.hidden || contextWatch.lost()) { last = now; return; }
     const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
     last = now;
+    frames++;
     time += dt;
     const rm = reduceMotion();
     // 먹안개 짙기
@@ -319,6 +342,9 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
   function resize() {
     const w = Math.max(1, host.clientWidth);
     const h = Math.max(1, host.clientHeight);
+    // 기기 픽셀 비율은 브라우저 확대나 다른 화면으로 옮기면 바뀐다
+    const pr = bossPixelRatio();
+    if (Math.abs(renderer.getPixelRatio() - pr) > 1e-6) renderer.setPixelRatio(pr);
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     // 좁은 화면에서도 보스 서가와 좀 대왕이 들어오게 시야를 넓힌다
@@ -327,6 +353,7 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
   }
   const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
   ro?.observe(host);
+  const offPixelRatio = watchPixelRatio(resize);
   resize();
   raf = requestAnimationFrame(frame);
 
@@ -349,11 +376,14 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
       placeFilled(i, !!on);
     },
     resize,
-    stats: () => ({ mode: '3d', calls }),
+    stats: () => ({ mode: '3d', calls, frames, pixelRatio: renderer.getPixelRatio(), contextLost: contextWatch.lost() }),
     dispose() {
+      if (disposed) return;
       disposed = true;
       cancelAnimationFrame(raf);
       ro?.disconnect();
+      offPixelRatio();
+      contextWatch.dispose();
       for (const f of [...joms, king, mentor]) f.dispose();
       disposeGroupGeometry(hall);
       sc.dispose();
@@ -361,7 +391,7 @@ export function createScene3D(host, { manifest = null, reduceMotion = () => fals
       for (const m of mats) m.dispose();
       for (const t of texs) t.dispose();
       assets.dispose();
-      renderer.dispose();
+      releaseRenderer(renderer);   // dispose + forceContextLoss: 보스를 드나들 때마다 맥락이 쌓이지 않게
       renderer.domElement.remove();
     },
   };

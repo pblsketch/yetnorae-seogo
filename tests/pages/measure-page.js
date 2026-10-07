@@ -32,7 +32,8 @@ const engine = createAudioEngine({
 engine.attachUnlock(document);
 
 // skipOffbeat: 고려가요 여음·후렴 칸(박자 칸의 offbeat)은 치지 않는다(학생처럼 박에만 친다)
-const auto = { enabled: true, skip: 0, skipOffbeat: false, plays: [] };
+// grids: 낸 박자 칸의 모양(낭송 조각이 있는지, 효과음 박, 박 수) — 걷기가 낭송 대신 장구를 내는지 본다
+const auto = { enabled: true, skip: 0, skipOffbeat: false, plays: [], grids: [] };
 
 function drumTap() {
   const drum = document.querySelector('.measure .m-drum');
@@ -44,6 +45,7 @@ const wrappedEngine = new Proxy(engine, {
     if (key === 'play') {
       return (grid, segs, opts = {}) => {
         auto.plays.push((segs ?? grid.segments.map((s) => s.index)).slice());
+        auto.grids.push({ voice: grid.beats.some((b) => !!b.path), sounds: [...new Set(grid.beats.map((b) => b.sound).filter(Boolean))], beats: grid.beats.length, countIn: !!opts.countIn });
         return target.play(grid, segs, {
           ...opts,
           onBeat: (b) => {
@@ -81,6 +83,7 @@ function open(o) {
   log.length = 0;
   fixture.calls.react.length = 0;
   auto.plays.length = 0;
+  auto.grids.length = 0;
   auto.enabled = o.autoTap !== false;
   auto.skip = o.skip ?? 0;
   auto.skipOffbeat = !!o.skipOffbeat;
@@ -97,6 +100,8 @@ function open(o) {
     rhythm,
     noBeat: o.noBeat,
     preMeasured: o.preMeasured,
+    revealed: o.revealed,
+    marksKnown: o.marksKnown,
     notebook,
     notebookGlow: o.notebookGlow,
     journal: o.journal,

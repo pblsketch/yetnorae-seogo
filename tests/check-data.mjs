@@ -13,6 +13,8 @@ import { SONG_TABLE } from '../js/data/song-table.js';
 import { WINGS, GENRES, ACTIONS } from '../js/data/wings.js';
 import { CONCEPTS, SINGER_GROUPS } from '../js/data/concepts.js';
 import { deriveSheet, deriveActionEvidence, deriveTapEvidence, syllableCount, voiceClips } from '../js/core/song-shape.js';
+import { mismatches, contrastSoundness, tapCounts, CONTRAST_RULES } from '../js/core/contrast.js';
+import { wingById } from '../js/data/wings.js';
 import { makeValidSet } from './fixtures/valid-set.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -122,6 +124,59 @@ console.log('\n[5] 감정서와 낭송 조각 계산');
   check(syllableCount('어른 님') === 3 && syllableCount('ᄒᆞᆫ 잔') === 2 && syllableCount('春風') === 2, '글자 수 세기(한글·옛한글·한자)');
   const clips = voiceClips(go);
   check(clips.length === 18 && clips[0].path === 'assets/audio/voice/fx-go-a/0-0-0.mp3' && voiceClips(hy10)[9].path === 'assets/audio/voice/fx-hy-10/9.mp3' && voiceClips(sijo)[8].path === 'assets/audio/voice/fx-sijo-b/2-0.mp3', '낭송 조각 경로 규칙');
+}
+
+// ── 6. 맞대어 보기 규칙의 건전성(js/core/contrast.js) ──
+// 어떤 규칙도 대상 갈래의 노래를 걸면 안 된다: 모든 노래 × 모든 고유 동작(없음·하나씩·모두)에서
+// mismatches(노래, { genre: 노래 갈래 }, 동작)이 비어 있고, 향가관 탑의 칸 노래는 자기 층에서 비어 있다.
+console.log('\n[6] 맞대어 보기 규칙의 건전성과 맞대어 볼 줄이 없는 경우');
+{
+  const real = await loadRealData();
+  const actionIds = ACTIONS.map((a) => a.id);
+  const v = contrastSoundness(real.songs, actionIds, { tableWings: SONG_TABLE.wings });
+  check(real.songs.length === 45 && v.length === 0, '실제 노래 ' + real.songs.length + '편 × 동작: 자기 갈래(탑은 자기 층)와 어긋난다고 나오는 줄이 없다 (위반 ' + v.length + '개)');
+  for (const x of v.slice(0, 10)) console.log('      - ' + x.songId + ' ' + JSON.stringify(x.target) + ' ' + JSON.stringify(x.actionId) + ' → ' + x.found.map((m) => m.lineKind + '/' + m.conceptId).join(', '));
+  const fx = makeValidSet();
+  const vf = contrastSoundness(fx.songs, actionIds, { tableWings: fx.table.wings });
+  check(vf.length === 0, '시험 묶음 노래도 건전하다 (위반 ' + vf.length + '개)');
+  // 음성 사례: 처음 제안된 '세 음보 줄이 80% 미만이면 고려가요와 어긋남' 규칙은 「동동」·「정읍사」·「사모곡」을 건다
+  const ratioRule = { genre: 'goryeo', lineKind: 'tap', conceptId: 'goryeo-3beat', test: (e) => { const c = tapCounts(e.tap); return c.filter((x) => x === 3).length / c.length < 0.8; } };
+  const bad = contrastSoundness(real.songs, actionIds, { rules: [...CONTRAST_RULES, ratioRule], tableWings: SONG_TABLE.wings });
+  const badIds = [...new Set(bad.map((x) => x.songId))];
+  check(badIds.includes('dongdong') && badIds.includes('jeongeupsa'), '(음성) 건전하지 않은 규칙을 넣으면 잡는다: ' + badIds.join(', '));
+  const towerBad = contrastSoundness(real.songs, actionIds, { rules: [...CONTRAST_RULES, { tower: true, lineKind: 'fold', conceptId: 'hyangga-lines', test: (e) => e.fold.units !== 10 }], tableWings: SONG_TABLE.wings });
+  check(towerBad.some((x) => x.songId === 'seodongyo'), '(음성) 탑 규칙이 제 층의 향가를 걸면 잡는다');
+
+  // 반드시 지나는 길의 노래 × 그 관에서 꽂을 수 있는 틀린 자리: 맞대어 볼 줄이 없는(창을 열지 않는) 경우를 센다
+  const byId = new Map(real.songs.map((x) => [x.id, x]));
+  let total = 0;
+  const empty = [];
+  for (const [w, t] of Object.entries(SONG_TABLE.wings)) {
+    const genre = wingById(w).genre;
+    const pre = SONG_TABLE.routing.prewait[w] ?? [];
+    for (const id of [...t.shelf, ...t.stray.map((x) => x.songId)]) {
+      const song = byId.get(id);
+      if (!song) continue;
+      let action = wingById(w).action;
+      if (pre.includes(id)) action = wingById(song.roles.find((r) => r.role === 'stray' && r.to === w).wing).action;
+      const isShelf = t.shelf.includes(id);
+      const targets = [];
+      if (Array.isArray(t.shelfFloors)) t.shelfFloors.forEach((n, i) => { if (t.shelf[i] !== id) targets.push(['탑 ' + n + '구 층', { towerUnits: n }]); });
+      else if (!isShelf) targets.push(['칸', { genre }]);
+      for (const d of ['hyangga', 'goryeo', 'sijo', 'gasa', 'saseol']) {
+        if (!isShelf && d === song.genre) continue;   // 맞는 행선지
+        targets.push(['바구니 → ' + d, { genre: d }]);
+      }
+      for (const [name, target] of targets) {
+        total++;
+        if (!mismatches(song, target, action).length) empty.push(w + ' ' + id + ' → ' + name);
+      }
+    }
+  }
+  const inherent = empty.filter((e) => { const [w, id] = e.split(' '); return SONG_TABLE.wings[w].shelf.includes(id) && e.endsWith('바구니 → ' + wingById(w).genre); });
+  console.log('  · 틀린 자리 ' + total + '가지 가운데 맞대어 볼 줄이 없는 것 ' + empty.length + '가지(지금처럼 손으로만 돌아온다)');
+  for (const e of empty) console.log('      - ' + e);
+  check(empty.length === inherent.length, '맞대어 볼 줄이 없는 경우는 칸 노래를 자기 갈래 행선지로 바구니에 넣은 것뿐이다 (' + inherent.length + '/' + empty.length + ')');
 }
 
 console.log('\n' + (failures ? '✗ 실패 ' + failures + '건' : '✓ 데이터 점검 통과'));

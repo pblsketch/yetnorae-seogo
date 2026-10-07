@@ -18,7 +18,7 @@
   - 위반 판정: `check-smoke`와 `check-playthrough`가 브라우저의 모든 요청을 모아 바깥 주소가 하나라도 있으면 실패한다. `check-fonts`는 CSS에서 바깥 `url()`을 찾는다. `check-boss`는 `js/boss/`·`js/data/remix.js`·`js/data/boss-text.js`·`css/boss.css`의 글에 `http://`·`https://`가 있으면(주석 안이라도, SVG 이름공간 주소만 빼고) 실패한다.
 - **진행이나 장면을 바꾸는 주소 인자, 교사 기능, 숨은 미리보기 주소, 점검용 입구**를 만들지 않는다. 제품 코드는 `location.search`·`location.hash`·`URLSearchParams`를 읽지 않고, 점검을 위한 전역(`window.__…`)이나 흉내 함수를 두지 않는다.
   - 위반 판정: 점검마다 훑는 범위와 낱말이 다르다.
-    - `check-engine`: 엔진 파일 `save.js`·`progress.js`·`judge.js`·`cards.js`에서 주석을 뺀 뒤 `location`·`URLSearchParams`·`document`·`window`·`localStorage`·`sessionStorage`·`navigator` 낱말을 찾는다. 진행 엔진의 공개 함수 이름에 `unlock`·`setState`·`setWing`·`skip`·`force`·`debug`·`cheat`가 있어도 실패한다.
+    - `check-engine`: 엔진 파일 `save.js`·`progress.js`·`judge.js`·`cards.js`·`contrast.js`에서 주석을 뺀 뒤 `location`·`URLSearchParams`·`document`·`window`·`localStorage`·`sessionStorage`·`navigator` 낱말을 찾는다. 진행 엔진의 공개 함수 이름에 `unlock`·`setState`·`setWing`·`skip`·`force`·`debug`·`cheat`가 있어도 실패한다.
     - `check-wingflow`: `js/play/*.js`의 글 전체(주석 포함)에서 `location.search`, `URLSearchParams`, `location.hash`, `__wf`·`__test`·`stub`을 찾는다.
     - `check-boss`: `js/boss/*.js`, `js/data/remix.js`, `js/data/boss-text.js`, `css/boss.css`의 글 전체(주석 포함)에서 같은 주소 인자 낱말과 `__b`·`__test`·`stub`, 바깥 주소를 찾는다.
     - `check-story`: `js/story/`의 **모든 파일**(확장자를 가리지 않음)과 `js/data/story.js`의 글 전체(주석 포함)에서 `location.search`·`location.hash`, `URLSearchParams`, `__test`, `window.__`를 찾는다.
@@ -33,7 +33,7 @@
 
 - 빌드 없는 정적 웹 페이지다. 모든 스크립트는 ES 모듈이고, 번들러·트랜스파일러·패키지 관리자를 제품에 쓰지 않는다. 제품 코드가 기대는 바깥 코드는 `vendor/three/`의 Three.js 0.186.1 하나뿐이고, `index.html`의 import map(`"three": "./vendor/three/three.module.js"`)으로만 부른다.
 - 폴더마다 맡는 일:
-  - `js/core/` — 화면과 상관없는 엔진(저장, 진행, 판정, 박자, 소리, 사건 버스, 카드 자료, 노래 모양 도우미, 검증기). 저장소·시계·사건 내기·소리 판은 인자로 받는다. `save.js`·`progress.js`·`judge.js`·`cards.js`·`rhythm.js`·`song-shape.js`·`validate.js`는 Node에서 바로 import되어야 한다.
+  - `js/core/` — 화면과 상관없는 엔진(저장, 진행, 판정, 박자, 소리, 사건 버스, 카드 자료, 노래 모양 도우미, 검증기). 저장소·시계·사건 내기·소리 판은 인자로 받는다. `save.js`·`progress.js`·`judge.js`·`cards.js`·`rhythm.js`·`song-shape.js`·`contrast.js`·`validate.js`는 Node에서 바로 import되어야 한다.
   - `js/world/` — 3D·2D 공간, 카메라, 조작, 화면 방향, 반반 틀, 방 무대. 관 모형은 `js/world/wings/<관 id>.js`. 다른 화면은 `js/world/world.js`만 부른다.
   - `js/measure/` 재기 화면, `js/play/` 관 한 판과 세션·수첩·일지·도감, `js/rooms/` 작품 방, `js/boss/` 보스전, `js/story/` 앱 흐름(시작 화면·입구·엔딩·설정), `js/result/` 결과 카드, `js/ui/` 출처 화면.
   - `js/data/` — 데이터만. 다른 `js/` 폴더를 import하지 않는다.

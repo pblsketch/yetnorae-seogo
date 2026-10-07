@@ -4,7 +4,9 @@
 //          playWing(관 id), enterCorridor(), resume(), openNotebook(), openJournal(), openCollection(), dispose() }
 //
 // - 저장 엔진(store) 하나와 그 기록의 진행 엔진(progress) 하나를 만든다. 저장소는 로컬 저장소이고, 쓸 수 없으면(SecurityError 등)
-//   이번 창 메모리로만 진행한다. 저장 실패 신호(save:failed)가 오면 "이 기기에 저장되지 않아요…"를 한 번만 알린다.
+//   이번 창 메모리로만 진행한다. 저장 실패 신호(save:failed)가 오면 "이 기기에 저장되지 않아요…"를 한 번만 알린다
+//   (앱이 열려 있는 동안 한 번: 기록을 바꿔 세션을 다시 띄워도 다시 알리지 않는다).
+// - 세계가 3D 그림판을 잃고 2D 그림 판으로 바뀌면(world.js '그림판 잃음') 판 중인 관에 다시 들어간다(관을 나갔다 들어오는 흐름과 같다).
 // - 소리 엔진 하나: 첫 조작에 소리 판을 열고(attachUnlock), 기기 설정을 적용하고, 장소마다 배경음을 튼다.
 //   창이 숨으면 audio:pause, 돌아오면 audio:resume(reason: 'hidden').
 // - 세계 바탕을 자산 목록(assets/manifest.json, 한 번만 읽는다)과 등록된 관 모형으로 띄운다.
@@ -33,6 +35,9 @@ export function safeLocalStorage() {
     return null;
   }
 }
+
+// 저장 실패 알림은 앱이 열려 있는 동안 한 번만 보인다(규칙 11절)
+let saveNoticeShown = false;
 
 // 자산 목록은 한 번만 읽는다. 읽지 못하면 null(모든 그림이 자리표시).
 let manifestPromise = null;
@@ -85,11 +90,10 @@ export async function createSession({
   const notices = el('div', 'play-notices');
   root.append(hudBox, layer, notices);
 
-  // ── 저장 실패 알림(한 번만) ──
-  let noticeShown = false;
+  // ── 저장 실패 알림(앱이 열려 있는 동안 한 번만) ──
   function showSaveNotice() {
-    if (noticeShown) return;
-    noticeShown = true;
+    if (saveNoticeShown) return;
+    saveNoticeShown = true;
     const n = el('div', 'play-notice');
     n.setAttribute('role', 'alert');
     const close = button('play-notice-close', L.close);
@@ -141,6 +145,8 @@ export async function createSession({
     appearance: record?.appearance ?? 'a',
     reduceMotion: device.reduceMotion,
     onArrive: (a) => (current ? current.onArrive(a) : (onCorridorArrive?.(a) === true ? undefined : corridorArrive(a))),
+    // 3D 그림판을 되찾지 못해 2D가 되면 판 중인 관을 2D로 다시 그린다(재기·작품 방은 처음부터, 기록은 그대로)
+    onModeChange: () => { if (current) playWing(current.wingId); },
   });
   container.append(root);
   for (const w of PLAY_WING_IDS) {

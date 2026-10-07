@@ -198,7 +198,15 @@ console.log('— 박자 보정 계산');
   ok(c.ok && c.offsetMs === 60 && c.matched === 8, '모두 60ms 늦으면 보정값 60');
   const d = [50, 70, 60, 60, 40, 80, 60, 60];
   c = R.calibrationOffset(bells, bells.map((b, i) => b + d[i] / 1000));
-  ok(c.ok && c.offsetMs === 60, '보정값은 차이의 평균');
+  ok(c.ok && c.offsetMs === 60, '보정값은 차이의 중앙값(고른 탭이면 평균과 같다)');
+  // 첫 종은 미리 알 수 없어 늦게 반응하기 쉽다. 그 탭 하나가 보정값을 끌고 가지 않는다(중앙값)
+  const late = [300, 40, 40, 40, 40, 40, 40, 40];
+  c = R.calibrationOffset(bells, bells.map((b, i) => b + late[i] / 1000));
+  const mean = Math.round(late.reduce((a, b) => a + b, 0) / late.length);
+  ok(c.ok && c.offsetMs === 40, '첫 종에 늦게 반응한 탭 하나는 보정값을 바꾸지 않는다(중앙값 40)');
+  ok(mean !== 40 && mean === 73, '음성 사례: 평균이었다면 그 탭 하나로 보정값이 ' + mean + 'ms가 된다');
+  c = R.calibrationOffset(bells, bells.slice(0, 7).map((b, i) => b + [10, 20, 30, 40, 50, 60, 70][i] / 1000));
+  ok(c.ok && c.offsetMs === 40 && c.matched === 7, '짝이 홀수면 가운데 값');
   c = R.calibrationOffset(bells, bells.map((b) => b - 0.03));
   ok(c.ok && c.offsetMs === -30, '일찍 치면 음수 보정값');
   c = R.calibrationOffset(bells, [0, ...bells.map((b) => b + 0.04)]);
@@ -211,6 +219,17 @@ console.log('— 박자 보정 계산');
   ok(c.ok === false && c.offsetMs === R.CALIBRATION_SKIP_OFFSET_MS, '건너뛰면 0');
   const cg = R.calibrationGrid({ intervalSec: 0.5 });
   ok(cg.beats.length === 8 && cg.segments.length === 1 && cg.beats.every((b) => b.sound === 'bell' && b.path === null) && near(cg.beats[3].time, 1.5), '보정용 박자 칸(종소리 여덟)');
+}
+
+console.log('— 걷기 한 걸음: 노래 빠르기로 장구 네 번(낭송을 다시 내지 않는다)');
+{
+  const w = R.walkStepGrid(gasa, { tempo: 40 });
+  ok(R.WALK_STEP_BEATS === 4 && w.beats.length === 4 && w.segments.length === 1, '한 걸음 = 박 넷');
+  ok(w.beats.every((b) => b.sound === 'janggu' && b.path === null), '걸음의 박은 장구 소리이고 낭송 조각이 없다');
+  ok(near(w.beatSec, 1.5) && near(w.beats[3].time, 4.5), '박 간격은 노래 빠르기(40 → 1.5초)');
+  ok(near(R.walkStepGrid({ ...gasa, tempo: 30 }).beatSec, 2), '빠르기를 주지 않으면 노래의 tempo');
+  const voice = R.buildGrid(gasa, { tempo: 40 }).segments[0];
+  ok(R.buildGrid(gasa, { tempo: 40 }).beats.filter((b) => voice.beats.includes(b.index)).every((b) => b.path), '음성 사례: 낭송 칸의 박에는 조각 경로가 있다(걷기 칸과 구별된다)');
 }
 
 console.log('— 리믹스(보스 2단계) 지점 판정');
@@ -317,6 +336,42 @@ try {
   ok(st.resumeStartOk === true, '다시 낸 단위는 재개 뒤 시각에 예약된다');
   ok(st.rearmedHit === true, '다시 낸 단위의 박은 새 시작점 기준으로 판정한다');
   ok(st.completed === true && st.closedOk === true, '재개 뒤 끝까지 가고 단위 판정이 된다');
+
+  // 손가락 기기에서 소리 판 열기(가짜 소리 판: 활성화 안에서만 resume이 된다)
+  console.log('— 손가락 기기에서 소리 판 열기');
+  st = await page.evaluate(() => window.__audioTest.unlockCase());
+  ok(st.afterTouchDown.made === false && st.afterTouchDown.unlocked === false, '손가락 pointerdown(활성화 아님)으로는 소리 판을 열지 않는다 ' + JSON.stringify(st.afterTouchDown));
+  ok(st.afterFailed.state === 'suspended' && st.afterFailed.unlocked === false, '활성화 밖에서 resume이 실패하면 열린 것으로 보지 않는다(unlocked는 소리 판이 돌 때만) ' + JSON.stringify(st.afterFailed));
+  ok(st.voiceWhileSuspended === 0, '소리 판이 돌기 전에는 낭송을 예약하지 않고 기다린다');
+  ok(st.afterUp.state === 'running' && st.afterUp.unlocked === true && st.afterUp.voice === 4, '뒤의 손가락 pointerup(활성화)이 소리 판을 돌리고 기다리던 낭송을 낸다 ' + JSON.stringify(st.afterUp));
+  ok(st.playedAfterUnlock === true, '기다리던 낭송이 끝까지 간다');
+  ok(st.detachedAfterRunning === true, '소리 판이 돌면 조작을 더 듣지 않는다');
+  ok(st.interruptedUnlocked === false && st.afterInterrupt.state === 'running' && st.afterInterrupt.resumed, '멈춤 까닭 없이 멈추면(interrupted) 다시 조작을 기다려 돌린다 ' + JSON.stringify(st.afterInterrupt));
+  ok(st.pausedNoResume === true && st.pausedUnlocked === true, '메뉴로 멈춘 동안에는 조작이 소리 판을 돌리지 않는다(열린 것으로 본다)');
+  ok(st.resumeFailedWaits === true && st.resumedByTap === true, '재개가 활성화 밖이라 실패하면 다음 조작으로 돈다');
+  ok(st.mouseDown === true, '마우스 pointerdown은 활성화라 바로 돈다');
+  ok(st.oldStuck.state === 'suspended' && st.oldStuck.oldUnlocked === true, '음성 사례: 예전 방식(첫 조작에 떼어 냄, 소리 판만 있으면 열림)은 손가락 기기에서 멈춘 채 열린 것으로 본다 ' + JSON.stringify(st.oldStuck));
+
+  console.log('— 막 끝난 단위에서 멈추기, 박 알림, 단위 끝에서 멈추기');
+  st = await page.evaluate(() => window.__audioTest.pauseEndCase());
+  ok(st.closedOk === true && st.completed === true, '단위가 막 끝난 뒤 멈춰도 그 단위의 친 박은 그대로 인정된다');
+  ok(st.oldMissed === 4, '음성 사례: 끝을 내기 전에 회차를 닫으면 친 박이 모두 놓친 것이 된다(' + st.oldMissed + ')');
+  st = await page.evaluate(() => window.__audioTest.countInCase());
+  ok(st.countIns === 1 && Math.abs(st.countInAt - 0.15) < 1e-6, '새로 시작할 때 장구 한 번으로 박을 알린다 ' + JSON.stringify({ countIns: st.countIns, at: st.countInAt }));
+  ok(Math.abs(st.firstVoiceAt - st.countInAt - st.beatSec) < 1e-6, '박이 1.5초보다 짧으면 첫 박은 박 알림 한 박 뒤 ' + st.firstVoiceAt);
+  ok(st.beats === 12 && st.completed === true, '박 알림은 박(onBeat)이 아니다: 세 장 박 12개만 알린다 (' + st.beats + ')');
+  ok(st.allCountIns === 1 && JSON.stringify(st.segStarts) === '[0,1,2]', '이어 내는 단위 사이에는 박 알림이 없다');
+  ok(st.lead >= 0.45 + 0.5 && st.earlyHit === true, '판정 회차는 박 알림 전에 열려 보정값이 음수여도 첫 박 판정 창이 잘리지 않는다 (앞서 연 시간 ' + st.lead.toFixed(2) + '초)');
+  ok(st.afterResume === 2 && st.completed2 === true, '멈췄다 재개하면 다시 박 알림 뒤에 진행 중이던 단위를 낸다');
+  st = await page.evaluate(() => window.__audioTest.countInSlowCase());
+  ok(Math.abs(st.gap - 1.5) < 1e-6 && Math.abs(st.beatSec - 3.75) < 1e-6, '느린 노래(박 3.75초)의 박 알림은 첫 박 1.5초 앞(min(박 길이, 1.5초)) ' + JSON.stringify(st));
+  ok(st.gap < st.beatSec, '음성 사례: 박 길이만큼 앞이었다면 알림 뒤 ' + st.beatSec + '초가 비었다(점검이 차이를 알아본다)');
+  ok(st.armBeforeCountIn === true && st.completed === true, '느린 노래에서도 판정 회차는 박 알림보다 먼저 열린다');
+  st = await page.evaluate(() => window.__audioTest.stopOnEndCase());
+  ok(JSON.stringify(st.starts) === '[0]' && st.reason === 'stopped', '단위 끝에서 멈추면 다음 단위를 내지 않는다 ' + JSON.stringify(st));
+  ok(st.laterFed > 0 && st.laterStopped === true, '미리 예약해 둔 다음 단위 소리도 멈춘다');
+  st = await page.evaluate(() => window.__audioTest.calibrationRestartCase());
+  ok(st.restarts === 1 && st.completed === true && st.bells === 4, '박자 보정 종소리를 멈췄다 재개하면 onRestart를 부른다 ' + JSON.stringify(st));
 
   // 박자 없는 상태 신호, 음량, 효과음, 보정 재생, 실제 404
   st = await page.evaluate(() => window.__audioTest.miscCase());

@@ -43,10 +43,13 @@ export function spriteKind({ kind = null, sprite = null, url = null, texture = n
 // 그림 원본에서 몸이 차지하는 위아래 여백(그림마다 조금 다르지만 같은 생성 규칙이라 비슷하다)
 const FOOT_MARGIN = 0.02;
 
-let shadowTex = null;
-let shadowUsers = 0;
-function contactTexture(THREE) {
-  if (!shadowTex) {
+// 발밑 그림자 무늬는 묶음(pool)마다 하나를 나눠 쓴다(figures-3d.js 머리글 '나눠 쓰는 자원의 묶음')
+const shadowPools = new Map();   // pool → { tex, users }
+const shadowKey = (pool) => (typeof pool === 'string' && pool ? pool : 'main');
+function contactTexture(THREE, pool) {
+  const key = shadowKey(pool);
+  let entry = shadowPools.get(key);
+  if (!entry) {
     const S = 128;
     const c = document.createElement('canvas');
     c.width = S;
@@ -63,10 +66,17 @@ function contactTexture(THREE) {
     core.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = core;
     g.fillRect(0, 0, S, S);
-    shadowTex = new THREE.CanvasTexture(c);
+    entry = { tex: new THREE.CanvasTexture(c), users: 0 };
+    shadowPools.set(key, entry);
   }
-  shadowUsers++;
-  return shadowTex;
+  entry.users++;
+  return entry.tex;
+}
+function releaseContactTexture(pool) {
+  const key = shadowKey(pool);
+  const entry = shadowPools.get(key);
+  if (!entry) return;
+  if (--entry.users <= 0) { entry.tex.dispose(); shadowPools.delete(key); }
 }
 
 // 종이 카드 재질: 미리 곱한 알파 되돌리기 + 한지 테두리 + 알파 자르기
@@ -123,7 +133,7 @@ export function createFigure(THREE, opts = {}) {
 }
 
 // 종이 카드 인물. url(그림 주소) 또는 canvas(자리표시 그림) 가운데 하나를 준다.
-export function createPaperCard(THREE, { url = null, canvas = null, texture = null, height = FIGURE_HEIGHT.student, reduceMotion = () => false, edge = 0.024, shadow = true, lean = 0.35, name = 'figure', phase = 0 } = {}) {
+export function createPaperCard(THREE, { url = null, canvas = null, texture = null, height = FIGURE_HEIGHT.student, reduceMotion = () => false, edge = 0.024, shadow = true, lean = 0.35, name = 'figure', phase = 0, pool = 'main' } = {}) {
   const root = new THREE.Group();
   root.name = name;
   const pivot = new THREE.Group();   // 발 가운데를 축으로 흔든다
@@ -156,7 +166,7 @@ export function createPaperCard(THREE, { url = null, canvas = null, texture = nu
   card.name = name + '-card';
   pivot.add(card);
 
-  const shadowMesh = shadow ? contactShadowMesh(THREE, name) : null;
+  const shadowMesh = shadow ? contactShadowMesh(THREE, name, pool) : null;
   if (shadowMesh) root.add(shadowMesh);
   applyAspect(map?.image ?? canvas);
 
@@ -222,14 +232,15 @@ export function createPaperCard(THREE, { url = null, canvas = null, texture = nu
 }
 
 // 발밑 접지 그림자(둥근 번짐 카드). 종이 카드와 3D 인물이 같이 쓴다.
-export function contactShadowMesh(THREE, name = 'figure') {
+export function contactShadowMesh(THREE, name = 'figure', pool = 'main') {
   const m = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: TOKENS.meok, map: contactTexture(THREE), transparent: true, depthWrite: false, opacity: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
+    new THREE.MeshBasicMaterial({ color: TOKENS.meok, map: contactTexture(THREE, pool), transparent: true, depthWrite: false, opacity: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
   );
   m.name = name + '-shadow';
   m.position.y = 0.015;
   m.renderOrder = 6;
+  m.userData.pool = shadowKey(pool);
   return m;
 }
 
@@ -237,7 +248,7 @@ function disposeShadow(m) {
   if (!m) return;
   m.geometry.dispose();
   m.material.dispose();
-  if (--shadowUsers <= 0) { shadowTex?.dispose(); shadowTex = null; shadowUsers = 0; }
+  releaseContactTexture(m.userData.pool);
 }
 
 // 인물 하나: kind(또는 그림 이름)에 절차 3D 조립법(figures-3d.js RECIPES)이 있으면 3D 인물, 없으면 종이 카드(createPaperCard).
@@ -249,12 +260,13 @@ function disposeShadow(m) {
 //   flip·lean·edge는 종이 카드만 쓴다.
 //   card: 3D 인물에서는 발 가운데를 축으로 하는 묶음이다. update 뒤에 card.rotation·position을 더하면 그 프레임만 흔들린다(종이 카드와 같은 쓰임).
 //   material.userData.ink.value: 0 = 먹빛 회색, 1 = 제 빛깔(종이 카드와 같은 쓰임).
-export function createCharacter(THREE, { kind = null, height = null, reduceMotion = () => false, shadow = true, name = 'figure', phase = 0, faceCamera = true, detail = 1, ...card } = {}) {
+//   pool: 재질·무늬·기하를 나눠 쓰는 묶음(figures-3d.js 머리글). 세계와 따로 자기 그림판을 가진 화면(보스)은 자기 이름을 준다.
+export function createCharacter(THREE, { kind = null, height = null, reduceMotion = () => false, shadow = true, name = 'figure', phase = 0, faceCamera = true, detail = 1, pool = 'main', ...card } = {}) {
   const k = kind && hasProceduralFigure(kind) ? kind : (card.procedural === false ? null : spriteKind(card));
-  if (!k || !hasProceduralFigure(k)) return createPaperCard(THREE, { ...card, height: height ?? FIGURE_HEIGHT.student, reduceMotion, shadow, name, phase });
+  if (!k || !hasProceduralFigure(k)) return createPaperCard(THREE, { ...card, height: height ?? FIGURE_HEIGHT.student, reduceMotion, shadow, name, phase, pool });
   const h = height ?? defaultHeight(k);
-  const fig = buildProceduralFigure(THREE, { kind: k, height: h, reduceMotion, name, phase, faceCamera, detail });
-  const shadowMesh = shadow ? contactShadowMesh(THREE, name) : null;
+  const fig = buildProceduralFigure(THREE, { kind: k, height: h, reduceMotion, name, phase, faceCamera, detail, pool });
+  const shadowMesh = shadow ? contactShadowMesh(THREE, name, pool) : null;
   if (shadowMesh) {
     const s = h / fig.designHeight;
     shadowMesh.scale.set(fig.shadowSize[0] * s, 1, fig.shadowSize[1] * s);
@@ -301,7 +313,7 @@ export function createFigureCrowd(THREE, members, { detail = 0.55, reduceMotion 
   let shadows = null;
   if (shadow && crowd.members.length) {
     const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshBasicMaterial({ color: TOKENS.meok, map: contactTexture(THREE), transparent: true, depthWrite: false, opacity: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const mat = new THREE.MeshBasicMaterial({ color: TOKENS.meok, map: contactTexture(THREE, 'main'), transparent: true, depthWrite: false, opacity: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
     shadows = new THREE.InstancedMesh(geo, mat, crowd.members.length);
     shadows.name = name + '-shadow';
     shadows.renderOrder = 6;
@@ -324,7 +336,7 @@ export function createFigureCrowd(THREE, members, { detail = 0.55, reduceMotion 
         shadows.geometry.dispose();
         shadows.material.dispose();
         shadows.dispose();
-        if (--shadowUsers <= 0) { shadowTex?.dispose(); shadowTex = null; shadowUsers = 0; }
+        releaseContactTexture('main');
       }
       crowd.dispose();
     },

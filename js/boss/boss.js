@@ -26,7 +26,7 @@ import { remix as REMIX } from '../data/remix.js';
 import { BOSS_TEXT as T, BOSS_SPEAKERS } from '../data/boss-text.js';
 import { openMeasure } from '../measure/measure.js';
 import { graphemes } from '../measure/text.js';
-import { detectMode } from '../world/mode.js';
+import { detectMode, fallbackTo2D } from '../world/mode.js';
 import { createSession } from '../play/session.js';
 import { createScene2D } from './scene2d.js';
 import { el, button, waitClick, waitPick, wingShape, createJournalDrawer } from './dom.js';
@@ -103,11 +103,22 @@ export async function start(ctx = {}) {
 
   // ── 장면(3D 또는 2D 그림 판) ──
   let scene = null;
+  // 3D 그림판을 잃고 되찾지 못하면(js/world/webgl.js) 이번 창은 2D로 가고, 장면만 2D 그림 판으로 바꾼다.
+  // 2D 그림 판은 뿌리의 data-* 속성(먹안개, 좀 대왕, 선대 사서)으로 그리므로 지금 상태가 그대로 이어진다.
+  function sceneTo2D() {
+    if (!scene || scene.mode !== '3d' || !root.isConnected) return;
+    console.warn('[boss] 3D 그림판을 되찾지 못해 2D 그림 판으로 바꾼다');
+    fallbackTo2D();
+    const old = scene;
+    scene = createScene2D(sceneHost, { manifest: session.manifest });
+    old.dispose();
+    root.dataset.mode = scene.mode;
+  }
   const wantMode = session.world?.getMode?.() ?? detectMode();
   if (wantMode === '3d') {
     try {
       const { createScene3D } = await import('./scene3d.js');
-      scene = createScene3D(sceneHost, { manifest: session.manifest, reduceMotion });
+      scene = createScene3D(sceneHost, { manifest: session.manifest, reduceMotion, onContextFailed: sceneTo2D });
     } catch (e) {
       console.warn('[boss] 3D 장면을 만들 수 없어 2D 그림 판으로 바꾼다', e);
       sceneHost.replaceChildren();
@@ -212,6 +223,9 @@ export async function start(ctx = {}) {
     }
   }
 
+  // 재기 결과에서 학생이 실제로 쓴 도구(고유 동작 id, 쓴 순서)
+  const toolsOf = (sheet) => [...new Set((sheet?.actions ?? []).map((a) => a?.action).filter(Boolean))];
+
   // 단계 안내: 이야기 몇 줄과 '시작하기'
   async function intro(stage) {
     setStage(stage);
@@ -260,7 +274,8 @@ export async function start(ctx = {}) {
       c.append(actions);
       say('mentor', T.stage1.needMeasure);
       await waitClick(mBtn, signal);
-      await measure(song);
+      // 쓴 도구: 일지 도움은 꽂은 자리 갈래의 개념 가운데 이 도구들(과 접기·두드리기)의 증거와 어긋나는 것만 싣는다
+      const used = toolsOf(await measure(song));
       mBtn.hidden = true;
       enableSlots(true);
       say('mentor', T.stage1.pickSlot);
@@ -268,7 +283,7 @@ export async function start(ctx = {}) {
       // 꽂기: 노래마다 바로 판정(spec 10.2)
       for (;;) {
         const w = await pickSlot();
-        const r = P.bossPlaceUnseen(id, w);
+        const r = P.bossPlaceUnseen(id, w, { actions: used });
         if (!r.ok) continue;
         if (r.correct) {
           fillSlot(w, song.title ?? '');
@@ -365,13 +380,13 @@ export async function start(ctx = {}) {
     c.append(actions);
     say('king', T.stage3.needMeasure);
     await waitClick(mBtn, signal);
-    await measure(song);
+    const used = toolsOf(await measure(song));
     mBtn.hidden = true;
     enableSlots(true);
     say('mentor', T.stage3.pickSlot);
     for (;;) {
       const w = await pickSlot();
-      const r = P.bossPlaceStage3(w);
+      const r = P.bossPlaceStage3(w, { actions: used });
       if (!r.ok) continue;
       if (r.correct) { fillSlot(w, song.title ?? ''); break; }
       fogPulse();

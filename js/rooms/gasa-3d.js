@@ -9,6 +9,7 @@ import { createScenery, disposeGroupGeometry } from '../world/gfx/t37-scenery.js
 import { createCharacter } from '../world/gfx/figures.js';
 import { TOKENS } from '../world/palette.js';
 import { createAssets } from '../world/assets.js';
+import { releaseRenderer } from '../world/webgl.js';
 
 export const PIXEL_RATIO_MAX = 1.5;
 const CAMERA_OFFSET = [0, 6.6, 13.5];
@@ -352,7 +353,7 @@ export async function createScene3D({ host, three = null, assets = null, manifes
       peak.mesh.geometry.dispose();
       sc.dispose();
       if (art !== assets) art?.dispose?.();
-      renderer?.dispose();
+      if (renderer) releaseRenderer(renderer);   // 자기 그림판이면 GPU 맥락까지 돌려준다
       canvas?.remove();
     },
   };

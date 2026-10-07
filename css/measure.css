@@ -195,6 +195,8 @@ span.m-word.has-slash { position: relative; padding-right: 0; }
 .measure .m-drum.is-hit { animation: m-pop 0.15s ease-out; }
 @keyframes m-pop { 50% { transform: scale(0.95); } }
 .measure .m-none { border-style: dashed; }
+/* 같은 걸음으로 넘기기: 남은 단위가 모두 같은 박 수일 때만 장구 옆에 붙는다 */
+.measure .m-skip-same { flex: 0 1 auto; border-style: dashed; }
 .measure .m-finish { margin-left: auto; background: var(--juhong); border-color: var(--juhong); color: var(--hanji); font-weight: 700; }
 .measure .m-finish:disabled { background: var(--hanji); color: var(--meok-soft); border-color: var(--meok-fog); }
 

@@ -7,12 +7,14 @@
 //  - 「정석가」: 6연(1연 3줄, 2~6연 6줄), 불가능한 조건들, 마지막 연이 「서경별곡」 둘째 연과 같은 사설
 //  - 「동동」은 두 달치(정월·이월), 「정읍사」 카드 문구, 「사모곡」 보스 무리
 //  - 「가시리」는 물건이 없어 '노래 속 마음' 카드(keepsake.kind: 'mind', 추가 제안 F1)이고 카드 한 줄(cardNote)이 있다
-//  - 『분류 수첩』 고려가요 쪽이 형식에 맞고 개념 셋을 모두 다룬다
+//  - 『분류 수첩』 고려가요 쪽이 형식에 맞고 개념 셋을 모두 다룬다. 본문의 보기 구절("…")은 덤 노래 글 그대로이고,
+//    반드시 지나는 길(튜토리얼·칸·길 잃은 노래·작품 방)의 노래 글에는 없다(인용을 보고 판단 없이 노래를 알아보지 않게)
 //  - 음보 세기(추가 제안 T31): 여음·후렴·되풀이 머리는 박에서 빠지고, 줄마다 박에 드는 음보 수가 정한 표와 같다.
 //    여음 글자와 같은 음보가 박으로 남아 있지 않고, 낱말 안에서 나눈 음보를 이으면 원래 글이 된다. 노래마다 근거 메모가 있다.
 // 음성 사례: 데이터를 일부러 망가뜨려 이 점검이 실제로 잡는지 확인한다.
 import { validateDataSet, validateNotebookPage } from '../js/core/validate.js';
-import { deriveConcepts, squash, feetCounts, joinFeet, isMetricFoot } from '../js/core/song-shape.js';
+import { deriveConcepts, squash, feetCounts, joinFeet, isMetricFoot, songText } from '../js/core/song-shape.js';
+import { songs as ALL_SONGS } from '../js/data/songs/index.js';
 import { SONG_TABLE } from '../js/data/song-table.js';
 import { buildGrid, createTapSession } from '../js/core/rhythm.js';
 import { GORYEO_LINE_TEXT } from './fixtures/goryeo-line-text.mjs';
@@ -226,6 +228,18 @@ function inspect(songs, page) {
 
   // 8) 수첩
   for (const e of validateNotebookPage(page, GENRE)) bad('수첩: ' + e.message);
+  // 보기 구절: 덤 노래 글 그대로, 반드시 지나는 길의 노래에는 없는 것
+  const MANDATORY = ['tutorial', 'shelf', 'stray', 'room'];
+  const others = ALL_SONGS.filter((x) => x.genre !== GENRE);
+  const inSong = (x, key) => squash(songText(x, 'original')).includes(key) || squash(songText(x, 'reading')).includes(key);
+  const quotes = [...(page?.body ?? []), ...(page?.lines ?? []).map((l) => l.text)].flatMap((t) => [...String(t).matchAll(/"([^"]+)"/g)].map((m) => m[1]));
+  for (const q of quotes) {
+    const key = squash(q.replace(/\//g, ''));
+    const bonusHit = songs.some((x) => x && (x.roles ?? []).every((r) => r.role === 'bonus') && inSong(x, key));
+    if (!bonusHit) bad('수첩: 보기 구절 "' + q + '"가 덤 노래 글에 그대로 없다');
+    const leak = [...songs, ...others].filter((x) => x && (x.roles ?? []).some((r) => MANDATORY.includes(r.role)) && inSong(x, key));
+    if (leak.length) bad('수첩: 보기 구절 "' + q + '"가 반드시 지나는 길의 노래(' + leak.map((x) => x.id).join(', ') + ')에 있다');
+  }
   const covered = new Set((page?.lines ?? []).flatMap((l) => l.conceptIds ?? []));
   for (const c of conceptsOfGenre(GENRE)) if (!covered.has(c.id)) bad('수첩: 개념 ' + c.id + '를 다루는 줄이 없다');
   return problems;
@@ -276,6 +290,10 @@ console.log('\n[고려가요] 음성 사례 (망가뜨린 데이터를 잡아야
   page.lines = page.lines.filter((l) => !l.conceptIds.includes('goryeo-refrain'));
   const problems = inspect(structuredClone(mod.songs), page);
   check(problems.some((p) => p.includes('goryeo-refrain')), '수첩에서 후렴 줄을 뺌 → ' + (problems.length ? '잡힘' : '잡히지 않음'));
+  const leaky = structuredClone(nb.notebookPage);
+  leaky.body = [...leaky.body, '한 줄은 대개 세 음보로 읽힌다. "가시리 / 가시리 / 잇고"처럼 끊는다. 줄 끝의 "나ᄂᆞᆫ"은 세지 않는다.'];
+  const lp = inspect(structuredClone(mod.songs), leaky);
+  check(lp.some((p) => p.includes('반드시 지나는 길') && p.includes('gasiri')), '수첩 보기 구절에 칸 노래(「가시리」)를 인용함 → ' + (lp.length ? '잡힘: ' + lp[0] : '잡히지 않음'));
 }
 
 console.log('\n' + (failures ? '✗ 실패 ' + failures + '건' : '✓ 고려가요 점검 통과'));

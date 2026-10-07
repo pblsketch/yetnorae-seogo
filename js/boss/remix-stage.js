@@ -7,6 +7,8 @@
 //  - 박자 없는 방식(소리 끔·빗금 모드·소리 판을 열 수 없음): 이어 붙은 글줄을 보고 바뀌는 줄을 누른다.
 //  두 방식 모두 진행 엔진에 { line: 단위 번호, switchLines: 바뀌는 지점의 단위 번호 넷 }을 넘긴다. 틀림은 line: -1.
 // 놓친 지점은 그 앞뒤 단위를 다시 들려준다. 찾은 지점은 저장하지 않는다(나갔다 오면 2단계를 처음부터).
+// 박자 방식에서 틀린 탭 뒤에는 '바뀌었다' 북이 판정 창 길이(REMIX_WINDOW_MS 앞+뒤)만큼 튕겨 나가 탭을 받지 않는다
+// (마구 두드려 지점을 찾는 것을 막는다). 기록도 벌도 아니고, 그동안의 탭을 받지 않을 뿐이다. 글줄 방식은 그대로다.
 import * as bus from '../core/events.js';
 import * as Rh from '../core/rhythm.js';
 import { joinFeet } from '../core/song-shape.js';
@@ -127,10 +129,30 @@ export function runRemixStage(ctx) {
     const session = createRemixSession(grid, { offsetMs: rhythm.offsetMs ?? 0 });
     let current = 0;
     let playing = false;
+    // 틀린 탭 뒤 튕김: 판정 창 길이(앞+뒤)만큼 탭을 받지 않는다
+    const bounceMs = Rh.REMIX_WINDOW_MS.before + Rh.REMIX_WINDOW_MS.after;
+    let bounceUntil = 0;
+    let bounceEnd = null;
+    const unbounce = () => {
+      clearTimeout(bounceEnd);
+      bounceEnd = null;
+      bounceUntil = 0;
+      tap.classList.remove('is-bounced');
+      tap.removeAttribute('aria-disabled');
+    };
+    const bounce = () => {
+      bounceUntil = performance.now() + bounceMs;
+      tap.classList.add('is-bounced');
+      tap.setAttribute('aria-disabled', 'true');
+      clearTimeout(bounceEnd);
+      bounceEnd = setTimeout(unbounce, bounceMs);
+    };
+    offs.push(unbounce);
 
     function onTap(ev) {
       if (!playing || mode !== 'beat') return;
       ev.preventDefault?.();
+      if (bounceUntil && performance.now() < bounceUntil) return;   // 튕겨 나간 동안은 받지 않는다
       const t = engine.tap(ev.timeStamp);
       if (t === null || t === undefined) return;
       tap.classList.remove('is-hit');
@@ -138,10 +160,15 @@ export function runRemixStage(ctx) {
       tap.classList.add('is-hit');
       const r = session.tap(t);
       if (r.kind === 'hit') send(switches[r.point]);
-      else if (r.kind === 'wrong') send(-1, current);
+      else if (r.kind === 'wrong') { send(-1, current); if (!completed) bounce(); }
     }
     tap.addEventListener('pointerdown', onTap);
-    tap.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') onTap(e); });
+    tap.addEventListener('keydown', (e) => {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      e.preventDefault();
+      if (e.repeat) return;   // 누른 채 있는 키의 되풀이는 탭이 아니다
+      onTap(e);
+    });
 
     async function pass(segs) {
       playing = true;

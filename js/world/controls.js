@@ -1,6 +1,9 @@
 // 조작(spec 14): 탭 이동, 왼쪽 아래 떠다니는 조이스틱(터치에서만, 엄지가 닿은 자리에 생김),
 // 끌어 돌리기, 키보드(WASD·방향키 이동, Enter·Space 상황 버튼), 오른쪽 아래 상황 버튼 하나.
 // 3D와 2D가 함께 쓴다. 무엇을 할지는 onTap·onRotate를 넘긴 쪽이 정한다.
+// canAct(): 키보드가 지금 세계에 닿는지(세계가 가려졌거나 반반 틀·방 무대·회전 안내면 거짓). 거짓이면 Enter·Space는
+// 상황 버튼을 누르지 않고, 방향키·WASD는 가로채지 않는다(앞에 뜬 수첩·일지·보스 창이 스스로 스크롤하고 누른다).
+// 초점이 대화 상자(role="dialog") 안에 있을 때도 같다.
 import { TUNING } from './tuning.js';
 
 const MOVE_CODES = {
@@ -18,7 +21,7 @@ function el(tag, className) {
 }
 
 // view: 탭과 끌기를 받는 세계 영역, hud: 조이스틱을 띄울 겹, safe: 상황 버튼을 둘 16:9 안전 상자
-export function createControls({ view, hud, safe, onTap, onRotate }) {
+export function createControls({ view, hud, safe, onTap, onRotate, canAct = () => true }) {
   const controls = el('div', 'world-controls');
   const joy = el('div', 'world-joystick');
   const knob = el('div', 'world-joystick__knob');
@@ -109,17 +112,18 @@ export function createControls({ view, hud, safe, onTap, onRotate }) {
   function onKeyDown(e) {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     const t = e.target;
-    if (t?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"], .world-panel')) return;
+    if (t?.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"], .world-panel, [role="dialog"], [aria-modal="true"]')) return;
+    // 세계가 가려졌거나 반반 틀·방 무대·회전 안내 동안: 아무것도 하지 않고 기본 동작(스크롤, 초점 단추 누르기)을 막지 않는다
+    if (!enabled || !canAct()) return;
     const dir = MOVE_CODES[e.code];
     if (dir) {
-      if (!enabled) return;
       keys.add(dir);
       e.preventDefault();
       return;
     }
     if (CONTEXT_CODES.has(e.code)) {
       if (t?.closest?.('button, a, [role="button"]')) return;   // 초점 받은 버튼은 스스로 눌린다
-      if (!enabled || !contextHandler || e.repeat) return;
+      if (!contextHandler || e.repeat) return;
       e.preventDefault();
       fireContext();
     }

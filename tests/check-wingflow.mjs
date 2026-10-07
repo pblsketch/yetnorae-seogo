@@ -6,6 +6,9 @@
 // 확인하는 것
 //  - 시조관 한 판 전체(3D, 1366×768): 떠도는 노래 잡기 → 재기(빗금) → 꽂기, 미리 잰 노래(입구, 연필 표시),
 //    오답 경로(칸에 길 잃은 노래, 바구니에 칸 노래, 행선지 틀림), 판정 전 자유로운 넣고 빼기, 오답 도움(수첩 반짝임),
+//    맞대어 보기(돌아온 노래의 감정서 줄을 그 자리 수첩 줄과 견줌: 어긋나는 줄을 누르면 짝이 밝아지고 손으로,
+//    어긋나지 않는 줄은 흔들림만, 두 번이면 살짝 빛남, 어긋나는 줄이 없으면 열지 않음, Esc로 닫힘, 기록 없음),
+//    재기의 단위 이름(드러나기 전 '덩이', 판정에서 맞은 노래는 갈래 단위 이름), 칸이 묶일 때 단위 이름이 드러남,
 //    제본·먹안개, 가객(전해지는 이야기)과 기념품, 창을 다시 열어 이어 하기, 작품 방, 판 끝(단청·카드·문틈 소리·덤 칸),
 //    덤 묶기, 다음 관 입구의 미리 잰 노래, 다시 들어가기(모습 되살리기, 판정 기록 그대로), 일지·도감·수첩
 //  - 향가관 탑 한 판(2D 그림 판, 844×390): 층이 틀린 노래만 삐져나옴, 행선지(미리 잰 대기·돌아온 노래 선반), 판 끝
@@ -21,6 +24,7 @@ import { openGame, VIEWPORTS } from './lib/browser.mjs';
 import { songs } from '../js/data/songs/index.js';
 import { defaultData, defaultProgress, SAVE_KEY } from '../js/core/save.js';
 import { WING_TABLE } from '../js/data/song-table.js';
+import { L as PL } from '../js/play/labels.js';
 
 const PAGE = 'tests/pages/wingflow.html';
 const SAVE_FAIL_TEXT = '이 기기에 저장되지 않아요. 이번 창에서만 이어집니다';
@@ -92,9 +96,10 @@ async function solveMeasure(info) {
   let intros = 0;
   let last = null;
   let firstStep = null;
+  let sheet = null;
   for (let i = 0; i < 6000; i++) {
     const root = document.querySelector('.measure');
-    if (!root) return { done: true, intros, firstStep };
+    if (!root) return { done: true, intros, firstStep, sheet };
     const introOk = root.querySelector('.m-intro-ok');
     if (introOk) { introOk.click(); intros++; await sleep(20); continue; }
     const step = root.dataset.step;
@@ -146,6 +151,7 @@ async function solveMeasure(info) {
         if (none) { none.click(); await sleep(30); continue; }
       }
     } else if (step === 'sheet') {
+      sheet = [...root.querySelectorAll('.m-sheet-line')].map((e) => e.textContent);
       root.querySelector('.m-finish')?.click();
       await sleep(30);
       continue;
@@ -153,6 +159,24 @@ async function solveMeasure(info) {
     await sleep(20);
   }
   return { done: false, intros, step: document.querySelector('.measure')?.dataset.step };
+}
+
+// 맞대어 보기 창을 실제 누르기로 푼다: 감정서 줄을 차례로 눌러 짝이 지어지면 '손에 다시 들기'. 푼 창 수를 돌려준다
+async function solveContrast(maxPanels) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let panels = 0;
+  for (let i = 0; i < 400 && panels < maxPanels; i++) {
+    const box = document.querySelector('.play-contrast');
+    if (!box) { await sleep(50); continue; }
+    const back = box.querySelector('.play-contrast-back:not([hidden])');
+    if (back) { back.click(); panels++; await sleep(30); continue; }
+    const b = [...box.querySelectorAll('.play-contrast-line:not([disabled])')].find((x) => !x.dataset.tried);
+    if (!b) return { panels, stuck: true };
+    b.dataset.tried = '1';
+    b.click();
+    await sleep(30);
+  }
+  return { panels };
 }
 
 // 화면 배치 문제(한 판 화면). 문서 넘침, 화면 밖으로 나간 것, 48px보다 작은 버튼.
@@ -167,7 +191,7 @@ function playLayoutProblems() {
   if (de.scrollWidth > innerWidth + 1 || de.scrollHeight > innerHeight + 1) out.push('문서 넘침');
   const root = document.querySelector('.play');
   if (!root) return ['한 판 화면 없음'];
-  for (const e of root.querySelectorAll('.play-hud *, .play-strip *, .play-dialog *, .play-panel *, .play-singers *, .play-keepsakes *, .play-notice *')) {
+  for (const e of root.querySelectorAll('.play-hud *, .play-strip *, .play-dialog *, .play-panel *, .play-singers *, .play-keepsakes *, .play-notice *, .play-contrast *')) {
     if (!visible(e) || e.closest('.play-scroll')) continue;
     const r = e.getBoundingClientRect();
     if (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) out.push('화면 밖: ' + e.className + ' ' + [r.left, r.top, r.right, r.bottom].map(Math.round).join(','));
@@ -205,6 +229,7 @@ async function setup(page) {
   const err = await ev(page, () => window.__wf.error ?? null);
   if (err) throw new Error('점검 페이지가 열리지 않음: ' + err);
   await page.evaluate(`window.__solveMeasure = ${solveMeasure.toString()};
+    window.__solveContrast = ${solveContrast.toString()};
     window.__playLayout = ${playLayoutProblems.toString()};
     window.__emptySpineTitles = ${emptySpineTitles.toString()};`);
 }
@@ -269,7 +294,9 @@ async function placeInto(page, area, index, id, to = null) {
 async function ceremony(page) {
   await waitSel(page, '.play-singers', 10000);
   const singers = [];
+  let reveal = null;
   for (let i = 0; i < 6; i++) {
+    if (i === 0) reveal = await ev(page, () => document.querySelector('.play-singers .play-reveal')?.textContent ?? null);
     const s = await ev(page, () => {
       const e = document.querySelector('.play-singers .play-singer');
       return e ? { id: e.dataset.song, name: e.querySelector('.play-singer-name')?.textContent ?? '', legend: !!e.querySelector('.play-legend'), legendText: e.querySelector('.play-legend')?.textContent ?? '', line: e.querySelector('.play-singer-line')?.textContent ?? '', img: !!e.querySelector('img') } : null;
@@ -283,7 +310,7 @@ async function ceremony(page) {
   const cards = await ev(page, () => [...document.querySelectorAll('.play-keepsakes .play-keepsake')].map((e) => ({ id: e.dataset.song, kind: e.dataset.kind, kindText: e.querySelector('.play-keepsake-kind')?.textContent ?? '', name: e.querySelector('.play-keepsake-name')?.textContent ?? '', note: e.querySelector('.play-keepsake-note')?.textContent ?? '' })));
   await click(page, '.play-keepsakes .play-close');
   await page.waitForFunction(() => !document.querySelector('.play-keepsakes'), null, { timeout: 5000, polling: 100 });
-  return { singers, cards };
+  return { singers, cards, reveal };
 }
 
 async function closeCard(page) {
@@ -361,6 +388,7 @@ try {
     console.log('— 잡기와 재기');
     const first = await catchAndMeasure(page, 'sijo', 'ireondeul');
     ok(first.intros === 1, '관에 처음 들어와 처음 재면 고유 동작 안내를 한 번 본다 (' + first.intros + ')');
+    ok(first.sheet?.[0] === '[세 덩이]' && first.sheet?.[1] === '[덩이마다 네 음보]', "드러나기 전(판정 전) 감정서는 단위를 '덩이'라 부른다 " + JSON.stringify(first.sheet));
     ok((await progressOf(page)).wings.sijo.uniqueActionIntroSeen === true, '고유 동작 안내를 본 것을 기록한다(uniqueActionIntroSeen)');
     for (const id of ['imomi-jukgo', 'chang-naegoja', 'gwandong-byeolgok']) {
       const r = await catchAndMeasure(page, 'sijo', id);
@@ -368,6 +396,7 @@ try {
     }
     const pre = await catchAndMeasure(page, 'sijo', 'dongjitdal');
     ok(pre.firstStep === 'sheet', '미리 잰 「동짓달」은 감정서가 채워진 채로 열린다 (첫 단계 ' + pre.firstStep + ')');
+    ok(pre.sheet?.[0] === '[세 장]' && pre.sheet?.[1] === '[장마다 네 음보]', '바구니에서 맞게 보내진(드러난) 노래는 갈래 단위 이름으로 부른다 ' + JSON.stringify(pre.sheet));
     ok(same(sorted(await hand(page)), sorted(['ireondeul', 'imomi-jukgo', 'chang-naegoja', 'gwandong-byeolgok', 'dongjitdal'])), '잰 노래 다섯이 손에 있다');
     ok((await floating(page)).length === 0 && (await waiting(page)).length === 0, '잡은 노래는 더 떠다니지 않는다');
     ok(same(sorted((await progressOf(page)).wings.sijo.measured), sorted(['ireondeul', 'imomi-jukgo', 'chang-naegoja', 'gwandong-byeolgok', 'dongjitdal'])), '재기 완료를 기록한다(measured)');
@@ -399,6 +428,43 @@ try {
     ok(true, '삐져나온 노래는 손으로 돌아온다');
     ok(await ev(page, () => [...document.querySelectorAll('.play-toast')].some((t) => t.textContent.includes('창 내고쟈'))), '삐져나온 노래를 알린다');
 
+    console.log('— 맞대어 보기: 돌아온 노래의 감정서와 그 자리의 수첩 줄');
+    await waitSel(page, '.play-contrast', 8000);
+    const cp = await ev(page, () => {
+      const box = document.querySelector('.play-contrast');
+      return {
+        song: box?.dataset.song,
+        modal: box?.getAttribute('aria-modal'),
+        lines: [...box.querySelectorAll('.play-contrast-line')].map((b) => ({ kind: b.dataset.kind, text: b.textContent })),
+        notes: [...box.querySelectorAll('.play-contrast-note')].map((n) => n.dataset.lineId),
+        focusIn: box.contains(document.activeElement),
+        prompt: box.querySelector('.play-contrast-prompt')?.textContent ?? '',
+      };
+    });
+    ok(cp.song === 'chang-naegoja' && cp.modal === 'true' && cp.focusIn, '「창 내고쟈」 맞대어 보기 창이 열리고 초점이 창 안에 있다 ' + JSON.stringify({ song: cp.song, focusIn: cp.focusIn }));
+    ok(same(cp.lines.map((l) => l.kind), ['fold', 'tap', 'action']) && cp.lines[0].text === '[세 덩이]', "왼쪽은 그 노래의 감정서 줄('덩이'로) " + JSON.stringify(cp.lines));
+    ok(same(cp.notes, ['sijo-shape', 'sijo-beat', 'sijo-final']), '오른쪽은 그 자리(시조 칸)의 『분류 수첩』 줄 ' + JSON.stringify(cp.notes));
+    ok(cp.prompt === PL.contrastPrompt, '안내: ' + cp.prompt);
+    ok((await playLayoutCheck(page)).length === 0, '맞대어 보기 창 배치 문제 없음 ' + JSON.stringify(await playLayoutCheck(page)));
+    const beforeContrast = JSON.stringify(await progressOf(page));
+    // 키보드: Tab은 창 안에서만 돈다
+    for (let k = 0; k < 6; k++) await page.keyboard.press('Tab');
+    ok(await ev(page, () => document.querySelector('.play-contrast')?.contains(document.activeElement)), 'Tab을 여러 번 눌러도 초점이 창 밖으로 나가지 않는다');
+    // 어긋나지 않는 줄(세 덩이 = 세 장이 맞다): 흔들림만
+    await click(page, '.play-contrast-line[data-kind="fold"]');
+    const miss1 = await ev(page, () => ({ shake: document.querySelector('.play-contrast-line[data-kind="fold"]')?.classList.contains('is-shake'), pair: !!document.querySelector('.play-contrast .is-pair'), hint: !!document.querySelector('.play-contrast .is-hint'), open: !!document.querySelector('.play-contrast'), status: document.querySelector('.play-contrast-status')?.textContent ?? '' }));
+    ok(miss1.shake && !miss1.pair && !miss1.hint && miss1.open && miss1.status === '', '어긋나지 않는 줄을 누르면 흔들리기만 하고 아무 말도 없다 ' + JSON.stringify(miss1));
+    await click(page, '.play-contrast-line[data-kind="action"]');
+    const miss2 = await ev(page, () => ({ hints: [...document.querySelectorAll('.play-contrast-line.is-hint')].map((b) => b.dataset.kind), pair: !!document.querySelector('.play-contrast .is-pair'), status: document.querySelector('.play-contrast-status')?.textContent ?? '' }));
+    ok(same(miss2.hints, ['tap']) && !miss2.pair && miss2.status === PL.contrastNudge, '두 번째로 어긋나지 않는 줄을 누르면 어긋나는 줄이 살짝 빛난다(아직 눌러야 한다) ' + JSON.stringify(miss2));
+    ok(JSON.stringify(await progressOf(page)) === beforeContrast, '어긋나지 않는 줄을 눌러도 기록이 바뀌지 않는다(오답에 들지 않는다)');
+    await click(page, '.play-contrast-line[data-kind="tap"]');
+    const paired = await ev(page, () => ({ left: [...document.querySelectorAll('.play-contrast-line.is-pair')].map((b) => b.dataset.kind), right: [...document.querySelectorAll('.play-contrast-note.is-pair')].map((n) => n.dataset.lineId), back: !document.querySelector('.play-contrast-back')?.hidden, status: document.querySelector('.play-contrast-status')?.textContent ?? '' }));
+    ok(same(paired.left, ['tap']) && same(paired.right, ['sijo-beat']) && paired.back && paired.status === PL.contrastFound, '어긋나는 줄(두드리기)을 누르면 수첩의 같은 개념 줄(장마다 네 음보)과 짝으로 밝아진다 ' + JSON.stringify(paired));
+    await click(page, '.play-contrast-back');
+    await page.waitForFunction(() => !document.querySelector('.play-contrast'), null, { timeout: 5000, polling: 100 });
+    ok((await hand(page)).includes('chang-naegoja') && JSON.stringify(await progressOf(page)) === beforeContrast, "'손에 다시 들기'로 창이 닫히고 노래는 손에 있다. 기록은 그대로다");
+
     console.log('— 오답: 바구니에 칸 노래, 행선지 틀림');
     await clearLog(page);
     await placeInto(page, 'basket', 0, 'dongjitdal', 'sijo');
@@ -410,13 +476,24 @@ try {
     ok(same(sorted(pop2.map((d) => d.area + ':' + d.songId)), ['basket:dongjitdal', 'basket:gwandong-byeolgok']), '칸 노래와 행선지가 틀린 노래가 바구니에서 돌아온다 ' + JSON.stringify(pop2));
     pr = await progressOf(page);
     ok(same(pr.wings.sijo.placements.basket, [null, null]) && pr.wings.sijo.wrongCount === 3 && !pr.wings.sijo.basketDone, '행선지 표시가 지워지고 오답이 셋이 된다');
+    // 「동짓달」(칸 노래를 자기 갈래 행선지로)은 어긋나는 줄이 없어 창을 열지 않는다. 「관동별곡」(가사 → 사설시조관)은 연다
+    await waitSel(page, '.play-contrast', 8000);
+    ok(await ev(page, () => document.querySelector('.play-contrast')?.dataset.song === 'gwandong-byeolgok'), '어긋나는 줄이 없는 노래(「동짓달」)는 건너뛰고 「관동별곡」 창만 연다');
+    ok(same(await ev(page, () => [...document.querySelectorAll('.play-contrast-note')].map((n) => n.dataset.lineId)), ['saseol-stretch', 'saseol-frame', 'saseol-vs-gasa']), '바구니의 대상은 고른 행선지(사설시조관)의 수첩 쪽');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('.play-contrast'), null, { timeout: 5000, polling: 100 });
+    await new Promise((r) => setTimeout(r, 600));
+    ok(await ev(page, () => !document.querySelector('.play-contrast')), 'Esc를 누르면 창이 닫히고(노래는 손에) 다른 창이 더 열리지 않는다');
     const glows = await logOf(page, 'help:notebook-glow');
     ok(glows.length >= 1, '오답 셋째부터 수첩 도움이 반짝인다 ' + JSON.stringify(glows));
+    const gw = glows.find((d) => d.songId === 'gwandong-byeolgok');
+    ok(gw && gw.genre === 'saseol' && !glows.some((d) => d.genre === 'gasa') && gw.conceptIds.every((c) => c.startsWith('saseol-')), '수첩 도움은 고른 자리(행선지 사설시조관)의 갈래 쪽과 어긋나는 개념이다(노래 갈래인 가사 쪽이 아니다) ' + JSON.stringify(gw));
     await page.waitForFunction(() => document.querySelectorAll('.play-hand-song').length === 3, null, { timeout: 5000, polling: 100 });
     ok(same(sorted(await hand(page)), sorted(['chang-naegoja', 'dongjitdal', 'gwandong-byeolgok'])), '돌아온 노래가 모두 손에 있다');
     await click(page, '.play-btn[data-open="notebook"]');
     await waitSel(page, '.play-panel[data-panel="notebook"]', 5000);
-    const nb = await ev(page, () => ({ tabs: [...document.querySelectorAll('.play-nb-tab')].map((t) => t.dataset.genre), glowLines: document.querySelectorAll('.play-panel[data-panel="notebook"] .is-glow').length }));
+    const nb = await ev(page, () => ({ tabs: [...document.querySelectorAll('.play-nb-tab')].map((t) => t.dataset.genre), glowLines: document.querySelectorAll('.play-panel[data-panel="notebook"] .is-glow').length, current: document.querySelector('.play-nb-tab.is-current')?.dataset.genre, glowTabs: [...document.querySelectorAll('.play-nb-tab.is-glow')].map((t) => t.dataset.genre) }));
+    ok(nb.current !== 'gasa' && !nb.glowTabs.includes('gasa'), '수첩은 틀린 노래의 갈래(가사) 쪽으로 넘어가거나 반짝이지 않는다 ' + JSON.stringify({ current: nb.current, glowTabs: nb.glowTabs }));
     ok(same(nb.tabs, ['hyangga', 'goryeo', 'sijo', 'gasa', 'saseol']), '『분류 수첩』 다섯 갈래 쪽이 모두 있다');
     ok(nb.glowLines > 0, '수첩의 관련 줄이 반짝인다 (' + nb.glowLines + ')');
     await click(page, '.play-panel .play-panel-close');
@@ -429,6 +506,7 @@ try {
     ok(same(bound, [{ area: 'shelf', songIds: ['dongjitdal', 'ireondeul', 'imomi-jukgo'] }]), '세 권이 묶인다(shelf-bound) ' + JSON.stringify(bound));
     ok((await logOf(page, 'diorama:fog-recede')).length === 1, '먹안개가 물러난다(fog-recede)');
     const c1 = await ceremony(page);
+    ok(c1.reveal === PL.unitReveal.sijo, '칸이 묶이면 그 관의 단위 이름이 드러난다: ' + c1.reveal);
     ok(same(c1.singers.map((s) => s.id), ['dongjitdal', 'ireondeul', 'imomi-jukgo']), '가객 셋이 차례로 나온다 ' + JSON.stringify(c1.singers.map((s) => s.id)));
     ok(c1.singers.every((s) => s.name === song(s.id).singer.name && s.img && s.line.length > 0), '가객은 이름과 종이 인형, 한 소절로 나온다');
     ok(same(c1.singers.map((s) => s.legend), [false, true, true]) && c1.singers.filter((s) => s.legend).every((s) => s.legendText === '전해지는 이야기'), "설화 장면에는 '전해지는 이야기'를 붙인다");
@@ -488,6 +566,7 @@ try {
     ok(same(await logOf(page, 'diorama:shelf-bound'), [{ area: 'bonus', songIds: WING_TABLE.sijo.bonus }]), '덤 칸이 묶인다');
     const c2 = await ceremony(page);
     ok(c2.singers.length === 3 && c2.cards.length === 3, '덤을 묶어도 가객과 기념품이 나온다');
+    ok(c2.reveal === null, '덤 묶음에는 단위 이름 줄이 없다(칸이 묶일 때 한 번)');
     ok((await progressOf(page)).wings.sijo.bonusDone === true, '덤 완료를 기록한다');
 
     console.log('— 일지와 도감');
@@ -568,6 +647,12 @@ try {
     await page.waitForFunction(() => window.__wf.log.filter((e) => e.name === 'diorama:pop-out').length >= 2, null, { timeout: 5000, polling: 100 });
     const pops = await logOf(page, 'diorama:pop-out');
     ok(same(pops.map((d) => d.index + ':' + d.songId + ':' + d.genre), ['0:cheoyongga:hyangga', '1:seodongyo:hyangga']), '층이 바뀐 두 노래만 삐져나온다 ' + JSON.stringify(pops));
+    await waitSel(page, '.play-contrast', 8000);
+    const towerPanel = await ev(page, () => ({ song: document.querySelector('.play-contrast')?.dataset.song, notes: [...document.querySelectorAll('.play-contrast-note')].map((n) => n.dataset.lineId + ':' + n.textContent) }));
+    ok(towerPanel.song === 'cheoyongga' && towerPanel.notes[0] === 'floor:' + PL.floorLine(4), "탑: 오른쪽 첫 줄은 그 층('이 층은 네 덩이로 된 노래의 자리다.') " + JSON.stringify(towerPanel.notes.slice(0, 2)));
+    ok((await playLayoutCheck(page)).length === 0, '844×390 2D: 맞대어 보기 창 배치 문제 없음 ' + JSON.stringify(await playLayoutCheck(page)));
+    const solved = await ev(page, () => window.__solveContrast(2));
+    ok(solved.panels === 2 && !solved.stuck, '탑에서 돌아온 두 노래를 차례로 맞대어 본다(감정서 줄을 차례로 눌러 풀기) ' + JSON.stringify(solved));
     ok((await progressOf(page)).wings.hyangga.placements.shelf[2]?.fixed === true, '10구 층 노래는 고정된다');
     await placeInto(page, 'shelf', 0, 'seodongyo');
     await placeInto(page, 'shelf', 1, 'cheoyongga');
@@ -674,6 +759,16 @@ try {
     ok(notices.length === 1 && notices[0].includes(SAVE_FAIL_TEXT), '알림은 한 번만, 정해진 문장으로 ' + JSON.stringify(notices));
     ok(same((await progressOf(page)).wings.sijo.placements.shelf[0], { songId: 'dongjitdal', fixed: false }), '저장이 안 돼도 이번 창에서 이어진다');
     ok((await playLayoutCheck(page)).length === 0, '알림이 화면을 넘지 않는다');
+    // 규칙 11절 '한 번': 기록 목록으로 갔다 돌아오는 것처럼 세션을 치우고 다시 띄워도 다시 알리지 않는다(앱이 열려 있는 동안 한 번)
+    const again = await ev(page, async () => {
+      const wf = window.__wf;
+      wf.session.dispose();
+      const n0 = wf.log.filter((e) => e.name === 'save:failed').length;
+      wf.session = await wf.createSession({ container: document.getElementById('app'), rooms: {}, audioDeps: wf.audioDeps });
+      wf.events.emit('save:failed', { reason: 'quota' });
+      return { delivered: wf.log.filter((e) => e.name === 'save:failed').length - n0, notices: document.querySelectorAll('.play-notice').length };
+    });
+    ok(again.delivered >= 1 && again.notices === 0, '세션을 다시 띄워도 저장 실패 알림은 다시 뜨지 않는다(실패 신호는 왔다) ' + JSON.stringify(again));
     ok(game.errors.length === 0, '저장 실패: 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
     await game.close();
     sessions.pop();

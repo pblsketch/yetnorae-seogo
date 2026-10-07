@@ -18,8 +18,9 @@ export function firstLine(song) {
 }
 
 // host: 연출을 띄울 요소. list: 노래 객체 셋. engine: 소리 엔진(한 소절을 낸다). signal: 중단 신호.
+// lead: 첫 가객 카드 위에 보일 한 줄(칸이 묶일 때 드러나는 단위 이름, 없으면 생략).
 // 학생이 '도감에 담기'를 누르면 끝난다(중단되면 바로 끝난다).
-export function playCeremony(host, { list, manifest, engine, signal, reduceMotion = () => false }) {
+export function playCeremony(host, { list, manifest, engine, signal, reduceMotion = () => false, lead = null }) {
   return new Promise((resolve) => {
     let box = null;
     let sound = null;
@@ -58,6 +59,7 @@ export function playCeremony(host, { list, manifest, engine, signal, reduceMotio
       card.append(doll, info);
       const next = button('play-next', L.nextSinger);
       next.addEventListener('click', () => showSinger(i + 1), { once: true });
+      if (lead && i === 0) box.append(el('p', 'play-reveal', lead));
       box.append(card, next);
       host.append(box);
       next.focus({ preventScroll: true });

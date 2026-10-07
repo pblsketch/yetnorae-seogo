@@ -17,4 +17,6 @@ export const TUNING = {
   measureOffset: [0, 4.2, 9.5],  // 3D 반반 틀: 관 모형이 카메라 자리를 주지 않을 때 재기 초점에서 카메라까지(x, y, z m)
   // 화질 단계(quality.js): 장면이 바뀐 뒤 settleSec은 버리고, windowSec 평균이 lowFps 아래면 한 단계 내린다. hitchSec 넘는 프레임은 셈에서 뺀다
   quality: { lowFps: 18, windowSec: 5, settleSec: 2.5, hitchSec: 0.25 },
+  // WebGL 그림판을 잃은 뒤(GPU 재시작 등) 되찾기를 기다리는 시간. 넘으면 이번 창은 2D 그림 판으로 간다(webgl.js)
+  contextRestoreMs: 3000,
 };

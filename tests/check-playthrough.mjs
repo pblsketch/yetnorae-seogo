@@ -19,7 +19,7 @@
 //   - 판 카드 다섯 장과 마지막 카드를 실제로 내려받는다(내려받기 사건, PNG 서명·크기, 빈 그림이 아님, 담긴 글, 점수 말 없음)
 //   - 콘솔 오류, 실패한 요청(404 포함, 예: 없는 낭송 조각), 바깥 요청이 없다. 낭송 조각 요청은 모두 낭송 목록에 있는 파일이다
 // 음성 사례: 요청 감시가 일부러 낸 404·바깥 요청·콘솔 오류를 잡고, PNG 검사가 빈 그림·PNG 아닌 파일·크기 다른 그림·점수 말을 잡는다.
-// 멈춤 잡기가 음보가 바뀌지 않는 두드리기, 장구 밖에 떨어진 탭, 확인 줄이 끊긴 화면을 진단과 함께 실패로 잡는다(LIMITS).
+// 멈춤 잡기가 낭송 박이 오지 않는 두드리기, 장구 밖에 떨어진 탭, 확인 줄이 끊긴 화면을 진단과 함께 실패로 잡는다(LIMITS).
 //
 // 오래 걸린다(박자 두드리기는 낭송을 실제 시간으로 듣는다). 개발 중에만 PLAYTHROUGH_SETUP=phone|chromebook|tablet로 하나만 돌릴 수 있다.
 import fs from 'node:fs';
@@ -198,6 +198,17 @@ function installEars() {
   const ears = { ctx: null, starts: [], taps: [], tapCount: 0, events: [] };
   Object.defineProperty(window, '__ears', { value: ears });
   const mark = (what) => { ears.events.push({ at: Math.round(performance.now()), what, t: ears.ctx ? +ears.ctx.currentTime.toFixed(3) : null }); if (ears.events.length > 60) ears.events.shift(); };
+  // 소리 버퍼가 어느 파일에서 왔는지(불러온 주소 → 풀어낸 버퍼). 낭송 조각(audio/voice/)만 박으로 듣는다.
+  // 박 알림(장구 한 번)·장구·종 같은 효과음과 딸깍 대신 소리는 박이 아니다.
+  const urlOf = new WeakMap();
+  const origFetch = window.fetch;
+  window.fetch = async function (...a) {
+    const res = await origFetch.apply(this, a);
+    const url = res.url;
+    const ab = res.arrayBuffer.bind(res);
+    res.arrayBuffer = async () => { const b = await ab(); urlOf.set(b, url); return b; };
+    return res;
+  };
   window.AudioContext = class extends Orig {
     constructor(...a) {
       super(...a);
@@ -205,12 +216,25 @@ function installEars() {
       mark('소리 판 ' + this.state);
       this.addEventListener('statechange', () => mark('소리 판 ' + this.state));
     }
+    decodeAudioData(ab, ...rest) {
+      const url = urlOf.get(ab);
+      return super.decodeAudioData(ab, ...rest).then((buf) => { if (url) urlOf.set(buf, url); return buf; });
+    }
   };
   const start = AudioBufferSourceNode.prototype.start;
   AudioBufferSourceNode.prototype.start = function (when = 0, ...rest) {
-    // ahead: 미리 예약한 소리(낭송·박). 장구처럼 누르자마자 내는 소리는 false
-    ears.starts.push({ when: when || this.context.currentTime, dur: this.buffer?.duration ?? 0, ahead: when > this.context.currentTime });
+    // ahead: 미리 예약한 소리(낭송·박). 장구처럼 누르자마자 내는 소리는 false. voice: 낭송 조각 파일의 소리
+    const src = urlOf.get(this.buffer) ?? '';
+    const rec = { when: when || this.context.currentTime, dur: this.buffer?.duration ?? 0, ahead: when > this.context.currentTime, voice: src.includes('/audio/voice/'), src: src.replace(/^.*\/audio\//, '') };
+    this.__ear = rec;
+    ears.starts.push(rec);
     return start.call(this, when, ...rest);
+  };
+  // 예약을 거둔 소리(놓친 단위에서 멈춤, 회전 멈춤)는 그 시각이 와도 울리지 않는다
+  const stop = AudioBufferSourceNode.prototype.stop;
+  AudioBufferSourceNode.prototype.stop = function (...a) {
+    if (this.__ear && this.__ear.stoppedAt === undefined) this.__ear.stoppedAt = a.length && a[0] > this.context.currentTime ? a[0] : this.context.currentTime;
+    return stop.apply(this, a);
   };
   window.addEventListener('pointerdown', (ev) => {
     if (!ears.ctx) return;
@@ -227,7 +251,7 @@ function installEars() {
 // ───────── 멈춤 잡기: 끝없이 기다리지 않고 멈춘 자리를 진단한 뒤 실패한다 ─────────
 // 가장 긴 두드리기(「상춘곡」)가 다시 듣기 없이 약 6분, 가장 긴 확인 줄 사이(보스 2·3단계)가 약 10분이다.
 export const LIMITS = {
-  idleTurns: 10,              // 지금 음보가 바뀌지 않은 4초 차례가 이만큼 이어지면(약 40초) 멈춤
+  idleTurns: 10,              // 낭송 박이 오지 않은 4초 차례가 이만큼 이어지면(약 40초) 멈춤
   beatPhaseMs: 15 * 60000,    // 두드리기 한 번(노래 한 편)의 상한
   remixMs: 15 * 60000,        // 보스 2단계 박자 방식의 상한
   measureMs: 25 * 60000,      // 재기 한 번(접기부터 감정서까지)의 상한
@@ -285,6 +309,7 @@ async function stallState() {
       return { ago: +(t1 - tp.t).toFixed(1), deltaMs: best === null ? null : Math.round((tp.t - best) * 1000), on: tp.on.slice(0, 20) };
     });
     const last = starts.at(-1);
+    const nextVoice = starts.filter((s) => s.voice && s.when > t1 && !(s.stoppedAt !== undefined && s.stoppedAt <= s.when)).sort((a, b) => a.when - b.when)[0];
     audio = {
       state: ctx.state,
       currentTime: +t1.toFixed(3),
@@ -292,6 +317,7 @@ async function stallState() {
       scheduled: starts.length,
       lastStart: last ? { inSec: +(last.when - t1).toFixed(2), dur: +last.dur.toFixed(2) } : null,
       upcoming: starts.filter((s) => s.when > t1).length,
+      nextVoice: nextVoice ? { inSec: +(nextVoice.when - t1).toFixed(2), src: nextVoice.src } : null,
       taps,
     };
   }
@@ -340,7 +366,7 @@ function tapTiming(from) {
   for (const tp of e.taps) {
     if (tp.i < from || !tp.on.includes('m-drum')) continue;
     let best = null;
-    for (const s of e.starts.slice(0, tp.n)) if (s.ahead && (best === null || Math.abs(tp.t - s.when) < Math.abs(tp.t - best))) best = s.when;
+    for (const s of e.starts.slice(0, tp.n)) if (s.ahead && s.voice && (best === null || Math.abs(tp.t - s.when) < Math.abs(tp.t - best))) best = s.when;
     if (best !== null) d.push(Math.round((tp.t - best) * 1000));
   }
   const sorted = [...d].sort((a, b) => a - b);
@@ -473,14 +499,16 @@ function measureNext(info) {
   return { kind: 'wait' };
 }
 
-// 박자 두드리기: 낭송을 들으며 지금 울리는 음보(밝게 표시된 말)가 바뀔 때마다 장구를 친다.
-// 한 단위에서 박을 놓치면 게임이 그 단위를 다시 들려준다(실패 아님). 빗금 권유는 '계속 두드리기'로 넘긴다.
+// 박자 두드리기: 귀로 낭송을 듣고(소리 판에 예약된 낭송 조각의 시각) 그 조각이 울리는 때에 장구를 친다.
+// 화면의 '지금 울리는 음보' 표시는 입구·향가관과 다시 듣기에서만 보이므로 기대지 않는다. 박 알림(새로 시작할 때의
+// 장구 한 번)은 효과음이라 낭송 조각이 아니므로 치지 않는다. 고려가요 여음·후렴 조각에 친 탭은 판정 창 밖이라 무시된다.
+// 한 단위에서 박을 놓치면 게임이 그 단위에서 멈추고 다시 들려준다(실패 아님). 예약을 거둔 조각(멈춘 단위 뒤)은 치지 않는다.
+// 빗금 권유는 '계속 칠래요'로 넘긴다. '같은 걸음으로 넘기기'는 누르지 않고 끝까지 친다.
 async function beatTapping(page, ui, S, stats) {
   const drumBox = async () => (await page.locator('.measure .m-drum').boundingBox());
   if (await ui.ev(() => { const b = document.querySelector('.measure .m-listen'); return !!b && !b.disabled; })) await ui.press('.measure .m-listen');
-  let prev = null;
   // 마우스는 장구 위에 둔 채 누르기만 한다(박마다 옮기면 그만큼 늦게 친다). 다른 단추(듣기, 빗금 권유의
-  // '계속 두드리기')를 누르면 마우스가 그 단추로 가므로, 그 뒤에는 장구 자리를 다시 재고 장구 위로 옮긴다.
+  // '계속 칠래요')를 누르면 마우스가 그 단추로 가므로, 그 뒤에는 장구 자리를 다시 재고 장구 위로 옮긴다.
   // 옮기지 않으면 그 뒤의 탭이 모두 장구 밖에 떨어져 같은 단위를 끝없이 다시 듣는다.
   let box = null;
   const toDrum = async () => {
@@ -491,42 +519,53 @@ async function beatTapping(page, ui, S, stats) {
   const started = Date.now();
   const tapsBefore = stats.taps;
   const tapFrom = await ui.ev(() => window.__ears?.tapCount ?? 0);
-  const heard = new Set();   // 이번 노래에서 울린 음보(다시 울리면 그 단위를 놓쳐 다시 듣는 것)
+  // 이 시각 뒤에 울리는 낭송 조각만 친다(앞 노래·앞 단계에서 예약된 것은 듣지 않는다)
+  let after = await ui.ev(() => window.__ears?.ctx?.currentTime ?? 0);
+  const heard = new Set();   // 이번 노래에서 친 낭송 조각(다시 울리면 그 단위를 놓쳐 다시 듣는 것)
   let lastLanded = -1;       // 마지막으로 확인한 탭 기록 번호
   let idle = 0;
   for (;;) {
     if (Date.now() - started > LIMITS.beatPhaseMs) {
       throw await stall(page, S, '두드리기가 ' + LIMITS.beatPhaseMs / 60000 + '분 안에 끝나지 않음(이번 노래에서 ' + (stats.taps - tapsBefore) + '번 침, 탭 시각 ' + JSON.stringify(await within(ui.ev(tapTiming, tapFrom), 10000).catch(() => null)) + ')');
     }
-    // 다음 박(밝게 표시된 말이 바뀜) 또는 단계 바뀜·빗금 권유를 기다린다(바뀌는 즉시 알린다)
-    const r = await within(page.evaluate((prevKey) => new Promise((resolve) => {
-      const root = document.querySelector('.measure');
+    // 다음 낭송 조각이 울리는 때, 또는 단계 바뀜·빗금 권유·듣기 단추를 기다린다(4초까지)
+    const r = await within(page.evaluate((afterT) => new Promise((resolve) => {
       const look = () => {
         const m = document.querySelector('.measure');
         if (!m || m.dataset.step !== 'tap' || m.dataset.tapMode !== 'beat') return { kind: 'end' };
         if (m.querySelector('.m-suggest:not([hidden])')) return { kind: 'suggest' };
         const l = m.querySelector('.m-listen');
         if (l && !l.disabled) return { kind: 'listen' };
-        const cur = m.querySelector('.m-text .m-word.is-current');
-        const key = cur ? cur.dataset.u + '|' + cur.dataset.l + '|' + cur.dataset.f + '|' + (window.__beatSerial ?? 0) : null;
-        if (cur && key !== prevKey) {
+        const e = window.__ears;
+        if (!e?.ctx) return null;
+        const t = e.ctx.currentTime;
+        let next = null;
+        for (const s of e.starts) {
+          if (!s.voice || s.when <= afterT + 1e-4) continue;
+          if (s.stoppedAt !== undefined && s.stoppedAt <= s.when) continue;   // 거둔 예약
+          if (!next || s.when < next.when) next = s;
+        }
+        if (next && t >= next.when - 0.004) {
           const d = m.querySelector('.m-drum')?.getBoundingClientRect();
-          return { kind: 'beat', key, drum: d && d.width ? { x: d.x, y: d.y, width: d.width, height: d.height } : null };
+          return { kind: 'beat', when: next.when, src: next.src, lateMs: Math.round((t - next.when) * 1000), drum: d && d.width ? { x: d.x, y: d.y, width: d.width, height: d.height } : null };
         }
         return null;
       };
-      const first = look();
-      if (first) { resolve(first); return; }
-      const mo = new MutationObserver(() => { const v = look(); if (v) { mo.disconnect(); clearTimeout(t); resolve(v); } });
-      mo.observe(root ?? document.body, { subtree: true, attributes: true, attributeFilter: ['class', 'data-step', 'data-tap-mode', 'hidden', 'disabled'], childList: true });
-      const t = setTimeout(() => { mo.disconnect(); resolve(look() ?? { kind: 'idle' }); }, 4000);
-    }), prev), 30000).catch(async (e) => {
+      const t0 = performance.now();
+      const poll = () => {
+        const v = look();
+        if (v) { resolve(v); return; }
+        if (performance.now() - t0 > 4000) { resolve({ kind: 'idle' }); return; }
+        setTimeout(poll, 2);
+      };
+      poll();
+    }), after), 30000).catch(async (e) => {
       if (e.timedOut) throw await stall(page, S, '페이지가 30초 동안 답하지 않음(렌더러가 멈췄을 수 있음)');
       throw e;
     });
     note('박 ' + JSON.stringify(r));
     if (r.kind === 'idle') {
-      if (++idle >= LIMITS.idleTurns) throw await stall(page, S, '두드리기에서 지금 음보가 ' + idle * 4 + '초 동안 바뀌지 않음');
+      if (++idle >= LIMITS.idleTurns) throw await stall(page, S, '두드리기에서 낭송 박이 ' + idle * 4 + '초 동안 오지 않음');
       continue;
     }
     idle = 0;
@@ -536,16 +575,13 @@ async function beatTapping(page, ui, S, stats) {
       if (tt) { stats.lateTaps = (stats.lateTaps ?? 0) + tt.over150; stats.worstTapMs = Math.max(stats.worstTapMs ?? 0, Math.abs(tt.max ?? 0), Math.abs(tt.median ?? 0)); }
       return;
     }
-    if (r.kind === 'beat') {
-      const foot = r.key.split('|').slice(0, 3).join('|');
-      if (heard.has(foot)) { stats.replayFeet = (stats.replayFeet ?? 0) + 1; note('다시 듣기 ' + foot); }
-      heard.add(foot);
-    }
     if (r.kind === 'suggest') { stats.suggest++; await ui.press('.measure .m-suggest-no'); await toDrum(); continue; }
     if (r.kind === 'listen') { await ui.press('.measure .m-listen'); await toDrum(); continue; }
     if (r.kind === 'beat') {
-      prev = r.key;
-      // 장구 자리가 바뀌었으면(쪽 다시 나누기, 안내 글 줄바꿈 등) 치기 전에 그리로 옮긴다
+      after = r.when;
+      if (heard.has(r.src)) { stats.replayFeet = (stats.replayFeet ?? 0) + 1; note('다시 듣기 ' + r.src); }
+      heard.add(r.src);
+      // 장구 자리가 바뀌었으면(쪽 다시 나누기, 안내 글 줄바꿈, 넘기기 단추 등) 치기 전에 그리로 옮긴다
       if (r.drum && (!box || Math.abs(r.drum.x - box.x) > 1 || Math.abs(r.drum.y - box.y) > 1 || Math.abs(r.drum.width - box.width) > 1 || Math.abs(r.drum.height - box.height) > 1)) {
         box = r.drum;
         if (!S.touch) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -558,21 +594,8 @@ async function beatTapping(page, ui, S, stats) {
       if (S.touch) await page.touchscreen.tap(x, y);
       else { await page.mouse.down(); await page.mouse.up(); }
       stats.taps++;
-      // 같은 음보를 다시 들을 때(다시 듣기) 같은 열쇠가 되지 않도록, 지금 음보가 꺼질 때 바꾼다.
-      // 그리고 방금 탭이 어디에 떨어졌는지 귀의 기록으로 본다(장구 밖이면 같은 단위를 끝없이 다시 듣게 된다).
+      // 방금 탭이 어디에 떨어졌는지 귀의 기록으로 본다(장구 밖이면 같은 단위를 끝없이 다시 듣게 된다)
       const landed = await page.evaluate(() => {
-        const m = document.querySelector('.measure');
-        const key = (e) => e.dataset.u + '|' + e.dataset.l + '|' + e.dataset.f;
-        const cur = m?.querySelector('.m-text .m-word.is-current');
-        if (!cur) window.__beatSerial = (window.__beatSerial ?? 0) + 1;
-        else {
-          const k = key(cur);
-          const mo = new MutationObserver(() => {
-            const c = document.querySelector('.measure .m-text .m-word.is-current');
-            if (!c || key(c) !== k) { window.__beatSerial = (window.__beatSerial ?? 0) + 1; mo.disconnect(); }
-          });
-          mo.observe(m, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
-        }
         const last = window.__ears?.ctx ? window.__ears.taps.at(-1) : null;
         return last ? { i: last.i, on: last.on } : null;
       });
@@ -725,6 +748,7 @@ async function openSpot(ui, sel, label) {
 
 async function placeInto(ui, area, index, id, to = null) {
   const sel = area === 'basket' ? '.play-spine[data-area="basket"][data-index="0"]' : `.play-spine[data-area="${area}"][data-index="${index}"]`;
+  const wrongBefore = await wrongTotal(ui);
   await openSpot(ui, sel, '꽂기');
   await ui.waitSel('.play-dialog');
   await ui.press(`.play-dialog .play-pick[data-song="${id}"]`);
@@ -733,6 +757,36 @@ async function placeInto(ui, area, index, id, to = null) {
     await ui.press(`.play-dialog .play-dest[data-wing="${to}"]`);
   }
   await ui.waitGone('.play-dialog', 10000);
+  // 판정에서 돌아온 노래가 있으면(오답 수가 늘면) 맞대어 보기 창이 뜰 수 있다. 실제 입력으로 푼다
+  if ((await wrongTotal(ui)) > wrongBefore) await resolveContrast(ui);
+}
+
+// 기록의 관 오답 수 합(판정에서 돌아온 노래가 있었는지 보는 데만 쓴다)
+async function wrongTotal(ui) {
+  const rec = await ui.record();
+  return PLAY_WING_IDS.reduce((n, w) => n + (rec?.progress?.wings?.[w]?.wrongCount ?? 0), 0);
+}
+
+// 맞대어 보기 창(오답 뒤): 감정서 줄을 위에서부터 차례로 실제로 눌러, 짝이 지어지면 '손에 다시 들기'를 누른다.
+// 어긋나지 않는 줄은 흔들리기만 하므로 다음 줄로 간다(두 번 뒤에는 어긋나는 줄이 살짝 빛나지만 차례대로 눌러도 닿는다).
+// 돌아온 노래마다 창이 하나씩이고, 어긋나는 줄이 없는 노래는 창이 열리지 않는다. 창이 더 뜨지 않을 때까지 푼다.
+async function resolveContrast(ui) {
+  for (let panels = 0; panels < 4; panels++) {
+    const appeared = await ui.waitSel('.play-contrast', 4000).then(() => true, () => false);
+    if (!appeared) return panels;
+    const song = await ui.ev(() => document.querySelector('.play-contrast')?.dataset.song ?? null);
+    const n = await ui.ev(() => document.querySelectorAll('.play-contrast .play-contrast-line').length);
+    for (let i = 0; i < n; i++) {
+      if (await ui.has('.play-contrast .play-contrast-back:not([hidden])')) break;
+      const sel = `.play-contrast li:nth-child(${i + 1}) > .play-contrast-line`;
+      if (!(await ui.ev((s) => { const b = document.querySelector(s); return !!b && !b.disabled; }, sel))) continue;
+      await ui.press(sel);
+    }
+    if (!(await ui.has('.play-contrast .play-contrast-back:not([hidden])'))) throw new Error('맞대어 보기 창을 풀지 못함: ' + song);
+    await ui.press('.play-contrast .play-contrast-back');
+    await ui.waitFn((x) => document.querySelector('.play-contrast')?.dataset.song !== x || !document.querySelector('.play-contrast'), song, 10000);
+  }
+  return 4;
 }
 
 // 가객 → 기념품 연출을 넘긴다
@@ -1316,18 +1370,23 @@ async function negatives(server) {
       try { await beatTapping(game.page, makeUi(game.page, S), S, { taps: 0, suggest: 0 }); } catch (e) { err = e; }
       ok(err?.diagnosed === true && Date.now() - t0 < 60000, '(음성) 음보가 바뀌지 않는 두드리기를 끝없이 기다리지 않고 진단을 남기고 실패한다 (' + (err?.message ?? '실패하지 않음') + ')');
 
-      // 장구 밖에 떨어지는 탭: 장구를 다른 것이 덮고 있으면 첫 탭에서 곧바로 잡는다(귀를 달고 소리 판을 만든다)
+      // 장구 밖에 떨어지는 탭: 장구를 다른 것이 덮고 있으면 첫 탭에서 곧바로 잡는다(귀를 달고 소리 판을 만들어
+      // 0.8초 뒤에 낭송 조각 하나를 예약한다. 그 앞에 박 알림 같은 장구 소리도 예약해 귀가 박으로 듣지 않는지 본다)
       await game.page.evaluate(installEars);
-      await game.page.evaluate(() => {
-        void new AudioContext();
-        const m = document.querySelector('.pt-fake');
-        m.querySelector('.m-word').classList.remove('is-current');
+      const fakeBeat = await game.page.evaluate(async () => {
+        const c = new AudioContext();
+        const voice = await c.decodeAudioData(await (await fetch('assets/audio/voice/taesan/0-0.mp3')).arrayBuffer());
+        const janggu = await c.decodeAudioData(await (await fetch('assets/audio/sfx/janggu.mp3')).arrayBuffer());
         const cover = document.createElement('div');
         cover.className = 'pt-cover';
         cover.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:100000';
         document.body.append(cover);
-        setTimeout(() => m.querySelector('.m-word').classList.add('is-current'), 300);
+        const at = (buf, when) => { const s = c.createBufferSource(); s.buffer = buf; s.connect(c.destination); s.start(when); };
+        at(janggu, c.currentTime + 0.1);
+        at(voice, c.currentTime + 0.8);
+        return window.__ears.starts.map((s) => ({ voice: s.voice, src: s.src }));
       });
+      ok(fakeBeat.length === 2 && !fakeBeat[0].voice && fakeBeat[1].voice && fakeBeat[1].src === 'voice/taesan/0-0.mp3', '귀는 낭송 조각만 박으로 듣고 장구(박 알림) 소리는 박으로 듣지 않는다 ' + JSON.stringify(fakeBeat));
       err = null;
       try { await beatTapping(game.page, makeUi(game.page, S), S, { taps: 0, suggest: 0 }); } catch (e) { err = e; }
       ok(err?.diagnosed === true && /장구가 아닌 곳\(pt-cover\)/.test(err.message), '(음성) 장구 밖에 떨어진 탭을 첫 탭에서 잡는다 (' + (err?.message ?? '실패하지 않음') + ')');

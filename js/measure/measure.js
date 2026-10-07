@@ -8,6 +8,10 @@
 //   ctx.wing          지금 관 id('hyangga'…, 튜토리얼은 'entrance'). 그 관의 고유 동작을 쓴다
 //   ctx.mode          'wing'(기본) | 'boss' — 보스는 다섯 고유 동작을 도구로 골라 쓰고, 수첩 대신 일지를 연다.
 //                     갈래가 드러나지 않게 단위를 '덩이'라 부르고, 박 밖 음보의 이름표(여음·후렴·되풀이)를 달지 않는다
+//   ctx.revealed      그 노래가 드러났는지(판정에서 맞았거나 튜토리얼을 마친 튜토리얼 노래). 관·입구에서도 드러나기 전에는
+//                     보스처럼 단위를 '덩이'라 부르고 박 밖 음보의 이름표를 달지 않는다. 드러났으면 갈래 단위 이름(구·연·장·행)
+//   ctx.marksKnown    박 밖 음보의 이름표를 달아도 되는지(드러났거나 고려가요관에서 후렴 고리 걸기를 거친 노래).
+//                     관에서 후렴 고리 걸기가 되풀이 구절을 찾으면 그 자리에서 이름표를 단다
 //   ctx.world         세계 바탕 손잡이(js/world/world.js). openSplit/closeSplit로 반반 틀을 연다. 없으면 ctx.container에 붙인다
 //   ctx.rhythm        { engine, buildGrid?, createTapSession?, offsetMs? } — 소리 엔진과 박자 함수(README 추가 제안(T3))
 //   ctx.noBeat        처음 박자 없는 방식인지(없으면 engine.noBeat). 그 뒤로는 rhythm:no-beat를 따른다
@@ -122,7 +126,9 @@ export async function openMeasure(ctx = {}) {
   if (useWorld) ctx.world.openSplit(root);
   else (ctx.container ?? document.body).append(root);
 
-  const view = createTextView(text, { song, layer: 'original', neutral: boss });
+  // 단위 이름과 박 밖 음보 이름표: 드러나기 전에는 갈래를 알려 주지 않는다(보스는 늘)
+  const unitNeutral = boss || !ctx.revealed;
+  const view = createTextView(text, { song, layer: 'original', neutral: boss || !(ctx.revealed || ctx.marksKnown) });
   let hintText = '';
   const setHint = (t) => { hintText = t; hint.textContent = view.isGloss ? L.glossPaused : t; };
   const setStep = (s) => { root.dataset.step = s; };
@@ -195,7 +201,11 @@ export async function openMeasure(ctx = {}) {
 
     // ── 두드리기·빗금 ──
     setStep('tap');
-    const tapP = quiet(runTap({ song, view, root, controls, overlay, setHint, rhythm: ctx.rhythm ?? null, beat, setSlashMode, signal, emit, neutral: boss }));
+    // 지금 울리는 음보 표시는 입구 튜토리얼과 향가관에서만 늘 보인다(그 밖에서는 놓쳐서 다시 들을 때만).
+    // '같은 걸음으로 넘기기'는 관에서만(입구 튜토리얼·보스는 아님).
+    const scaffold = !boss && (ctx.wing === 'entrance' || ctx.wing === 'hyangga');
+    const offerSkip = !boss && !!ctx.wing && ctx.wing !== 'entrance';
+    const tapP = quiet(runTap({ song, view, root, controls, overlay, setHint, rhythm: ctx.rhythm ?? null, beat, setSlashMode, signal, emit, neutral: view.plainMarks, scaffold, offerSkip }));
     if (needIntro('common')) {
       await intro('tap', controls.querySelector('.m-listen') ?? text.querySelector('button.m-word'));
       ctx.onIntroSeen?.('common');
@@ -211,7 +221,10 @@ export async function openMeasure(ctx = {}) {
         await intro('unique', controls.querySelector('[data-intro-target]') ?? text.querySelector('.is-target') ?? controls);
         ctx.onIntroSeen?.('unique');
       }
-      actions.push(await actionP);
+      const done = await actionP;
+      actions.push(done);
+      // 후렴 고리 걸기가 되풀이 구절을 찾았으면 이제 두루마리에 여음·후렴·되풀이 이름표를 단다
+      if (done?.action === 'refrain-link' && done.present) view.setPlainMarks(false);
     } else {
       await toolsLoop(actions);
     }
@@ -233,7 +246,7 @@ export async function openMeasure(ctx = {}) {
   // 감정서를 보이고 '감정서 받기'를 기다린다
   async function showSheet(sheet, note) {
     setStep('sheet');
-    renderSheet(side, sheet, song, { neutral: boss, note, title: L.sheetTitle });
+    renderSheet(side, sheet, song, { neutral: unitNeutral, note, title: L.sheetTitle });
     text.hidden = true;
     side.hidden = false;
     pager.hidden = true;

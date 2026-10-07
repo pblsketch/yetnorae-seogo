@@ -133,7 +133,8 @@ export function runEntrance({ host, session, manifest, signal, reread = false } 
 
     function done() {
       root.dataset.step = 'done';
-      card.replaceChildren(el('h2', 'story-h', E.doneTitle), ...E.done.map((t) => el('p', 'story-p', t)));
+      // 재기를 마치면 이 노래의 단위 이름이 드러난다(재는 동안은 '덩이'). 관에서는 맞게 꽂힐 때 드러난다.
+      card.replaceChildren(el('h2', 'story-h', E.doneTitle), el('p', 'story-p story-reveal', E.unitReveal), ...E.done.map((t) => el('p', 'story-p', t)));
       const go = button('story-btn story-to-corridor', E.toCorridor);
       go.addEventListener('click', end, { once: true });
       actions.replaceChildren(go);

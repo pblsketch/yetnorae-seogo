@@ -10,14 +10,17 @@
 // 가볍게: WebGL 그림판은 화면에 붙이지 않은 하나만 만들고(작은 크기), 칸마다 그린 결과를 2D 캔버스로 옮긴다.
 // 프레임마다 다시 그리는 것은 고른 칸 하나뿐이다. 움직임 줄이기면 돌지도 인사하지도 않고, 바뀔 때만 한 번 그린다.
 // 세로 회전 안내가 떠 있거나 창이 숨으면 그리지 않는다. 세계(world.js)와 따로 돌며, 세계가 뜨기 전에 치운다.
+// 그림판을 잃으면(js/world/webgl.js) 칸에 옮겨 둔 그림을 지우지 않고 기다린다. 되찾으면 모든 칸을 다시 그리고,
+// 되찾지 못하면 이번 창은 2D로 간다(mode.js fallbackTo2D: 그 뒤에 뜨는 세계는 2D 그림 판이다).
 import * as THREE from 'three';
 import { on } from '../core/events.js';
 import { createCharacter, FIGURE_HEIGHT } from './gfx/figures.js';
 import { applyRenderSettings, createLightRig } from './gfx/lighting.js';
 import { softwareRendering } from './gfx/t39-perf.js';
-import { detectMode } from './mode.js';
+import { detectMode, fallbackTo2D } from './mode.js';
 import { reduceMotion } from './motion.js';
 import { isPaused } from './screen.js';
+import { releaseRenderer, watchContextLoss } from './webgl.js';
 
 export const PORTRAIT_TUNING = Object.freeze({
   turnSpeed: 0.55,        // 고른 칸이 도는 빠르기(rad/s)
@@ -133,7 +136,8 @@ export function createPortraitStage() {
     last = now;
     const live = [...views].filter((v) => v.selected && v.canvas.isConnected);
     const calm = reduceMotion();
-    if (!paused && !isPaused() && !document.hidden) {
+    // 잃은 그림판으로 그리면 빈 그림을 칸에 옮기게 된다
+    if (!paused && !isPaused() && !document.hidden && !contextWatch.lost()) {
       for (const v of views) if (!v.painted || v.dirty) { v.dirty = false; paint(v, 0); }
       if (!calm) for (const v of live) paint(v, dt);
     }
@@ -144,6 +148,11 @@ export function createPortraitStage() {
   function kick() {
     if (!disposed && !raf) raf = requestAnimationFrame(loop);
   }
+
+  const contextWatch = watchContextLoss(renderer.domElement, {
+    onRestored: () => { for (const v of views) v.dirty = true; kick(); },
+    onGiveUp: () => fallbackTo2D(),
+  });
 
   // 움직임 줄이기를 바꾸면 모든 칸을 그 상태로 다시 그린다(돌던 칸은 3/4 자세로 돌아온다)
   const offMotion = on('settings:reduce-motion', () => { for (const v of views) v.dirty = true; kick(); });
@@ -173,7 +182,7 @@ export function createPortraitStage() {
   function portrait(look) {
     const k = look === 'b' ? 'b' : 'a';
     if (portraitCache.has(k)) return Promise.resolve(portraitCache.get(k));
-    if (disposed) return Promise.resolve(null);
+    if (disposed || contextWatch.lost()) return Promise.resolve(null);   // 잃은 그림판의 빈 그림은 남기지 않는다
     const [w, h] = T.portraitSize;
     const c = document.createElement('canvas');
     c.width = w;
@@ -200,8 +209,8 @@ export function createPortraitStage() {
       for (const f of figures.values()) f.dispose();
       figures.clear();
       lights.dispose();
-      renderer.dispose();
-      renderer.forceContextLoss();
+      contextWatch.dispose();
+      releaseRenderer(renderer);   // dispose + forceContextLoss
     },
   };
 }

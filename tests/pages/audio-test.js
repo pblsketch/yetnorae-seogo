@@ -74,6 +74,59 @@ engine.attachUnlock(document);
 
 const isVoice = (r) => r.name && (r.name.startsWith('t-sijo/') || r.name === 'click');
 
+// ── 가짜 소리 판: 손가락 기기의 '사용자 활성화' 규칙과 시계를 손으로 움직인다 ──
+// resume()은 활성화 안(gate.active)에서만 돈다. 시각(currentTime)은 점검이 정하고, 재생 진행(tick)도 점검이 부른다.
+const gate = { active: false };
+class FakeParam { constructor(v) { this.value = v; } setValueAtTime(v) { this.value = v; } linearRampToValueAtTime(v) { this.value = v; } cancelScheduledValues() {} }
+class FakeCtx extends EventTarget {
+  constructor(state = 'suspended') {
+    super();
+    this.state = state;
+    this.currentTime = 0;
+    this.sampleRate = 8000;
+    this.destination = { connect() {} };
+    this.starts = [];
+    this.resumeCalls = 0;
+  }
+  setState(s) { if (this.state === s) return; this.state = s; this.dispatchEvent(new Event('statechange')); }
+  resume() {
+    this.resumeCalls++;
+    if (!gate.active) return Promise.reject(new DOMException('사용자 활성화가 없다', 'NotAllowedError'));
+    this.setState('running');
+    return Promise.resolve();
+  }
+  suspend() { this.setState('suspended'); return Promise.resolve(); }
+  close() { this.setState('closed'); return Promise.resolve(); }
+  createGain() { return { gain: new FakeParam(1), connect() {}, disconnect() {} }; }
+  createBuffer(ch, n, sr) { return { duration: n / sr, length: n, numberOfChannels: ch, sampleRate: sr, getChannelData: () => new Float32Array(n) }; }
+  createBufferSource() {
+    const c = this;
+    const rec = { name: null, when: null, stopped: false };
+    return {
+      buffer: null, loop: false, connect() {}, disconnect() {},
+      start(when = 0) { rec.when = when; rec.name = c.names.get(this.buffer) ?? 'synth'; c.starts.push(rec); },
+      stop() { rec.stopped = true; },
+    };
+  }
+}
+
+// 가짜 소리 판 엔진 하나: 사건 버스와 재생 진행을 따로 둔다(다른 점검의 소리 엔진과 섞이지 않게)
+function fakeEngine(initialState = 'suspended') {
+  let tickFn = null;
+  let c = null;
+  const names = new WeakMap();
+  const e = createAudioEngine({
+    createContext: () => { c = new FakeCtx(initialState); c.names = names; return c; },
+    loadBuffer: async (path, cx) => { const b = cx.createBuffer(1, 10, 8000); names.set(b, path.replace(/^assets\/audio\//, '').replace(/\.mp3$/, '')); return b; },
+    bus: { on: () => () => {}, emit: () => {} },
+    timers: { setInterval: (fn) => { tickFn = fn; return 1; }, clearInterval: () => { tickFn = null; } },
+  });
+  // 시각을 옮기며 재생 진행을 부른다
+  const advance = (to, step = 0.02) => { while (c.currentTime < to - 1e-9) { c.currentTime = Math.min(to, c.currentTime + step); tickFn?.(); } };
+  return { e, ctx: () => c, advance, tick: () => tickFn?.() };
+}
+const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); await wait(0); };
+
 window.__audioTest = {
   ready: true,
   engine,
@@ -156,6 +209,202 @@ window.__audioTest = {
       completed: r.completed,
       closedOk: closed.ok === true && closed.segment === 2,
     };
+  },
+
+  // 손가락 기기에서 소리 판 열기: 손가락 pointerdown은 활성화가 아니고, 돌 때까지 조작을 기다린다
+  async unlockCase() {
+    const pad = document.createElement('div');
+    document.body.append(pad);
+    const fire = (el, type, init, active) => { gate.active = active; el.dispatchEvent(new PointerEvent(type, { bubbles: true, ...init })); gate.active = false; };
+    const out = {};
+    const { e, ctx, advance } = fakeEngine('suspended');
+    const detach = e.attachUnlock(pad);
+    fire(pad, 'pointerdown', { pointerType: 'touch' }, false);
+    await flush();
+    out.afterTouchDown = { made: !!ctx(), unlocked: e.unlocked };
+    // 활성화 밖의 누르기: 소리 판은 생기지만 돌지 못한다 → 열린 것으로 보지 않고 계속 기다린다
+    fire(pad, 'click', {}, false);
+    await flush();
+    out.afterFailed = { state: ctx()?.state, unlocked: e.unlocked, resumeCalls: ctx()?.resumeCalls };
+    // 그동안 낸 낭송은 소리 판이 돌 때까지 예약하지 않고 기다린다
+    const g = R.buildGrid(song, { gapSec: 0.3 });
+    const h = e.play(g, [0], {});
+    let done = null;
+    h.finished.then((r) => { done = r; });
+    await flush();
+    out.voiceWhileSuspended = ctx().starts.filter((s) => s.name.startsWith('voice/')).length;
+    // 손가락 pointerup(활성화): 소리 판이 돌고, 기다리던 낭송을 낸다
+    fire(pad, 'pointerup', { pointerType: 'touch' }, true);
+    await flush();
+    out.afterUp = { state: ctx().state, unlocked: e.unlocked, voice: ctx().starts.filter((s) => s.name.startsWith('voice/')).length };
+    advance(ctx().currentTime + 2);
+    await flush();
+    out.playedAfterUnlock = done?.completed === true;
+    // 돌기 시작하면 조작을 더 듣지 않는다
+    let calls = ctx().resumeCalls;
+    fire(pad, 'pointerup', { pointerType: 'touch' }, true);
+    out.detachedAfterRunning = ctx().resumeCalls === calls;
+    // 멈춤 까닭 없이 멈추면(interrupted) 다시 조작을 기다린다
+    ctx().setState('interrupted');
+    out.interruptedUnlocked = e.unlocked;
+    fire(pad, 'pointerup', { pointerType: 'touch' }, true);
+    await flush();
+    out.afterInterrupt = { state: ctx().state, resumed: ctx().resumeCalls > calls };
+    // 메뉴로 멈춘 동안: 조작이 소리 판을 돌리지 않고, 열린 것으로 본다
+    e.pause('menu');
+    await flush();
+    calls = ctx().resumeCalls;
+    fire(pad, 'pointerup', { pointerType: 'touch' }, true);
+    out.pausedNoResume = ctx().resumeCalls === calls && ctx().state === 'suspended';
+    out.pausedUnlocked = e.unlocked;
+    // 재개가 활성화 밖이라 실패하면 다음 조작을 기다린다
+    e.resume('menu');
+    await flush();
+    out.resumeFailedWaits = ctx().state === 'suspended';
+    fire(pad, 'pointerup', { pointerType: 'touch' }, true);
+    await flush();
+    out.resumedByTap = ctx().state === 'running';
+    detach();
+    e.dispose();
+    // 마우스 pointerdown은 활성화다
+    const pad2 = document.createElement('div');
+    document.body.append(pad2);
+    const m = fakeEngine('suspended');
+    m.e.attachUnlock(pad2);
+    fire(pad2, 'pointerdown', { pointerType: 'mouse' }, true);
+    await flush();
+    out.mouseDown = m.ctx()?.state === 'running' && m.e.unlocked === true;
+    m.e.dispose();
+    // 음성 사례: 예전 방식(첫 조작 하나에 떼어 내고, 소리 판만 있으면 열린 것으로 봄)이면 손가락 기기에서 멈춘 채 남는다
+    const pad3 = document.createElement('div');
+    document.body.append(pad3);
+    const o = fakeEngine('suspended');
+    const kinds = ['pointerdown', 'keydown', 'touchend', 'mousedown'];
+    const oldHandler = () => { o.e.unlock(); for (const k of kinds) pad3.removeEventListener(k, oldHandler, true); };
+    for (const k of kinds) pad3.addEventListener(k, oldHandler, true);
+    fire(pad3, 'pointerdown', { pointerType: 'touch' }, false);
+    fire(pad3, 'pointerup', { pointerType: 'touch' }, true);
+    await flush();
+    out.oldStuck = { state: o.ctx()?.state, oldUnlocked: !!o.ctx() };
+    o.e.dispose();
+    pad.remove(); pad2.remove(); pad3.remove();
+    return out;
+  },
+
+  // 단위가 끝난 직후(재생 진행이 그 끝을 보기 전) 멈춰도 친 박이 놓친 것으로 세어지지 않는다
+  async pauseEndCase() {
+    const { e, ctx } = fakeEngine('running');
+    e.unlock();
+    const g = R.buildGrid(song, { gapSec: 0.3 });
+    const s = R.createTapSession(g, {});
+    let armAt = null;
+    let closed = null;
+    const judge = { arm: (seg, at) => { armAt = at; s.arm(seg, at); }, disarm: (seg) => s.disarm(seg) };
+    const h = e.play(g, [0], { judge, onSegmentEnd: ({ segment }) => { closed = s.close(segment); } });
+    await flush();
+    [0, 1, 2, 3].forEach((k) => s.tap(armAt + k * 0.25));
+    ctx().currentTime = armAt + 4 * 0.25 + 0.005;
+    e.pause('menu');
+    const r = await Promise.race([h.finished, wait(100).then(() => ({ pending: true }))]);
+    e.dispose();
+    // 음성 사례: 끝을 내기 전에 회차를 닫아 버리면(예전) 친 박이 모두 놓친 것이 된다
+    const s2 = R.createTapSession(g, {});
+    s2.arm(0, 10);
+    [0, 1, 2, 3].forEach((k) => s2.tap(10 + k * 0.25));
+    s2.disarm(0);
+    const old = s2.close(0);
+    return { closedOk: closed?.ok === true && closed?.missed === 0, completed: r?.completed === true, oldMissed: old.missed };
+  },
+
+  // 박 알림(countIn): 새로 시작할 때 첫 박보다 min(박 길이, 1.5초) 앞에 장구 한 번(박 1초면 한 박 앞). 판정·onBeat 없음. 이어 내면 한 번뿐
+  async countInCase() {
+    const { e, ctx, advance } = fakeEngine('running');
+    e.unlock();
+    const g = R.buildGrid({ ...song, tempo: 60 }, { gapSec: 0.3 });   // 박 1초
+    const s = R.createTapSession(g, { offsetMs: -300 });
+    let armCall = null;
+    let armAt = null;
+    const judge = { arm: (seg, at) => { if (armCall === null) { armCall = ctx().currentTime; armAt = at; } s.arm(seg, at); }, disarm: (seg) => s.disarm(seg) };
+    const beats = [];
+    const segStarts = [];
+    const t0 = ctx().currentTime;
+    const h = e.play(g, [0, 1, 2], { judge, countIn: true, onBeat: (b) => beats.push(b.beat), onSegmentStart: (x) => segStarts.push(x.segment) });
+    await flush();
+    const first = ctx().starts.slice();
+    const countIn = first.filter((x) => x.name === 'sfx/janggu');
+    const firstVoice = first.find((x) => x.name.startsWith('voice/'));
+    // 보정값 -300ms면 첫 박 판정 창은 박 앞 450ms부터다. 회차는 그보다 먼저 열려 있어야 한다
+    const earlyHit = s.tap(armAt - 0.44).hit;
+    advance(ctx().currentTime + 20);
+    const r = await h.finished;
+    const allCountIns = ctx().starts.filter((x) => x.name === 'sfx/janggu').length;
+    // 멈췄다 재개하면 다시 박 알림
+    const h2 = e.play(g, [0, 1], { countIn: true });
+    await flush();
+    advance(ctx().currentTime + 1.6);
+    e.pause('menu');
+    gate.active = true; e.resume('menu'); gate.active = false;
+    await flush();
+    advance(ctx().currentTime + 20);
+    const r2 = await h2.finished;
+    const afterResume = ctx().starts.filter((x) => x.name === 'sfx/janggu').length - allCountIns;
+    e.dispose();
+    return {
+      countIns: countIn.length, allCountIns, countInAt: countIn[0]?.when - t0, firstVoiceAt: firstVoice ? firstVoice.when - t0 : null,
+      beatSec: g.beatSec, lead: armAt - armCall, earlyHit, beats: beats.length, segStarts, completed: r.completed,
+      afterResume, completed2: r2.completed,
+    };
+  },
+
+  // 느린 노래(박 3.75초, 향가 빠르기 16): 박 알림은 첫 박보다 1.5초(COUNT_IN_MAX_SEC) 앞. 판정 회차는 그보다 먼저 열린다
+  async countInSlowCase() {
+    const { e, ctx, advance } = fakeEngine('running');
+    e.unlock();
+    const g = R.buildGrid({ id: 't-slow', genre: 'hyangga', tempo: 16, units: [{ original: '가', reading: '가', gloss: 'ㄱ' }, { original: '나', reading: '나', gloss: 'ㄴ' }] }, { gapSec: 0.3 });
+    let armCall = null;
+    let armAt = null;
+    const judge = { arm: (seg, at) => { if (armCall === null) { armCall = ctx().currentTime; armAt = at; } }, disarm: () => {} };
+    const t0 = ctx().currentTime;
+    const h = e.play(g, [0, 1], { judge, countIn: true });
+    await flush();
+    const countIn = ctx().starts.find((x) => x.name === 'sfx/janggu');
+    advance(ctx().currentTime + 15);
+    const r = await h.finished;
+    e.dispose();
+    return { beatSec: g.beatSec, countInAt: countIn ? countIn.when - t0 : null, firstAt: armAt - t0, gap: armAt - (countIn?.when ?? 0), armBeforeCountIn: armCall <= (countIn?.when ?? -1), completed: r.completed };
+  },
+
+  // 이어 내다가 단위 끝(onSegmentEnd)에서 멈추면 다음 단위를 내지 않는다(놓친 단위에서 멈추기)
+  async stopOnEndCase() {
+    const { e, ctx, advance } = fakeEngine('running');
+    e.unlock();
+    const g = R.buildGrid(song, { gapSec: 0.3 });
+    const starts = [];
+    let h = null;
+    h = e.play(g, [0, 1, 2], { countIn: true, onSegmentStart: (x) => starts.push(x.segment), onSegmentEnd: (x) => { if (x.segment === 0) h.stop(); } });
+    await flush();
+    advance(ctx().currentTime + 6);
+    const r = await h.finished;
+    const later = ctx().starts.filter((x) => /^voice\/t-sijo\/[12]-/.test(x.name));
+    e.dispose();
+    return { starts, reason: r.reason, laterFed: later.length, laterStopped: later.every((v) => v.stopped) };
+  },
+
+  // 박자 보정 종소리를 멈췄다 재개하면 onRestart를 부른다(그 전의 탭을 버리게)
+  async calibrationRestartCase() {
+    const { e, ctx, advance } = fakeEngine('running');
+    e.unlock();
+    let restarts = 0;
+    const cal = e.playCalibration({ count: 4, intervalSec: 0.2, onRestart: () => restarts++ });
+    await flush();
+    advance(ctx().currentTime + 0.3);
+    e.pause('menu');
+    gate.active = true; e.resume('menu'); gate.active = false;
+    await flush();
+    advance(ctx().currentTime + 2);
+    const r = await cal.finished;
+    e.dispose();
+    return { restarts, completed: r.completed, bells: r.bells.length };
   },
 
   async miscCase() {

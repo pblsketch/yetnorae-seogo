@@ -182,6 +182,16 @@ async function checkSplit(page, label) {
   await page.mouse.click(view.left + view.width / 2, view.top + view.height * 0.7);
   await frames(page, 2);
   assert(!(await ev(page, () => window.__t.world.getMarker())).visible, label + ': 반반 틀에서는 탭해도 이동하지 않는다');
+  // 2D 누를 자리(관 문·관 모형 자리)도 3D 탭과 같은 조건을 따른다: 반반 틀 동안 눌러도 걷지 않는다
+  const hotspot = mode === '2d' ? await ev(page, () => { const h = document.querySelector('.board-hotspot, .board-door'); return h ? (h.dataset.anchor ? '.board-hotspot[data-anchor="' + h.dataset.anchor + '"]' + (h.dataset.index ? '[data-index="' + h.dataset.index + '"]' : '') : '.board-door[data-wing="' + h.dataset.wing + '"]') : null; }) : null;
+  if (hotspot) {
+    const a0 = await ev(page, () => window.__t.arrivals.length);
+    await ev(page, (sel) => document.querySelector(sel).click(), hotspot);
+    await frames(page, 4);
+    const r = await ev(page, () => ({ marker: window.__t.world.getMarker().visible, arrivals: window.__t.arrivals.length }));
+    assert(!r.marker && r.arrivals === a0, label + ': 반반 틀에서는 2D 누를 자리를 눌러도 걷지 않는다 (' + hotspot + ')');
+
+  }
   // 음성 사례: 패널 안에 넓은 내용을 넣으면 넘침 검사가 잡아야 한다.
   await ev(page, () => { const w = document.createElement('div'); w.id = 'too-wide'; w.style.minWidth = '3000px'; w.style.height = '10px'; document.querySelector('.test-panel').append(w); });
   const bad = await ev(page, layoutProblems);
@@ -193,6 +203,14 @@ async function checkSplit(page, label) {
   assert(near(back.width, vp.width, 2), label + ': 반반 틀을 닫으면 디오라마가 다시 화면을 채운다');
   const ctx2 = await ev(page, rectOf, '.world-context');
   assert(ctx2?.visible, label + ': 반반 틀을 닫으면 상황 버튼이 돌아온다');
+  if (hotspot) {
+    // 음성 사례: 반반 틀을 닫으면 같은 자리를 눌러 걸어간다(누르기가 실제로 닿는지)
+    const a0 = await ev(page, () => window.__t.arrivals.length);
+    await ev(page, (sel) => document.querySelector(sel).click(), hotspot);
+    await waitArrival(page, a0);
+    assert(true, label + ': (음성) 반반 틀을 닫으면 같은 2D 누를 자리로 걸어간다');
+    await settled(page);
+  }
 }
 
 async function checkOrientation(page, label, vp) {
@@ -242,6 +260,120 @@ async function checkKeyboard(page, label) {
   await page.keyboard.press('Space');
   const c1 = await ev(page, () => window.__t.contextCalls.length);
   assert(c1 === c0 + 2, label + ': Enter와 Space가 상황 버튼을 누른다 (' + (c1 - c0) + '번)');
+}
+
+// 꽉 덮는 겹(수첩·일지·도감·보스 창처럼 data-world-cover를 단 요소)이 떠 있으면 키보드가 세계에 닿지 않는다:
+// Enter·Space가 상황 버튼을 누르지 않고(뒤에서 꽂기·들어가기가 일어나지 않게), 방향키를 가로채지 않아 겹 창이 스크롤된다.
+async function checkKeyboardBehindCover(page, label) {
+  await ev(page, () => {
+    window.__t.world.setContext('잡기', () => window.__t.contextCalls.push('잡기'));
+    const c = document.createElement('section');
+    c.className = 'test-cover';
+    c.dataset.worldCover = '';
+    c.tabIndex = -1;
+    c.style.cssText = 'position:absolute;inset:0;z-index:50;overflow:auto;background:#fff';
+    c.innerHTML = '<p style="height:4000px;margin:0">수첩 쪽</p>';
+    document.getElementById('app').append(c);
+    c.focus();
+    // 세계의 keydown 듣기(window)보다 나중에 붙여서, 세계가 기본 동작을 막았는지 본다
+    window.__keyLog = [];
+    window.__keyListen = (e) => window.__keyLog.push({ code: e.code, prevented: e.defaultPrevented });
+    window.addEventListener('keydown', window.__keyListen);
+  });
+  await frames(page, 2);
+  const c0 = await ev(page, () => window.__t.contextCalls.length);
+  const p0 = await ev(page, () => window.__t.world.getPlayer());
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Space');
+  await page.keyboard.down('ArrowDown');
+  await page.waitForTimeout(300);
+  await page.keyboard.up('ArrowDown');
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(200);
+  await page.keyboard.up('KeyW');
+  await frames(page, 2);
+  const r = await ev(page, () => ({
+    calls: window.__t.contextCalls.length,
+    prevented: window.__keyLog.filter((k) => k.prevented).map((k) => k.code),
+    keys: window.__keyLog.length,
+    scroll: document.querySelector('.test-cover').scrollTop,
+    covered: window.__t.world.isCovered(),
+    player: window.__t.world.getPlayer(),
+  }));
+  assert(r.covered, label + ': data-world-cover 겹이 뜨면 세계가 가려진 것으로 본다');
+  assert(r.keys >= 4, label + ': 눌린 키가 페이지에 닿았다 (' + r.keys + ')');
+  assert(r.calls === c0, label + ': 가려진 동안 Enter·Space가 상황 버튼을 누르지 않는다 (' + (r.calls - c0) + '번)');
+  assert(r.prevented.length === 0, label + ': 가려진 동안 방향키·Space의 기본 동작을 막지 않는다 ' + JSON.stringify(r.prevented));
+  assert(r.scroll > 0, label + ': 가려진 동안 방향키로 겹 창이 스크롤된다 (scrollTop ' + r.scroll + ')');
+  assert(Math.abs(r.player.x - p0.x) < 1e-6 && Math.abs((r.player.z ?? r.player.y) - (p0.z ?? p0.y)) < 1e-6, label + ': 가려진 동안 키로 학생이 움직이지 않는다');
+  // 음성 사례: 겹을 걷으면 같은 키가 다시 세계에 닿는다(점검이 키 누름을 제대로 세는지)
+  await ev(page, () => { document.querySelector('.test-cover').remove(); document.activeElement?.blur?.(); window.__keyLog.length = 0; });
+  await frames(page, 2);
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowDown');
+  const r2 = await ev(page, () => ({ calls: window.__t.contextCalls.length, prevented: window.__keyLog.filter((k) => k.prevented).map((k) => k.code), covered: window.__t.world.isCovered() }));
+  await ev(page, () => window.removeEventListener('keydown', window.__keyListen));
+  assert(!r2.covered && r2.calls === c0 + 1, label + ': (음성) 겹을 걷으면 Enter가 다시 상황 버튼을 누른다');
+  assert(r2.prevented.includes('ArrowDown'), label + ': (음성) 겹을 걷으면 방향키를 다시 세계가 받는다');
+}
+
+// 3D 그림판을 잃었다가 되찾으면 그 자리에서 다시 그리고, 2D로 바꾸지 않는다(js/world/webgl.js, world.js '그림판 잃음').
+async function checkContextRestore(page, label) {
+  await ev(page, () => {
+    const gl = window.__t.world.getThree().renderer.getContext();
+    window.__lose = gl.getExtension('WEBGL_lose_context');
+    window.__lose.loseContext();
+  });
+  await page.waitForFunction(() => window.__t.world.getThree().renderer.getContext().isContextLost(), null, { timeout: 5000 });
+  await ev(page, () => window.__t.world.getThree().renderer.info.reset());
+  const f1 = await ev(page, () => window.__t.world.getStats().frames);
+  await page.waitForTimeout(400);
+  const lost = await ev(page, () => ({ frames: window.__t.world.getStats().frames, calls: window.__t.world.getStats().drawCalls }));
+  assert(lost.frames === f1 && lost.calls === 0, label + ': (음성) 그림판을 잃은 동안은 그리지 않는다 (프레임 ' + f1 + '→' + lost.frames + ', 그리기 ' + lost.calls + ')');
+  await page.waitForTimeout(800);
+  assert((await ev(page, () => window.__t.world.getMode())) === '3d' && (await ev(page, () => window.__t.modeChanges.length)) === 0, label + ': 기다리는 시간 안에는 2D로 바꾸지 않는다');
+  await ev(page, () => window.__lose.restoreContext());
+  await page.waitForFunction(() => !window.__t.world.getThree().renderer.getContext().isContextLost(), null, { timeout: 5000 });
+  await page.waitForFunction(() => window.__t.world.getStats().drawCalls > 0, null, { timeout: 5000, polling: 'raf' });
+  const back = await ev(page, () => window.__t.world.getStats());
+  assert(back.drawCalls > 0 && back.frames > lost.frames, label + ': 되찾으면 다시 그린다 (그리기 ' + back.drawCalls + '회)');
+  await page.waitForTimeout(3500);
+  const after = await ev(page, () => ({ mode: window.__t.world.getMode(), changes: window.__t.modeChanges.length, canvas: !!document.querySelector('canvas.world-canvas') }));
+  assert(after.mode === '3d' && after.changes === 0 && after.canvas, label + ': 되찾았으면 기다리는 시간이 지나도 3D 그대로다');
+}
+
+// 3D 그림판을 잃고 되찾지 못하면 이번 창은 2D 그림 판으로 가고, 지금 자리(관)와 관 문 상태를 다시 놓은 뒤 onModeChange로 알린다.
+async function checkContextGiveUp(page, label) {
+  await ev(page, () => {
+    window.__t.events.emit('wing:state', { wing: 'hyangga', state: 'open' });
+    window.__t.world.enterWing('hyangga');
+  });
+  await frames(page, 3);
+  const t0 = Date.now();
+  await ev(page, () => window.__t.world.getThree().renderer.getContext().getExtension('WEBGL_lose_context').loseContext());
+  await page.waitForTimeout(Math.max(0, TUNING.contextRestoreMs - 1200));
+  assert((await ev(page, () => window.__t.world.getMode())) === '3d', label + ': (음성) ' + TUNING.contextRestoreMs + 'ms가 지나기 전에는 3D 그대로 기다린다');
+  await page.waitForFunction(() => window.__t.world.getMode() === '2d', null, { timeout: 6000 });
+  const waited = Date.now() - t0;
+  const r = await ev(page, async () => ({
+    canvas: !!document.querySelector('canvas.world-canvas'),
+    board: !!document.querySelector('.board'),
+    rootMode: document.querySelector('.world')?.dataset.mode,
+    changes: window.__t.modeChanges.slice(),
+    place: window.__t.world.getPlace(),
+    hotspots: document.querySelectorAll('.board-hotspot').length,
+    detected: (await import('/js/world/mode.js')).detectMode(),
+    saved: Object.keys(localStorage).length,
+  }));
+  assert(waited >= TUNING.contextRestoreMs - 50, label + ': 되찾기를 ' + TUNING.contextRestoreMs + 'ms 기다린 뒤 바꾼다 (' + waited + 'ms)');
+  assert(!r.canvas && r.board && r.rootMode === '2d', label + ': 3D 그림판을 치우고 2D 그림 판을 세운다');
+  assert(r.changes.length === 1 && r.changes[0].mode === '2d' && r.changes[0].place === 'hyangga', label + ': 바꾼 뒤 onModeChange로 한 번 알린다 ' + JSON.stringify(r.changes));
+  assert(r.place === 'hyangga' && r.hotspots > 0, label + ': 있던 관에 그대로 서 있고 관 모형 자리가 2D로 다시 생긴다 (' + r.hotspots + ')');
+  assert(r.detected === '2d' && r.saved === 0, label + ': 이번 창은 2D로 정하고 기기에 저장하지 않는다');
+  await ev(page, () => window.__t.world.enterCorridor());
+  const door = await ev(page, () => document.querySelector('.board-door[data-wing="hyangga"]')?.dataset.state ?? null);
+  assert(door === 'open', label + ': 관 문 상태(wing:state)를 새 그림 판에 다시 놓는다 (' + door + ')');
+  await checkTapMove(page, 'mouse', label + ' 2D로 바꾼 뒤');
 }
 
 async function checkNoJoystickWithMouse(page, label) {
@@ -418,6 +550,7 @@ try {
       await checkTapMove(page, 'mouse', label);
       await checkNoJoystickWithMouse(page, label);
       await checkKeyboard(page, label);
+      if (key === 'chromebook') await checkKeyboardBehindCover(page, label);
       await checkDragRotate(page, label);
       await checkSplit(page, label);
       await checkOrientation(page, label, vp);
@@ -448,6 +581,14 @@ try {
     assert(await ev(page, () => window.__t.log.some((e) => e.name === 'settings:reduce-motion' && e.detail.value === true)), '처음 상태를 settings:reduce-motion으로 알린다');
   });
 
+  // 3D 그림판을 잃음(GPU 재시작 등): 되찾으면 다시 그리고, 되찾지 못하면 이번 창은 2D로 간다
+  await session('3D 그림판 잃고 되찾기', { viewport: SIZES.chromebook }, async ({ page }) => {
+    await checkContextRestore(page, '그림판 되찾기');
+  });
+  await session('3D 그림판 잃고 되찾지 못함 → 2D', { viewport: SIZES.chromebook }, async ({ page }) => {
+    await checkContextGiveUp(page, '그림판 못 되찾음');
+  });
+
   // 음성 사례: 관 모형이 그리기 호출을 너무 많이 쓰면 예산 검사가 잡는다.
   await session('그리기 호출 초과(음성)', { viewport: SIZES.chromebook }, async ({ page }) => {
     await ev(page, () => { globalThis.__fixtureHeavy = 120; window.__t.world.enterWing('hyangga'); window.__t.world.resetCamera(); });
@@ -473,6 +614,7 @@ try {
       await checkContextButton(page, label);
       await checkTapMove(page, 'mouse', label);
       await checkKeyboard(page, label);
+      if (key === 'tablet') await checkKeyboardBehindCover(page, label);
       // 문 누르기 → 문 앞으로 가서 도착 알림
       let before = await ev(page, () => window.__t.arrivals.length);
       await page.click('.board-door[data-wing="hyangga"]');

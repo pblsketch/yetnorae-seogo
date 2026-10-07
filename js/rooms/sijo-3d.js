@@ -5,8 +5,14 @@
 //   시냇물이 마당을 휘감으며 달이 뜬다(강산).
 // - 칸 단추(DOM)는 부르는 쪽이 만들고, 이 장면이 칸 자리를 화면에 비춰 단추 위치를 맞춘다.
 // 그리기 호출: 풍경 역할 열 남짓 + 강·달·달무리·산 병풍 + 물건 여섯 = 스물다섯 이하.
+// 자기 그림판을 따로 가지므로 세계·보스와 같은 그림판 살림을 따른다(js/world/webgl.js): 소프트웨어 그리기면 MSAA를 끄고,
+// 세계의 화질 단계 픽셀 몫을 따르며, 기기 픽셀 비율이 바뀌면 다시 맞추고, 그림판을 잃었다 되찾으면 다시 그리고,
+// 치울 때 GPU 맥락까지 돌려준다(forceContextLoss).
 import { TOKENS, mixHex } from '../world/palette.js';
 import { createScenery, disposeGroupGeometry } from '../world/gfx/t37-scenery.js';
+import { softwareRendering } from '../world/gfx/t39-perf.js';
+import { qualityInfo } from '../world/quality.js';
+import { pixelRatioNow, releaseRenderer, watchContextLoss, watchPixelRatio } from '../world/webgl.js';
 
 const ROOM_W = 2.3;                          // 칸 너비(1 = 1m)
 const ROOM_X = [-ROOM_W, 0, ROOM_W];         // 칸 가운데
@@ -40,11 +46,24 @@ const ITEM_LOOK = {
 };
 
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const PIXEL_RATIO_MAX = 1.5;
+const roomPixelRatio = () => pixelRatioNow(PIXEL_RATIO_MAX) * qualityInfo().pixelScale;
 
 // ctx: { THREE, container, reduceMotion() }
-export function create3D({ THREE, container, reduceMotion }) {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 1.5));
+export function create3D(opts) {
+  const renderer = new opts.THREE.WebGLRenderer({ antialias: !softwareRendering() });
+  try {
+    return buildRoom(renderer, opts);
+  } catch (e) {
+    // 그림판을 만든 뒤 짓다가 실패하면 맥락을 돌려주고 던진다(방이 2D로 간다)
+    releaseRenderer(renderer);
+    renderer.domElement.remove();
+    throw e;
+  }
+}
+
+function buildRoom(renderer, { THREE, container, reduceMotion }) {
+  renderer.setPixelRatio(roomPixelRatio());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const canvas = renderer.domElement;
   canvas.className = 'sj-canvas';
@@ -268,6 +287,9 @@ export function create3D({ THREE, container, reduceMotion }) {
     const r = container.getBoundingClientRect();
     state.width = Math.max(1, Math.round(r.width));
     state.height = Math.max(1, Math.round(r.height));
+    // 기기 픽셀 비율은 브라우저 확대·다른 화면으로 옮기면 바뀐다
+    const pr = roomPixelRatio();
+    if (Math.abs(renderer.getPixelRatio() - pr) > 1e-6) renderer.setPixelRatio(pr);
     renderer.setSize(state.width, state.height, false);
     canvas.style.width = '100%';
     canvas.style.height = '100%';
@@ -334,6 +356,10 @@ export function create3D({ THREE, container, reduceMotion }) {
 
   const ro = new ResizeObserver(() => resize());
   ro.observe(container);
+  const offPixelRatio = watchPixelRatio(() => resize());
+  // 그림판을 잃었다 되찾으면 가만히 있는 장면이라도 한 번 다시 그린다(바뀐 때만 그리므로 표시를 세운다).
+  // 되찾지 못하면 그림은 비지만 칸 단추(DOM)는 그대로 눌려 방을 끝낼 수 있다. 세계도 함께 잃었다면 세계가 2D로 바뀌며 관에 다시 들어간다.
+  const contextWatch = watchContextLoss(canvas, { onRestored: () => { dirty = true; } });
   resize();
   state.raf = requestAnimationFrame(frame);
 
@@ -356,11 +382,13 @@ export function create3D({ THREE, container, reduceMotion }) {
       state.disposed = true;
       cancelAnimationFrame(state.raf);
       ro.disconnect();
+      offPixelRatio();
+      contextWatch.dispose();
       for (const g of geos) g.dispose();
       for (const m of mats) m.dispose();
       disposeGroupGeometry(hutGroup);
       sc.dispose();
-      renderer.dispose();
+      releaseRenderer(renderer);   // dispose + forceContextLoss
       canvas.remove();
     },
   };

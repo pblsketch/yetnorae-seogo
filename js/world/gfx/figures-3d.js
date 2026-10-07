@@ -41,11 +41,19 @@ const HUMANOID = [
   ['tassel', 'torso', [0, 0.85, 0.14]],
 ];
 
+// ───────── 나눠 쓰는 자원의 묶음(pool) ─────────
+// 재질·무늬·기하는 같은 묶음 안의 인물끼리만 나눠 쓴다. 기본 묶음은 'main'(세계와 세계가 빌려주는 방 무대).
+// 자기 그림판(WebGLRenderer)을 따로 가진 화면(보스)은 자기 묶음을 쓴다: 그림판은 처음 그린 재질·무늬·기하마다
+// 'dispose' 듣기를 남기는데, 세계 학생이 살아 있는 동안 나눈 재질이 버려지지 않으면 치운 그림판이 그 듣기에 붙들려 남는다.
+// 묶음이 따로면 그 화면의 인물이 모두 치워질 때 재질이 버려지고, 듣기도 그림판이 살아 있는 동안 풀린다.
+const poolKey = (pool) => (typeof pool === 'string' && pool ? pool : 'main');
+
 // ───────── 한지 결 무늬(색 없는 밝은 결, 꼭짓점 색이 색을 맡는다) ─────────
-let clothTex = null;
-let clothUsers = 0;
-function clothTexture(THREE) {
-  if (!clothTex) {
+const clothPools = new Map();   // pool → { tex, users }
+function clothTexture(THREE, pool) {
+  const key = poolKey(pool);
+  let entry = clothPools.get(key);
+  if (!entry) {
     const S = 128;
     const c = document.createElement('canvas');
     c.width = S;
@@ -77,17 +85,22 @@ function clothTexture(THREE) {
       g.quadraticCurveTo(x + Math.cos(a + 0.7) * len * 0.5, y + Math.sin(a + 0.7) * len * 0.5, x + Math.cos(a) * len, y + Math.sin(a) * len);
       g.stroke();
     }
-    clothTex = new THREE.CanvasTexture(c);
-    clothTex.colorSpace = THREE.SRGBColorSpace;
-    clothTex.wrapS = THREE.RepeatWrapping;
-    clothTex.wrapT = THREE.RepeatWrapping;
-    clothTex.name = 'figure-cloth';
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.name = 'figure-cloth';
+    entry = { tex, users: 0 };
+    clothPools.set(key, entry);
   }
-  clothUsers++;
-  return clothTex;
+  entry.users++;
+  return entry.tex;
 }
-function releaseCloth() {
-  if (--clothUsers <= 0) { clothTex?.dispose(); clothTex = null; clothUsers = 0; }
+function releaseCloth(pool) {
+  const key = poolKey(pool);
+  const entry = clothPools.get(key);
+  if (!entry) return;
+  if (--entry.users <= 0) { entry.tex.dispose(); clothPools.delete(key); }
 }
 
 // ───────── 부분을 모으는 틀 ─────────
@@ -1131,10 +1144,12 @@ function bodyMaterial(THREE, map, ink = 1) {
   return m;
 }
 
-let shared = null;
-function sharedMaterials(THREE) {
+const sharedPools = new Map();   // pool → { map, body, outline, users }
+function sharedMaterials(THREE, pool) {
+  const key = poolKey(pool);
+  let shared = sharedPools.get(key);
   if (!shared) {
-    const map = clothTexture(THREE);
+    const map = clothTexture(THREE, key);
     // 그늘이 먹처럼 죽지 않게 아주 조금 스스로 밝다(한지 인형 느낌)
     const body = bodyMaterial(THREE, map);
     const outline = new THREE.MeshBasicMaterial({ color: OUTLINE_COLOR, side: THREE.BackSide });
@@ -1149,17 +1164,20 @@ function sharedMaterials(THREE) {
     };
     outline.customProgramCacheKey = () => 'figure3d-outline';
     shared = { map, body, outline, users: 0 };
+    sharedPools.set(key, shared);
   }
   shared.users++;
   return shared;
 }
-function releaseMaterials() {
+function releaseMaterials(pool) {
+  const key = poolKey(pool);
+  const shared = sharedPools.get(key);
   if (!shared) return;
   if (--shared.users <= 0) {
     shared.body.dispose();
     shared.outline.dispose();
-    shared = null;
-    releaseCloth();
+    sharedPools.delete(key);
+    releaseCloth(key);
   }
 }
 
@@ -1167,8 +1185,8 @@ function releaseMaterials() {
 // 같은 조립법(cacheKey)·같은 detail의 인물은 합친 기하 하나를 나눠 쓴다. 마지막 인물이 치울 때 버린다.
 const RIGS = { humanoid: HUMANOID, bug: BUG, king: KING };
 const geoCache = new Map();
-function acquireGeometry(THREE, kind, recipe, rigDef, detail) {
-  const key = (recipe.cacheKey ?? kind) + '@' + detail;
+function acquireGeometry(THREE, kind, recipe, rigDef, detail, pool) {
+  const key = (recipe.cacheKey ?? kind) + '@' + detail + '#' + poolKey(pool);
   let c = geoCache.get(key);
   if (!c) {
     const boneIndex = {};
@@ -1289,12 +1307,13 @@ const ANIMATE = {
 // 돌려주는 update(dt, camera, { moving, dir: {x, z}, speed }): moving·dir·speed를 주지 않으면 root가 움직인 거리로 스스로 잰다.
 // 묶음: root → sway(부르는 쪽이 흔들기 연출을 더하는 곳, update마다 0으로) → pivot(방향·키) → 몸, 먹 테두리
 // detail: 둘레 나눔 배수(1 = 가까이). 멀리 보이는 무리는 0.55쯤.
-export function buildProceduralFigure(THREE, { kind = 'student-a', height = null, reduceMotion = () => false, name = 'figure', phase = 0, faceCamera = true, detail = 1 } = {}) {
+// pool: 나눠 쓰는 재질·무늬·기하의 묶음(머리글 '나눠 쓰는 자원의 묶음'). 자기 그림판을 가진 화면은 자기 이름을 준다.
+export function buildProceduralFigure(THREE, { kind = 'student-a', height = null, reduceMotion = () => false, name = 'figure', phase = 0, faceCamera = true, detail = 1, pool = 'main' } = {}) {
   const recipe = RECIPES[kind] ?? RECIPES['student-a'];
   const rigName = recipe.rig ?? 'humanoid';
   const rigDef = RIGS[rigName];
   const designH = recipe.designHeight ?? DESIGN_HEIGHT;
-  const G = acquireGeometry(THREE, kind, recipe, rigDef, detail);
+  const G = acquireGeometry(THREE, kind, recipe, rigDef, detail, pool);
   const { geo, line, triangles } = G;
 
   // 뼈: 설계 좌표(쉼 자세)에서 부모와의 차이로 놓는다
@@ -1310,7 +1329,7 @@ export function buildProceduralFigure(THREE, { kind = 'student-a', height = null
     if (parent) bones[parent].add(b);
     return b;
   });
-  const mats = sharedMaterials(THREE);
+  const mats = sharedMaterials(THREE, pool);
   const mesh = new THREE.SkinnedMesh(geo, mats.body);
   mesh.name = name + '-body';
   mesh.frustumCulled = false;
@@ -1428,7 +1447,7 @@ export function buildProceduralFigure(THREE, { kind = 'student-a', height = null
     G.release();
     skeleton.dispose();
     inkMat?.dispose();
-    releaseMaterials();
+    releaseMaterials(pool);
     root.removeFromParent();
   }
 
@@ -1489,7 +1508,7 @@ function bakeStanding(THREE, kind, detail) {
 let crowdShared = null;
 function crowdMaterials(THREE) {
   if (!crowdShared) {
-    const map = clothTexture(THREE);
+    const map = clothTexture(THREE, 'main');
     const uTime = { value: 0 };
     const uMotion = { value: 1 };
     const hook = (outline) => (shader) => {
@@ -1613,7 +1632,7 @@ export function buildCrowd(THREE, members, { detail = 0.55, name = 'crowd', outl
         mats.body.dispose();
         mats.outline.dispose();
         crowdShared = null;
-        releaseCloth();
+        releaseCloth('main');
       }
       if (--crowdCount <= 0) { crowdCount = 0; bakeCache.clear(); }
     },

@@ -71,6 +71,7 @@ export function runCalibration(host, { audio, store, step = 'earphone', onOffset
       tap.addEventListener('keydown', (e) => {
         if (!playing || (e.key !== ' ' && e.key !== 'Enter')) return;
         e.preventDefault();
+        if (e.repeat) return;   // 누른 채 있는 키의 되풀이는 탭이 아니다
         const t = audio?.tap?.(e.timeStamp);
         if (typeof t === 'number') { taps.push(t); marks[Math.min(marks.length - 1, taps.length - 1)]?.classList.add('is-on'); }
       });
@@ -84,7 +85,8 @@ export function runCalibration(host, { audio, store, step = 'earphone', onOffset
         tap.disabled = false;
         tap.focus({ preventScroll: true });
         status.textContent = F.calListening;
-        playing = audio.playCalibration();
+        // 멈췄다 재개하면 종소리를 처음부터 다시 내므로, 그 전의 탭은 버린다
+        playing = audio.playCalibration({ onRestart: () => { taps = []; marks.forEach((m) => m.classList.remove('is-on')); } });
         const r = await playing.finished;
         playing = null;
         tap.disabled = true;

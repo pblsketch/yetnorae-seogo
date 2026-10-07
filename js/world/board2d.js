@@ -38,7 +38,9 @@ function el(tag, className) {
 
 const doorX = (i) => 9 + i * (82 / (WINGS.length - 1));
 
-export function createBoard2D({ view, assets, appearance = 'a', getWingModule, reduceMotion, onArrive }) {
+// canWalk(): 누를 자리(관 문·관 모형 자리)를 눌렀을 때 걸어가도 되는지. 반반 틀·방 무대·회전 안내 동안에는 거짓이다
+// (3D의 탭 이동과 같은 조건, world.js가 넘긴다). 없으면 언제나 걷는다.
+export function createBoard2D({ view, assets, appearance = 'a', getWingModule, reduceMotion, onArrive, canWalk = () => true }) {
   const board = el('div', 'board');
   const art = el('div', 'board-art');
   const hotspots = el('div', 'board-hotspots');
@@ -136,7 +138,7 @@ export function createBoard2D({ view, assets, appearance = 'a', getWingModule, r
       name.textContent = w.name;
       b.append(name);
       b.setAttribute('aria-label', w.name + (doorState.get(w.id) === 'locked' ? ' (잠김)' : ''));
-      b.addEventListener('click', () => go({ x: doorX(i), y: WALK.corridor.y0 + 2 }, { key: 'door', wing: w.id }));
+      b.addEventListener('click', () => { if (canWalk()) go({ x: doorX(i), y: WALK.corridor.y0 + 2 }, { key: 'door', wing: w.id }); });
       hotspots.append(b);
     });
     setLevel(board, meanDancheong());
@@ -162,7 +164,7 @@ export function createBoard2D({ view, assets, appearance = 'a', getWingModule, r
         b.setAttribute('aria-label', label);
         b.title = label;
         const anchor = Array.isArray(v) ? { key, index } : { key };
-        b.addEventListener('click', () => go(p, anchor));
+        b.addEventListener('click', () => { if (canWalk()) go(p, anchor); });
         hotspots.append(b);
       });
     }
@@ -363,6 +365,8 @@ export function createBoard2D({ view, assets, appearance = 'a', getWingModule, r
       return out;
     },
     getWingHandle: () => wingHandle,
+    contextRestored() {},   // 그림판(WebGL)이 없다(3D와 같은 손잡이 모양)
+    canvas: null,
     getThree: () => null,
     getStats: () => ({ drawCalls: 0, triangles: 0, frames, pixelRatio: 1, shadows: false }),
     getBoard: () => board,

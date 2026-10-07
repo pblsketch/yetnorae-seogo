@@ -3,9 +3,10 @@
 여기는 관 모형을 끼우는 바탕이다. 관 모형 다섯의 건축과 손잡이 약속은 `wings/`가 맡는다.
 
 ## 맡는 것
-- `world.js`: 바깥 손잡이. 다른 화면은 이 파일만 부른다. `mount(container, { wings, manifest, appearance, reduceMotion, onArrive })`, `enterWing`/`enterCorridor`, 상황 버튼 `setContext(label, handler)`, 반반 틀 `openSplit(panelEl)`/`closeSplit()`, 방 무대 `openRoom(el)`/`closeRoom()`, `setDancheong`, `getMode()`, `getQuality()`, `getWingHandle()`, `dispose()`. 사건 버스의 `diorama:*`를 지금 관 모형의 `react`로 넘기고, `wing:state`로 관 문을 열고 닫는다.
+- `world.js`: 바깥 손잡이. 다른 화면은 이 파일만 부른다. `mount(container, { wings, manifest, appearance, reduceMotion, onArrive, onModeChange })`, `enterWing`/`enterCorridor`, 상황 버튼 `setContext(label, handler)`, 반반 틀 `openSplit(panelEl)`/`closeSplit()`, 방 무대 `openRoom(el)`/`closeRoom()`, `setDancheong`, `getMode()`, `getQuality()`, `isCovered()`, `getWingHandle()`, `dispose()`. 사건 버스의 `diorama:*`를 지금 관 모형의 `react`로 넘기고, `wing:state`로 관 문을 열고 닫는다.
 - `quality.js`: 화질 단계(자동). 세계가 그린 프레임을 재어 오래 느리면 픽셀 비율과 꾸밈 겹을 한 단계씩 낮춘다(내려가기만). `getQuality()`로 읽는다.
-- `mode.js`: WebGL2 확인으로 `'3d'`/`'2d'`를 정한다(창마다 한 번, 바뀌지 않음). 3D 그림판을 못 만들면 `fallbackTo2D()`.
+- `mode.js`: WebGL2 확인으로 `'3d'`/`'2d'`를 정한다(창마다 한 번). 3D 그림판을 못 만들거나, 잃고 되찾지 못하면 `fallbackTo2D()`로 그 창이 끝날 때까지 2D다(저장하지 않는다).
+- `webgl.js`: WebGL 그림판 살림. `releaseRenderer`(dispose + `forceContextLoss`, 이미 잃은 맥락이면 dispose만), `watchContextLoss(canvas, { onLost, onRestored, onGiveUp })`(되찾기를 `TUNING.contextRestoreMs` 3초 기다린다), `pixelRatioNow(max)`, `watchPixelRatio(fn)`(창 크기가 그대로여도 기기 픽셀 비율이 바뀌면 알림). 세계·보스·「십 년을 경영하야」 방·모습 미리보기가 쓴다.
 - `scene3d.js`: Three.js 장면, 따라가는 카메라와 제한 각도 회전, 학생 3D 인물, 관 문과 현판, 먹빛→단청 색. `board2d.js`: 같은 일을 16:9 그림 판 위 DOM 겹으로.
 - `corridor-art.js`: 회랑 건축(그림만). 한옥 서고 회랑(마루, 서가와 창살 벽, 기둥·공포·서까래, 기와 처마, 문루, 초롱, 난간, 입구 문)과 언제나 보이는 바깥(마당, 관 자리 바닥돌과 길, 종이 나무, 관 뒤 수묵 병풍, 먼 산). 배치 값은 `scene3d.js`가 넘기고 여기서 바꾸지 않는다.
 - `gfx/`: 그래픽 꾸러미. 캔버스 무늬(`textures.js`), 역할별 재질과 먹빛→단청 걸이(`materials.js`), 모서리를 깎은 부분을 역할마다 합치는 소품 틀(`kit.js`), 인물 무대(`figures.js`: 인물 고르기·종이 카드·무리, `figures-3d.js`: 절차 3D 인물, `cast.js`: 가객 표), 그리기 설정·빛·안개(`lighting.js`). 쓰는 법과 예산 요령은 `gfx/README.md`.
@@ -31,9 +32,14 @@
 - 건축 단청 칠은 가라앉은 뇌록·석간주로 칠하고 단청 값 0에서 먹빛이다. 밝은 녹청·주홍은 누를 수 있는 것(관 문)에만 쓴다.
 - 2D 누를 자리는 관 모형의 `anchors`마다 세계가 48px 이상으로 만들고, 이름표는 `board2d.js`의 `ANCHOR_LABELS`(모두 한국어)에서 온다. 그림 판 오른쪽 아래 구석(`x > 78`이면서 `y > 78`)에는 상황 버튼이 있다. 2D에서 학생은 그림 판 `y` 40~95% 띠 안에서만 걷는다.
 - `openSplit`·`openRoom` 동안 이동 조작과 상황 버튼은 멈춘다. `closeRoom()`은 숨긴 것, 안개, 바탕, 카메라의 시야각·near·far·up·zoom, 그리기 판 크기를 열기 전으로 되돌린다.
-- 회전 안내가 떠 있는 동안 그리기 고리는 프레임을 건너뛴다(`isPaused()`).
+- 회전 안내가 떠 있는 동안 그리기 고리는 프레임을 건너뛴다(`isPaused()`). 자기 그림판을 가진 보스 장면도 같다.
+- 자기 그림판(WebGLRenderer)을 만드는 곳은 모두 치울 때 `releaseRenderer`로 GPU 맥락까지 돌려준다(`renderer.dispose()`만으로는 맥락이 남아, 드나들 때마다 쌓이면 브라우저가 가장 오래된 맥락인 세계를 잃게 한다). 그림판을 만든 뒤 장면을 짓다 실패해도 돌려주고 던진다(`scene3d.js`·보스·「십 년을 경영하야」 방).
+- 그림판 잃음: 세계는 잃은 동안 그리지 않고 기다리고, 되찾으면 그 자리에서 다시 그린다(`contextRestored`: 셰이더 엮기를 기다리던 바깥 무리도 붙인다). 3초 안에 되찾지 못하면 3D 장면을 치우고 같은 뿌리·조작 위에 2D 그림 판을 세워 관 문 상태(기억해 둔 `wing:state`)와 지금 자리를 다시 놓은 뒤 `onModeChange('2d', { place })`를 부른다. 관 한 판은 세션이 관에 다시 들어가 다시 그린다.
+- 키보드는 `worldActive()`일 때만 세계에 닿는다: 가림·반반 틀·방 무대·회전 안내 동안이나 초점이 대화 상자(`role="dialog"`, `aria-modal`) 안이면 Enter·Space가 상황 버튼을 누르지 않고 방향키를 가로채지 않는다(겹 창이 스크롤된다). 2D 누를 자리는 3D 탭과 같은 조건(`canWalk`: 반반 틀·방 무대·회전 안내가 아닐 때)에서만 걷는다.
+- 픽셀 비율은 `resize`마다 기기 비율을 다시 읽어 바뀌었으면 `setPixelRatio`한다(브라우저 확대, 프로젝터로 옮김). `watchPixelRatio`가 창 크기가 그대로인 경우를 맡는다.
 - 전체 화면에 들어가고 나올 때 그리기 판 크기는 따로 맞추지 않는다. 3D 그림판은 `ResizeObserver`(`scene3d.js`), 2D 그림 판은 CSS 크기로 창을 따라간다. 회전 안내는 `fullscreenchange` 때 창 크기로 다시 판단한다.
 - 가림: `mount`에 넘긴 container 안에 `data-world-cover`가 붙은(hidden이 아닌) 요소가 있으면 그리기와 관 모형 update를 건너뛴다(단청 돌아오기 값은 계속). 세계를 꽉 덮는 겹(보스, 입구·엔딩 장면, 판 카드, 마지막 카드, 수첩·일지·도감 창)은 뿌리에 이 속성을 단다. 반투명 겹은 달지 않는다.
+- 화질 단계는 방 무대가 열린 동안 재지 않는다(방 장면·방이 따로 가진 그림판의 비용으로 세계 화질이 영영 내려가지 않게). 그림판을 잃은 동안도 재지 않는다.
 - 화질 단계는 픽셀 비율과 꾸밈 겹(`corridor-decor`)만 바꾼다. 누를 자리, 카메라, 관 모형, 그리기 호출 예산 검사는 그대로다. 소프트웨어 그리기(SwiftShader 등)에서는 세계 그림판이 MSAA 없이 만들어진다(`gfx/t39-perf.js`).
 - `palette.js`의 `TOKENS`는 `css/base.css`의 색 토큰과 같은 값이다.
 
@@ -44,10 +50,11 @@
 - 반반 틀: 지금 관 모형에 `measureFocus`가 있으면 왼쪽 반이 그곳을 비춘다. 3D는 카메라가 `target`을 보고(`position`이 없으면 `TUNING.measureOffset`만큼 떨어져), 2D는 그림 판을 왼쪽 칸에 꽉 차게 키우고 초점을 가운데로 민다.
 - 단청: `diorama:dancheong-restore`를 받으면 지금 관을 0→1로 `TUNING.dancheongRestoreSeconds` 동안 올린다(움직임 줄이기면 바로). 색은 `dancheongColor(본색, 값)`으로 먹빛과 본색 사이를 섞는다.
 - 움직임 줄이기면 카메라 이동은 잘라 바꾸고, `shake()`는 아무것도 하지 않고 `false`를 돌려주며, 파티클은 `particleScale()`(0.3)배로 줄인다. 인물의 숨쉬기·들썩임·소매 흔들림·고개 돌리기도 끄고, 3D 학생은 팔다리만 작게 움직이며 방향을 바로 바꾼다.
+- 3D 인물의 재질·무늬(한지 결, 발밑 그림자)·기하는 묶음(`pool`)마다 나눠 쓴다. 기본은 `'main'`(세계와 세계가 빌려주는 방 무대)이고, 자기 그림판을 따로 가진 보스는 `'boss'`를 쓴다. 그림판은 처음 그린 재질·무늬·기하마다 `dispose` 듣기를 남기므로, 세계 학생과 나눈 재질에 보스 그림판의 듣기가 남으면 치운 그림판이 붙들려 남는다. 새로 자기 그림판에 인물을 그리는 화면은 자기 묶음 이름을 준다.
 - 학생은 `gfx/figures.js`의 `createCharacter`로 만든 절차 3D 인물이다(`gfx/figures-3d.js`, 생김새 a·b는 기록의 `appearance`). 몸 하나 + 먹 테두리 하나 + 발밑 그림자 하나로 그리기 호출 셋이다. 걷는 쪽을 부드럽게 돌아보고, 오래 서 있으면 카메라 쪽으로 비스듬히 돌아선다. 키 1.62m(문 2.6m, 기둥 3.6m 기준), 발 가운데가 자리다. 선대 사서·가객 45명·좀·좀 대왕도 같은 틀의 3D 인물이다. `createFigure`에 그림 주소(`sprite/<이름>.webp`)를 넘기면 저절로 3D가 되고, 조립법이 없는 그림(「정석가」 방의 '임', 자리표시 캔버스)만 종이 카드로 남는다. 가객은 `gfx/cast.js`의 표(틀 → 생김새 → 노래)로 짓는다. 2D 그림 판, DOM 화면(엔딩 행렬, 도감, 입구, 회랑의 좀 알림, 시조 방 얼굴)과 결과 카드는 승인된 그림 그대로다.
 - `motion.js`는 처음 설치될 때 저장 문서에서 `device.reduceMotion`을 직접 읽는다(열쇠 `yetnorae-seogo-v1`을 상수로 따로 가진다). 저장 열쇠가 바뀌면 이 상수도 바꾼다.
 
 ## 점검
-- `node tests/check-world.mjs`(`tests/pages/world.html`): 세 화면 크기에서 탭 이동, 조이스틱, 키보드, 회전 안내와 멈춤, 3D를 끈 브라우저에서 2D 전환, 반반 틀 넘침, 그리기 호출 수, 움직임 줄이기, 색 토큰이 base.css와 같은지. 페이지가 도착을 알리는 값은 동기 판별 함수로 기다린다.
+- `node tests/check-world.mjs`(`tests/pages/world.html`): 세 화면 크기에서 탭 이동, 조이스틱, 키보드, 가림 뒤 키보드(상황 버튼 안 누름·방향키로 겹 창 스크롤, 음성 사례), 회전 안내와 멈춤, 3D를 끈 브라우저에서 2D 전환, 반반 틀 넘침과 2D 누를 자리 막음, 그림판 잃음(`WEBGL_lose_context`로 잃고 되찾기, 되찾지 못하면 3초 뒤 2D와 `onModeChange`), 그리기 호출 수, 움직임 줄이기, 색 토큰이 base.css와 같은지. 페이지가 도착을 알리는 값은 동기 판별 함수로 기다린다.
 - `node tests/check-wing-contract.mjs`: 등록된 관 모형 손잡이와 2D 이름표, 반반 틀 초점.
 - 세계를 고치면 `check-wingflow`, `check-rooms-in-flow`, `check-ui`도 영향을 받는다.

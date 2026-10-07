@@ -5,12 +5,14 @@
 import { emit as busEmit } from './events.js';
 import {
   AREA_SIZES, judgeArea, routeStray, judgeUnseenPlacement, judgeSingerGroup, judgeRemixTap, judgeRemixLine,
-  judgeStage3Placement, genreOfSong, REMIX_TAP_WINDOW_MS,
+  judgeStage3Placement, REMIX_TAP_WINDOW_MS,
 } from './judge.js';
 import { SONG_TABLE } from '../data/song-table.js';
 import { PLAY_WING_IDS, wingById } from '../data/wings.js';
 import { CONCEPT_IDS, CONCEPT_STATES, SINGER_GROUP_IDS, conceptById, conceptsOfGenre } from '../data/concepts.js';
 import { songs as registeredSongs } from '../data/songs/index.js';
+import { cleanText, graphemeCount } from './text.js';
+import { mismatches, targetGenre } from './contrast.js';
 
 // 조정할 수 있는 값(spec 22).
 export const TUNABLES = Object.freeze({
@@ -24,7 +26,8 @@ export const TUNABLES = Object.freeze({
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const clone = (v) => JSON.parse(JSON.stringify(v));
-const charLength = (s) => [...s].length;
+// 글자 수는 눈에 보이는 글자 단위로 센다(./text.js, 이름과 같은 방식)
+const charLength = graphemeCount;
 
 function toSongMap(songs) {
   if (songs instanceof Map) return songs;
@@ -63,10 +66,30 @@ export function createProgress({
 
   // 노래가 확인해 주는 개념. 노래 자료가 없으면 아무것도 확인하지 않는다.
   const evidencesOf = (id) => (songMap.get(id)?.evidences ?? []).filter((c) => CONCEPT_IDS.includes(c));
-  // 도움 신호에 실을 관련 개념: 노래의 evidences, 없으면 그 갈래 개념 모두.
-  const helpConcepts = (id) => {
-    const ev = evidencesOf(id);
-    return ev.length ? ev : conceptsOfGenre(genreOfSong(table, id)).map((c) => c.id);
+  // 도움 신호에 실을 관련 개념(오답 뒤): 노래 자기 갈래가 아니라 **대상**(학생이 고른 자리의 갈래, 탑은 그 층)의 개념 가운데
+  // 그 노래의 감정서와 어긋나는 것(js/core/contrast.js). 어긋나는 줄이 없으면 대상 갈래 개념 모두.
+  // 노래 자기 갈래의 개념을 실으면 반짝임이 곧 답이 되므로 싣지 않는다.
+  const targetHelp = (songId, target, actionIds) => {
+    const song = songMap.get(songId);
+    const found = song ? mismatches(song, target, actionIds) : [];
+    const ids = [...new Set(found.map((m) => m.conceptId))];
+    return ids.length ? ids : conceptsOfGenre(targetGenre(target)).map((c) => c.id);
+  };
+  // 그 관에서 그 노래의 감정서에 실린 고유 동작: 미리 잰 노래는 보낸 관의 동작, 나머지는 그 관의 동작
+  const measuredAction = (w, songId) => {
+    if ((p.prewaiting[w] ?? []).includes(songId)) {
+      for (const [from, t] of Object.entries(table.wings ?? {})) {
+        if ((t.stray ?? []).some((s) => s.songId === songId && s.to === w)) return wingById(from)?.action ?? null;
+      }
+    }
+    return wingById(w)?.action ?? null;
+  };
+  // 판정에서 틀린 자리의 대상: 탑은 그 층, 바구니는 고른 행선지 관의 갈래, 칸·덤은 그 관 갈래
+  const wrongTarget = (w, area, x) => {
+    const floors = table.wings?.[w]?.shelfFloors;
+    if (area === 'shelf' && Array.isArray(floors)) return { towerUnits: floors[x.index] };
+    if (area === 'basket') return { genre: wingById(x.to)?.genre ?? wingById(w)?.genre ?? null };
+    return { genre: wingById(w)?.genre ?? null };
   };
 
   // ── 개념 확인(spec 7.2): 서로 다른 노래 1편 = 연필, 2편 이상 = 먹. 되돌아가지 않는다.
@@ -191,6 +214,20 @@ export function createProgress({
   const waitingAt = (w) => (p.prewaiting[w] ?? []).filter((id) => !p.wings[w]?.placements.shelf.some((s) => s?.songId === id && s.fixed));
   const returnedAt = (w) => [...(p.returned[w] ?? [])];
 
+  // 드러난 노래: 판정에서 맞아 고정되었거나(칸·탑·덤, 바구니에서 보낸 노래) 튜토리얼을 마친 튜토리얼 노래.
+  // 드러난 노래의 단위는 그 갈래 이름(구·연·줄·장·행)으로 부르고, 그 전에는 '덩이'라 부른다(재기 화면).
+  // 저장에 새 값을 두지 않고 기록의 고정·행선지에서 다시 계산한다.
+  function isRevealed(songId) {
+    if (songId === table.tutorial && p.tutorialDone) return true;
+    for (const w of PLAY_WING_IDS) {
+      for (const area of Object.keys(AREA_SIZES)) if (p.wings[w].placements[area].some((s) => s?.fixed && s.songId === songId)) return true;
+      if ((p.prewaiting[w] ?? []).includes(songId) || (p.returned[w] ?? []).includes(songId)) return true;
+    }
+    return false;
+  }
+  // 두루마리의 여음·후렴·되풀이 이름표를 달 수 있는가: 드러난 노래이거나, 고려가요관에서 잰 노래(후렴 고리 걸기를 거침)
+  const marksKnown = (songId) => isRevealed(songId) || (p.wings.goryeo?.measured ?? []).includes(songId);
+
   // 자리에 꽂는다. 바구니는 갈 관(to)을 함께 고른다. 판정 전 노래는 다른 자리로 옮길 수 있다.
   // 이미 다른 노래가 있던 자리면 그 노래는 손으로 돌아온다(displaced).
   function place(w, area, index, songId, to) {
@@ -241,7 +278,12 @@ export function createProgress({
     for (const x of returned) {
       slots[x.index] = null;
       ws.wrongCount += 1;
-      if (ws.wrongCount >= T.wingWrongHelp) emit('help:notebook-glow', { wing: w, genre: x.genre, conceptIds: helpConcepts(x.songId) });
+      const target = wrongTarget(w, area, x);
+      x.target = target;
+      // 수첩은 대상 갈래 쪽의 어긋나는 개념으로 반짝인다(노래 갈래 쪽이 아니다)
+      if (ws.wrongCount >= T.wingWrongHelp) {
+        emit('help:notebook-glow', { wing: w, genre: targetGenre(target), conceptIds: targetHelp(x.songId, target, measuredAction(w, x.songId)), songId: x.songId });
+      }
     }
 
     const out = { judged: true, allCorrect: r.allCorrect, returned, fixed };
@@ -340,7 +382,9 @@ export function createProgress({
 
   // 1단계: 낯선 노래를 관 자리에 꽂으면 바로 판정한다. 처음 꽂은 결과를 '처음에 맞혔는지'로 남긴다.
   // 같은 단계 오답이 기준 이상이면 일지가 반짝이고 그 노래에 '일지 도움'을 남긴다.
-  function bossPlaceUnseen(songId, wingId) {
+  // actions: 그 노래를 잴 때 학생이 실제로 쓴 도구(고유 동작 id 목록). 일지 도움의 개념은 꽂은 자리 갈래의 개념 가운데
+  // 접기·두드리기와 이 도구들의 증거에 어긋나는 것만 싣는다(쓰지 않은 도구로 알 수 있는 것은 알려 주지 않는다).
+  function bossPlaceUnseen(songId, wingId, { actions = [] } = {}) {
     if (isCompleted()) return no('completed');
     if (p.boss.state !== 'stage1') return no('wrong-stage');
     if (songId !== currentUnseen()) return no('not-current');
@@ -351,7 +395,7 @@ export function createProgress({
     if (rec.firstTryCorrect === null) rec.firstTryCorrect = correct;
     let help = false;
     if (correct) pendingSinger = songId;
-    else if (bossWrong(1, helpConcepts(songId), songId)) { rec.journalHelp = true; help = true; }
+    else if (bossWrong(1, targetHelp(songId, { genre: wingById(wingId).genre }, actions), songId)) { rec.journalHelp = true; help = true; }
     return commit(ok({ correct, help }));
   }
 
@@ -400,12 +444,13 @@ export function createProgress({
   }
 
   // 3단계: 좀 대왕이 삼킨 노래를 다시 재어 시조 자리에 꽂으면 보스를 마친다.
-  function bossPlaceStage3(wingId) {
+  // 3단계도 1단계처럼 꽂은 자리 갈래의 어긋나는 개념을 싣는다(actions: 쓴 도구).
+  function bossPlaceStage3(wingId, { actions = [] } = {}) {
     if (isCompleted()) return no('completed');
     if (p.boss.state !== 'stage3') return no('wrong-stage');
     if (!wingOk(wingId)) return no('bad-wing');
     if (!judgeStage3Placement({ table, wingId })) {
-      const help = bossWrong(3, helpConcepts(table.boss.stage3SongId), table.boss.stage3SongId);
+      const help = bossWrong(3, targetHelp(table.boss.stage3SongId, { genre: wingById(wingId).genre }, actions), table.boss.stage3SongId);
       return commit(ok({ correct: false, help }));
     }
     nextStage('done');
@@ -415,14 +460,15 @@ export function createProgress({
   // ───────────── 엔딩 ─────────────
 
   // 자기 노래 한 줄(1~40자), 꽂을 관, 그 관 갈래의 먹 개념 하나, 한마디(0~60자). 채점하지 않는다.
+  // 글은 이름처럼 NFC로 맞추고 앞뒤 공백을 뺀 뒤 글자 단위로 센다(cleanText·graphemeCount).
   function completeEnding({ line, wing, conceptId, note = '' } = {}) {
     if (isCompleted()) return no('completed');
     if (p.boss.state !== 'done') return no('boss-not-done');
-    const lineT = typeof line === 'string' ? line.trim() : '';
+    const lineT = typeof line === 'string' ? cleanText(line) : '';
     const lineLen = charLength(lineT);
     if (lineLen < T.endingLineMin || lineLen > T.endingLineMax) return no('line-length');
     if (note !== null && note !== undefined && typeof note !== 'string') return no('note-length');
-    const noteT = (note ?? '').trim();
+    const noteT = cleanText(note ?? '');
     if (charLength(noteT) > T.endingNoteMax) return no('note-length');
     if (!wingOk(wing)) return no('bad-wing');
     const concept = conceptById(conceptId);
@@ -454,6 +500,8 @@ export function createProgress({
     isCompleted,
     isRoomOpen,
     isMeasured,
+    isRevealed,
+    marksKnown,
     waitingAt,
     returnedAt,
     currentUnseen,

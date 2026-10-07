@@ -27,6 +27,7 @@ import { SONG_TABLE, WING_TABLE, ROUTING } from '../js/data/song-table.js';
 import { PLAY_WING_IDS, GENRE_IDS } from '../js/data/wings.js';
 import { CONCEPT_IDS, SINGER_GROUPS } from '../js/data/concepts.js';
 import { buildFinalCard } from '../js/core/cards.js';
+import { mismatches } from '../js/core/contrast.js';
 import { validateRemix } from '../js/core/validate.js';
 import * as R from '../js/core/rhythm.js';
 
@@ -414,6 +415,9 @@ async function checkFull3D(base) {
     await playUnseen(p, { id: ORDER[1], wrongs: ['goryeo', 'sijo'], group: wrongGroup });
     const glow = await logOf(p, 'help:journal-glow');
     ok(glow.length === 1 && glow[0].stage === 1 && glow[0].songId === ORDER[1] && glow[0].conceptIds.length > 0, '같은 단계 세 번째 틀림에 일지 도움 신호(그 노래, 관련 개념)');
+    // 세 번째로 꽂은 자리는 시조: 시조 개념 가운데 쓴 도구(계단)와 접기·두드리기 증거에 어긋나는 것. 노래 갈래(향가) 개념은 싣지 않는다
+    const expectGlow = [...new Set(mismatches(song(ORDER[1]), { genre: 'sijo' }, ['stairs']).map((m) => m.conceptId))];
+    ok(same(glow[0].conceptIds, expectGlow) && !glow[0].conceptIds.some((c) => c.startsWith(song(ORDER[1]).genre + '-')), '일지 도움은 꽂은 자리(시조) 갈래의 어긋나는 개념이다(노래 갈래 개념이 아니다) ' + JSON.stringify(glow[0].conceptIds));
     const jg = await ev(p, () => ({ btn: document.querySelector('.boss .boss-journal-btn')?.classList.contains('is-glow'), items: [...document.querySelectorAll('.boss .boss-journal-item.is-glow')].map((e) => e.dataset.concept) }));
     ok(jg.btn && jg.items.length > 0 && jg.items.every((c) => glow[0].conceptIds.includes(c)), '일지 단추와 관련 개념이 반짝인다');
     b = await bossRec(p);
@@ -452,6 +456,31 @@ async function checkFull3D(base) {
     await layout(p, '2단계 박자 방식(3D 1366×768)');
     const before = JSON.stringify((await bossRec(p)).unseen);
     await ev(p, () => { const a = window.__b.auto; a.wrongAtSegments.push(1); a.skipPoints.push(2); a.plays.length = 0; a.taps.length = 0; window.__b.fogSeen.clear(); });
+    // 틀린 탭 뒤 튕김: 북에 is-bounced·aria-disabled가 붙는 순간 한 번 더 두드려 본다(받지 않아야 한다).
+    // 판정 창 길이(REMIX_WINDOW_MS 앞+뒤)가 지나면 풀린다.
+    await ev(p, (key) => {
+      const wrongNow = () => Object.values(JSON.parse(localStorage.getItem(key)).slots)[0].progress.boss.stageWrong;
+      const b = { seen: false, aria: null, wrongBefore: null, wrongAfter: null, at: null, released: null };
+      window.__bounce = b;
+      const mo = new MutationObserver(() => {
+        const t = document.querySelector('.boss .boss-remix-tap');
+        if (!t) return;
+        if (!b.seen && t.classList.contains('is-bounced')) {
+          b.seen = true;
+          b.at = performance.now();
+          b.aria = t.getAttribute('aria-disabled');
+          b.wrongBefore = wrongNow();
+          t.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'touch' }));
+          t.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+          b.wrongAfter = wrongNow();
+        } else if (b.seen && b.released === null && !t.classList.contains('is-bounced')) {
+          b.released = Math.round(performance.now() - b.at);
+          b.ariaAfter = t.getAttribute('aria-disabled');
+          mo.disconnect();
+        }
+      });
+      mo.observe(document.querySelector('.boss'), { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
+    }, SAVE_KEY);
     // 실제 누르기(pointerdown)여야 소리 판이 열린다(첫 조작)
     await p.click('.boss .boss-remix-listen');
     ok(true, '낭송 듣기를 누른다');
@@ -468,6 +497,12 @@ async function checkFull3D(base) {
     ok(auto.plays[0] === null, '처음에는 리믹스 전체를 낭송한다');
     ok(auto.plays.slice(1).some((s) => same(s, R.remixReplaySegments(grid, 2))), '놓친 지점(2)은 그 앞뒤 단위를 다시 들려준다');
     ok(auto.taps.includes('wrong') && auto.fog.includes('thick'), '틀린 탭에 먹안개가 짙어진다');
+    const bounce = await ev(p, () => window.__bounce);
+    const bounceMs = R.REMIX_WINDOW_MS.before + R.REMIX_WINDOW_MS.after;
+    ok(bounce.seen && bounce.aria === 'true', "틀린 탭 뒤 '바뀌었다' 북이 튕겨 나간다(is-bounced, aria-disabled) " + JSON.stringify(bounce));
+    ok(bounce.wrongBefore >= 1 && bounce.wrongAfter === bounce.wrongBefore, '튕겨 나간 동안의 탭(누르기·키)은 받지 않는다(틀림이 늘지 않는다). 음성 사례: 튕기기 전의 틀린 탭은 틀림으로 셌다');
+    ok(bounce.released !== null && bounce.released >= bounceMs - 100 && bounce.released <= bounceMs + 600 && bounce.ariaAfter === null, '판정 창 길이(' + bounceMs + 'ms)가 지나면 다시 받는다 (' + bounce.released + 'ms)');
+    ok(auto.taps.filter((k) => k.startsWith('point-')).length >= 4, '튕김이 풀린 뒤의 맞는 탭은 그대로 지점을 찾는다(네 지점을 다 찾아 3단계로 갔다)');
     ok((await bossRec(p)).unseen && JSON.stringify((await bossRec(p)).unseen) === before, '2단계 틀림은 낯선 노래 기록을 바꾸지 않는다');
 
     // ── 3단계 ──
@@ -628,6 +663,70 @@ async function checkLayouts(base) {
   }
 }
 
+// ───────── 5-1. 3D 그림판 살림(js/world/webgl.js) ─────────
+// 세로로 돌리면 그리지 않는다. 보스를 나가면 GPU 맥락까지 돌려준다(forceContextLoss: 드나들 때마다 맥락이 쌓이지 않게).
+// 그림판을 잃고 되찾지 못하면 장면만 2D 그림 판으로 바꾸고 보스를 이어 간다.
+async function checkRenderer(base) {
+  console.log('── 3D 그림판: 회전 멈춤, 나가면 맥락 돌려주기, 잃으면 2D');
+  let g = await openGame(base, { path: PAGE, seed: seedBoss(), viewport: VIEWPORTS.phone, touch: true });
+  let p = g.page;
+  try {
+    await setup(p);
+    ok((await bossAttr(p, 'mode')) === '3d', '3D로 열린다(그림판 살림)');
+    // 그리기 호출을 센다(Three.js는 맥락 객체의 그리기 함수를 그때그때 찾으므로 이 맥락에 덧씌운다)
+    await ev(p, () => {
+      const gl = document.querySelector('.boss .boss-scene canvas').getContext('webgl2');
+      window.__bossGl = gl;
+      window.__bossDraws = 0;
+      for (const f of ['drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced']) {
+        const orig = gl[f];
+        gl[f] = function (...a) { window.__bossDraws++; return orig.apply(this, a); };
+      }
+    });
+    await p.waitForFunction(() => window.__bossDraws > 0, null, { timeout: 5000, polling: 100 });
+    ok(true, '(음성) 가로에서는 보스 장면을 그린다(그리기 호출이 는다)');
+    const vp = VIEWPORTS.phone;
+    await p.setViewportSize({ width: vp.height, height: vp.width });
+    await p.waitForFunction(() => { const o = document.querySelector('.rotate-overlay'); return o && !o.hidden; }, null, { timeout: 5000 });
+    await p.waitForTimeout(150);
+    const d1 = await ev(p, () => window.__bossDraws);
+    await p.waitForTimeout(500);
+    const d2 = await ev(p, () => window.__bossDraws);
+    ok(d1 === d2, '세로(회전 안내)일 때 보스 장면을 그리지 않는다 (그리기 ' + d1 + '→' + d2 + ')');
+    await p.setViewportSize(vp);
+    await p.waitForFunction(() => document.querySelector('.rotate-overlay')?.hidden === true, null, { timeout: 5000 });
+    await p.waitForFunction((n) => window.__bossDraws > n, d2, { timeout: 5000, polling: 100 });
+    ok(true, '가로로 돌아오면 다시 그린다');
+    ok(await ev(p, () => !window.__bossGl.isContextLost()), '(음성) 보스가 떠 있는 동안 그림판의 맥락은 살아 있다');
+    await click(p, '.boss .boss-top .boss-leave');
+    await p.waitForFunction(() => window.__b.goCalls.length > 0, null, { timeout: 5000 });
+    await p.waitForFunction(() => window.__bossGl.isContextLost(), null, { timeout: 5000, polling: 100 }).catch(() => {});
+    ok(await ev(p, () => window.__bossGl.isContextLost() && !document.querySelector('.boss')), '보스를 나가면 그림판의 GPU 맥락까지 돌려준다(forceContextLoss)');
+    ok(g.errors.length === 0, '콘솔 오류 없음(그림판 살림) ' + g.errors.join(' | '));
+  } finally {
+    await g.close();
+  }
+
+  g = await openGame(base, { path: PAGE, seed: seedBoss(), viewport: VIEWPORTS.chromebook });
+  p = g.page;
+  try {
+    await setup(p);
+    ok((await bossAttr(p, 'mode')) === '3d', '3D로 열린다(그림판 잃음)');
+    await ev(p, () => document.querySelector('.boss .boss-scene canvas').getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+    await p.waitForTimeout(1500);
+    ok((await bossAttr(p, 'mode')) === '3d' && (await ev(p, () => !!document.querySelector('.boss .boss-scene canvas'))), '(음성) 되찾기를 기다리는 동안은 3D 그대로다');
+    await p.waitForFunction(() => document.querySelector('.boss')?.dataset.mode === '2d', null, { timeout: 6000, polling: 100 });
+    const r = await ev(p, () => ({ canvas: !!document.querySelector('.boss .boss-scene canvas'), board: !!document.querySelector('.boss .boss-scene .boss-board') }));
+    ok(!r.canvas && r.board, '그림판을 되찾지 못하면 보스 장면이 2D 그림 판으로 바뀐다 ' + JSON.stringify(r));
+    await passIntro(p, 'stage1');
+    await waitSel(p, '.boss .boss-song');
+    ok(true, '2D로 바뀐 뒤에도 보스를 이어 간다(1단계 노래가 나온다)');
+    ok(g.errors.length === 0, '콘솔 오류 없음(그림판 잃음) ' + g.errors.join(' | '));
+  } finally {
+    await g.close();
+  }
+}
+
 // ───────── 6. 앱 흐름의 보스 화면 약속: start(ctx) ─────────
 
 async function checkStartContract(base) {
@@ -711,6 +810,7 @@ try {
   await checkFull3D(base);
   await checkNoBeat2D(base);
   await checkLayouts(base);
+  await checkRenderer(base);
   await checkStartContract(base);
   await checkNegatives(base);
   const ext = server.requests.filter((r) => !r.startsWith('/'));

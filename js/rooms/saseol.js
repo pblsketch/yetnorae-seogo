@@ -263,6 +263,9 @@ function createRoom(ctx, REV) {
       };
       setMode(mode);
 
+      // 방을 치우면(나가기·중단) 달리던 낭송도 멈춘다
+      cleanups.push(() => { const p = playing; playing = null; session = null; p?.stop?.(); });
+
       const finishRun = () => {
         if (finished || !alive) return;
         finished = true;

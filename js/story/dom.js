@@ -1,11 +1,12 @@
 // 이야기 화면들이 함께 쓰는 작은 도우미: 요소 만들기, 그림 주소, 스타일 붙이기, 확인 상자, 알림 한 줄.
 import { el, button, assetUrl, quoted } from '../play/dom.js';
 import { paperDollCanvas } from '../world/sprites.js';
+import { cleanText, graphemeCount } from '../core/text.js';
 
 export { el, button, assetUrl, quoted };
 
-// 글자 수는 유니코드 글자 단위로 센다(진행 엔진과 같은 방식).
-export const charCount = (s) => [...String(s ?? '')].length;
+// 글자 수는 진행 엔진과 같은 방식으로 센다: NFC로 맞추고 앞뒤 공백을 뺀 뒤 눈에 보이는 글자 단위(js/core/text.js)
+export const charCount = (s) => graphemeCount(cleanText(s));
 
 // css/story.css가 문서에 없으면 붙인다(연결 단계가 index.html에 더하면 그것을 쓴다). 다 읽으면 끝나는 약속.
 let stylePromise = null;

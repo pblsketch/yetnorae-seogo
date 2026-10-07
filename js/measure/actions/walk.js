@@ -1,5 +1,6 @@
 // 걷기(가사관, spec 5.4): 네 박마다 한 걸음, 노래 단위가 이어지는 동안 회랑을 걷는다.
-// '한 걸음'을 누를 때마다 다음 단위를 낭송하며(박자 방식) 한 걸음 나아간다. 박자 없는 방식이면 낭송 없이 걷는다.
+// '한 걸음'을 누를 때마다 그 단위의 줄을 밝히고, 박자 방식이면 노래 빠르기로 장구 네 번을 들으며 한 걸음 나아간다
+// (낭송은 두드리기에서 이미 들었으므로 다시 내지 않는다). 박자 없는 방식이면 소리 없이 걷는다.
 // 단위가 끝나면 걸음이 멈춘다. 세 걸음에서 멈추는지, 계속 이어지는지가 증거다.
 // 증거: { action: 'walk', applicable: true, steps, stopsAtThree }
 import { deriveActionEvidence } from '../../core/song-shape.js';
@@ -51,13 +52,13 @@ export function start(ctx) {
       view.goTo((p) => p.u === current);
       view.refresh();
       emit('diorama:walk-step', { step: steps });
-      // 박자 방식이면 그 단위를 낭송하는 동안 걷는다(네 박에 한 걸음)
+      // 박자 방식이면 장구 네 번(노래 빠르기)을 듣는 동안 걷는다(네 박에 한 걸음)
       if (!noBeat() && engine?.unlocked) {
         try {
-          grid ??= (rhythm.buildGrid ?? R.buildGrid)(song);
-          const segIdx = grid.segments.filter((s) => s.unit === current).map((s) => s.index);
+          // 빠르기는 박자 손잡이의 칸(점검 페이지는 빠른 칸을 끼운다)에서 읽는다
+          grid ??= R.walkStepGrid(song, { tempo: (rhythm.buildGrid ?? R.buildGrid)(song).tempo });
           stepBtn.textContent = T.walking;
-          playing = engine.play(grid, segIdx);
+          playing = engine.play(grid);
           await playing.finished;
         } catch { /* 소리가 없어도 걷는다 */ }
         playing = null;

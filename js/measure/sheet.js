@@ -16,7 +16,7 @@ function foldLine(sheet, unit) {
 }
 
 // 두드리기 증거. 고려가요 줄은 박에 드는 음보만 센다(여음·후렴만 있는 줄은 빼고 센다).
-// 보스(neutral)에서는 '줄'이라는 말도 갈래를 드러내므로 단위 이름('덩이')으로 쓴다.
+// '덩이'로 부를 때(neutral: 보스, 그리고 관·입구에서 드러나기 전의 노래)는 '줄'이라는 말도 갈래를 드러내므로 '덩이'로 쓴다.
 function tapLine(sheet, unit, neutral) {
   const t = sheet.tap;
   if (t.mode === 'gu') return '[' + unit + '마다 한 박, 모두 ' + count(t.gu, '박') + ']';
@@ -61,6 +61,7 @@ function actionLine(a, song, unit) {
 // '[여음·후렴이 있다]'는 후렴 고리 걸기(고려가요관의 고유 동작)가 되풀이 구절을 찾았을 때만 그 줄 뒤에 붙인다.
 // 두드리기에서 여음·후렴을 건너뛴 것만으로는 적지 않는다. 그래야 고유 동작이 그 증거를 맡고(spec 5.4),
 // 보스에서도 그 도구를 쓰기 전에는 갈래를 알려 주는 줄이 나오지 않는다.
+// neutral: 단위를 '덩이'라 부른다(드러나기 전의 노래, 보스). 감정서 줄에 갈래 단위 이름(구·연·줄·장·행)이 나오지 않는다.
 export function sheetLines(sheet, song, { neutral = false } = {}) {
   const unit = unitName(song, neutral);
   const out = [];

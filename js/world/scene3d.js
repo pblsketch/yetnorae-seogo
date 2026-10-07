@@ -14,6 +14,7 @@ import { applyRenderSettings, createLightRig, setFog } from './gfx/lighting.js';
 import { buildCorridorGallery, buildCorridorGrounds } from './corridor-art.js';
 import { addRigLight, createInkScreens, createRigLitMaterials, mipNearest, softwareRendering } from './gfx/t39-perf.js';
 import { onQualityChange, qualityInfo } from './quality.js';
+import { pixelRatioNow, releaseRenderer, watchPixelRatio } from './webgl.js';
 
 // 배치(1 = 1m). 회랑은 x축을 따라 뻗고, 관 자리는 회랑 북쪽(-z)에 순서대로 놓인다.
 const SLOT_GAP = 16;
@@ -115,16 +116,30 @@ function signBoards() {
   return mesh;
 }
 
-export function createScene3D({ view, assets, appearance = 'a', getWingModule, reduceMotion, onArrive }) {
+// 3D 그림판을 만든다. 그림판(WebGL 맥락)을 만든 뒤 장면을 짓다가 실패하면 맥락을 돌려주고(dispose + forceContextLoss),
+// 그림판을 떼고, 걸어 둔 관찰자를 끈 뒤 던진다. 부르는 쪽(world.js)은 2D 그림 판으로 간다.
+export function createScene3D(opts) {
   const canvas = document.createElement('canvas');
   canvas.className = 'world-canvas';
   // 소프트웨어 그리기(GPU를 못 쓰는 기기)에서는 MSAA가 프레임 시간의 약 3분의 1이라 끈다(gfx/t39-perf.js)
   const software = softwareRendering();
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !software, powerPreference: 'low-power' });
-  // 픽셀 비율 = min(기기 비율, 1.5) × 화질 단계 몫(quality.js)
-  const basePixelRatio = Math.min(window.devicePixelRatio || 1, TUNING.pixelRatioMax);
+  const undo = [];
+  try {
+    return buildScene3D(canvas, renderer, software, undo, opts);
+  } catch (e) {
+    for (const fn of undo.reverse()) { try { fn(); } catch { /* 이미 반쯤 지은 것 */ } }
+    releaseRenderer(renderer);
+    canvas.remove();
+    throw e;
+  }
+}
+
+function buildScene3D(canvas, renderer, software, undo, { view, assets, appearance = 'a', getWingModule, reduceMotion, onArrive }) {
+  // 픽셀 비율 = min(기기 비율, 1.5) × 화질 단계 몫(quality.js). 기기 비율은 브라우저 확대·다른 화면으로 옮기면 바뀌므로 resize마다 다시 본다
   let quality = qualityInfo();
-  renderer.setPixelRatio(basePixelRatio * quality.pixelScale);
+  const wantPixelRatio = () => pixelRatioNow(TUNING.pixelRatioMax) * quality.pixelScale;
+  renderer.setPixelRatio(wantPixelRatio());
   applyRenderSettings(renderer, THREE);
   view.prepend(canvas);
 
@@ -145,17 +160,17 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   const art = { grounds: null, gallery: null, groundsAdded: false };
   // 바깥(grounds)은 두 번째 프레임에 짓고, 셰이더를 먼저 따로 엮은 뒤(compileAsync) 장면에 붙인다.
   // 첫 화면(관 들어가기 글 등)이 늦어지지 않게 한다.
+  function attachGrounds() {
+    if (disposed || !art.grounds || art.groundsAdded) return;
+    art.groundsAdded = true;
+    scene.add(art.grounds);
+    applyDecor();
+    if (room) { art.grounds.visible = false; room.hidden.push(art.grounds); }
+  }
   function addGroundsLater() {
     if (art.grounds) return;
     art.grounds = buildCorridorGrounds(THREE, kit, artLayout, { screens: inkScreens });
-    const attach = () => {
-      if (disposed || art.groundsAdded) return;
-      art.groundsAdded = true;
-      scene.add(art.grounds);
-      applyDecor();
-      if (room) { art.grounds.visible = false; room.hidden.push(art.grounds); }
-    };
-    Promise.resolve().then(() => renderer.compileAsync(art.grounds, camera, scene)).then(attach, attach);
+    Promise.resolve().then(() => renderer.compileAsync(art.grounds, camera, scene)).then(attachGrounds, attachGrounds);
   }
   let disposed = false;
   function ensureGallery() {
@@ -316,15 +331,17 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   }
   const offQuality = onQualityChange((q) => {
     quality = q;
-    renderer.setPixelRatio(basePixelRatio * q.pixelScale);
     applyDecor();
     resize();
     if (room) fitRoomView();
   });
+  undo.push(offQuality);
 
   function resize() {
     const w = Math.max(1, view.clientWidth);
     const h = Math.max(1, view.clientHeight);
+    const pr = wantPixelRatio();
+    if (Math.abs(renderer.getPixelRatio() - pr) > 1e-6) renderer.setPixelRatio(pr);
     renderer.setSize(w, h, false);
     aspect = w / h;
     camera.aspect = aspect;
@@ -332,6 +349,10 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
   }
   const ro = new ResizeObserver(() => { resize(); render(); });
   ro.observe(view);
+  undo.push(() => ro.disconnect());
+  // 창 크기가 그대로여도 기기 픽셀 비율이 바뀌면(다른 화면으로 옮김) 그리기 판을 다시 맞춘다
+  const offPixelRatio = watchPixelRatio(() => { resize(); if (room) fitRoomView(); render(); });
+  undo.push(offPixelRatio);
   resize();
   snapCamera();
 
@@ -633,6 +654,13 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
         distanceToDesired: room ? 0 : camera.position.distanceTo(wantPos),
       };
     },
+    // 그림판을 되찾은 뒤(webglcontextrestored): Three.js가 맥락을 다시 차렸으므로 자원은 다음 그리기에 다시 올라간다.
+    // 잃은 동안 셰이더 엮기를 기다리던 바깥(grounds)은 그 약속이 끝나지 않을 수 있으므로 바로 붙이고 한 번 그린다.
+    contextRestored() {
+      attachGrounds();
+      render();
+    },
+    canvas,
     getAnchors: worldAnchors,
     getWingHandle: () => wingHandle,
     getThree: () => ({ THREE, scene, camera, renderer, root: wingRoot }),
@@ -656,6 +684,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
     dispose() {
       disposed = true;
       offQuality();
+      offPixelRatio();
       ro.disconnect();
       if (art.grounds && !art.groundsAdded) scene.add(art.grounds);   // 아래 traverse가 함께 치운다
       endRoom();
@@ -670,8 +699,7 @@ export function createScene3D({ view, assets, appearance = 'a', getWingModule, r
       gfxMaterials.dispose();
       gfxTextures.dispose();
       doll.dispose();
-      renderer.dispose();
-      renderer.forceContextLoss();
+      releaseRenderer(renderer);   // dispose + forceContextLoss(이미 잃은 맥락이면 dispose만)
       canvas.remove();
     },
   };

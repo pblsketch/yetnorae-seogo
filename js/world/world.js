@@ -1,10 +1,11 @@
 // 세계 바탕의 바깥 손잡이. 다른 화면은 이 모듈만 부른다.
 //
-//   mount(container, opts)   세계를 container에 띄운다. opts: { wings, manifest, appearance: 'a'|'b', reduceMotion, onArrive }
+//   mount(container, opts)   세계를 container에 띄운다. opts: { wings, manifest, appearance: 'a'|'b', reduceMotion, onArrive, onModeChange }
 //                              wings: 관 id → 관 모형 모듈(없으면 js/registry.js의 wings)
 //                              manifest: 자산 목록(assets/manifest.json 모양). 없으면 모두 자리표시 그림
 //                              onArrive({ position, anchor, place }): 탭·문·자리로 가서 멈췄을 때. anchor는
 //                                { key: 'door', wing } | { key: 'slots'|'bonus', index } | { key: 'basket'|… } | null
+//                              onModeChange('2d', { place }): 3D 그림판을 잃고 되찾지 못해 2D 그림 판으로 바꾼 뒤(아래 '그림판 잃음')
 //   enterWing(id) / enterCorridor()      관 안으로 / 회랑으로
 //   setContext(label, handler)            오른쪽 아래 상황 버튼("잡기", "꽂기" 등). label이 없으면 숨긴다
 //   openSplit(panelEl) / closeSplit()     반반 틀(왼쪽 디오라마, 오른쪽 패널). 여는 동안 이동 조작은 숨는다.
@@ -13,6 +14,7 @@
 //   setDancheong(id, level)               관마다 먹빛(0)~단청(1)
 //   getMode()                             '3d' | '2d'
 //   getQuality()                          지금 화질 단계 { tier, name, pixelScale, decor, software, antialias } (quality.js)
+//   isCovered()                           세계가 꽉 덮는 겹에 가려져 있는지(아래 '가림')
 //   openRoom(el) / closeRoom()            작품 방 무대(README '연결 결정(F3)'). 여는 동안 이동 조작이 멈추고 학생·카메라를 움직이지 않는다.
 //                                         3D면 세계의 다른 것을 모두 숨기고 원점의 빈 무대에 { THREE, root, camera }를 돌려준다.
 //                                         그리기는 세계가 프레임마다 el의 자리·크기에만 한다. 2D면 null. closeRoom()이면 모두 되돌린다
@@ -21,6 +23,14 @@
 // 가림: mount에 넘긴 container 안에 data-world-cover 속성이 있는(hidden이 아닌) 요소가 있으면 세계가 화면에 가려진 것으로 보고
 // 그리기와 관 모형 update를 건너뛴다(단청 돌아오기 같은 값 바꾸기만 계속한다). 그 요소가 사라지면 다음 프레임부터 다시 그린다.
 // 화면을 꽉 덮는 겹(보스, 입구·엔딩 장면, 판 카드, 수첩·일지·도감 창)이 이 속성을 단다.
+//
+// 가림·반반 틀·방 무대·회전 안내 동안에는 키보드가 상황 버튼을 누르지 않고 방향키를 가로채지 않는다(겹 창이 스크롤되게).
+// 2D 그림 판의 누를 자리도 반반 틀·방 무대·회전 안내 동안에는 걷지 않는다(3D 탭과 같은 조건).
+//
+// 그림판 잃음(webglcontextlost, js/world/webgl.js): 잃은 동안은 그리지 않고 기다린다. TUNING.contextRestoreMs(3초) 안에 되찾으면
+// 그 자리에서 다시 그린다. 되찾지 못하면 이번 창은 2D로 간다(mode.js fallbackTo2D, 저장하지 않음: 다음 창은 다시 WebGL을 확인한다).
+// 3D 장면을 치우고 같은 세계 뿌리·조작 위에 2D 그림 판을 세운 뒤, 관 문 상태와 지금 자리(회랑 또는 관)를 다시 놓고
+// onModeChange('2d')를 부른다. 관 한 판은 부르는 쪽(세션)이 관에 다시 들어가는 흐름으로 다시 그린다.
 //
 // 사건: 사건 버스의 diorama:* 사건을 지금 관 모형의 react로 넘기고, wing:state로 관 문을 열고 닫는다.
 // 화면 방향(orientation:*, audio:*)과 움직임 줄이기(settings:reduce-motion)는 screen.js·motion.js가 맡는다.
@@ -37,6 +47,7 @@ import { createScene3D } from './scene3d.js';
 import { installScreen, isPaused, onPauseChange } from './screen.js';
 import { TUNING } from './tuning.js';
 import { createQualityMeter, qualityInfo } from './quality.js';
+import { watchContextLoss } from './webgl.js';
 
 export { reduceMotion, setDeviceReduceMotion, particleScale } from './motion.js';
 export { getDancheong } from './palette.js';
@@ -63,13 +74,23 @@ function coveredNow() {
   return !!w.coverRoot?.querySelector(COVER);
 }
 
+// 세계가 지금 꽉 덮는 겹에 가려져 있는지(머리글 '가림'). 세계가 없으면 false.
+export function isCovered() {
+  return !!w && coveredNow();
+}
+
+// 세계 위 조작(상황 버튼·이동 키)이 지금 세계에 닿는지: 반반 틀·방 무대·회전 안내·가림이 아닐 때만.
+function worldActive() {
+  return !!w && !w.split && !w.room && !isPaused() && !coveredNow();
+}
+
 function loop(now) {
   if (!w) return;
   w.raf = requestAnimationFrame(loop);
   const raw = Math.max(0, (now - (w.last ?? now)) / 1000);
   const dt = Math.min(0.1, raw);
   w.last = now;
-  if (isPaused() || document.hidden) { w.meter.reset(); return; }
+  if (isPaused() || document.hidden || w.contextWatch?.lost()) { w.meter.reset(); return; }
   for (const [id, t] of [...w.tweens]) {
     t.time += dt;
     const k = Math.min(1, t.time / TUNING.dancheongRestoreSeconds);
@@ -83,7 +104,8 @@ function loop(now) {
   }
   if (covered) return;
   w.host.frame(dt, w.split || w.room ? { x: 0, y: 0 } : w.controls.moveVector());
-  w.meter.add(raw);
+  // 방 무대가 열린 동안의 비용은 방 장면(또는 방이 따로 가진 그림판)의 것이다. 세계 화질 단계는 내려가기만 하므로 재지 않는다
+  if (!w.room) w.meter.add(raw);
 }
 
 function restoreDancheong(id) {
@@ -120,6 +142,8 @@ export function mount(container, opts = {}) {
     getWingModule: (id) => wings?.[id] ?? null,
     reduceMotion,
     onArrive: (a) => { try { opts.onArrive?.(a); } catch (e) { console.error('[world] onArrive 처리 실패', e); } },
+    // 2D 그림 판의 누를 자리: 3D 탭과 같은 조건(반반 틀·방 무대·회전 안내가 아닐 때)에서만 걷는다
+    canWalk: () => !!w && !w.split && !w.room && !isPaused(),
   };
 
   let host = null;
@@ -145,28 +169,77 @@ export function mount(container, opts = {}) {
     view,
     hud,
     safe,
-    onTap: (x, y) => { if (w && !w.split && !w.room && !isPaused()) host.tapAt(x, y); },
-    onRotate: (dx) => { if (w && !w.split && !w.room) host.rotateBy(dx); },
+    onTap: (x, y) => { if (w && !w.split && !w.room && !isPaused()) w.host.tapAt(x, y); },
+    onRotate: (dx) => { if (w && !w.split && !w.room) w.host.rotateBy(dx); },
+    canAct: worldActive,
   });
 
   const offs = [];
   for (const name of DIORAMA_EVENTS) {
     offs.push(on(name, (detail) => {
-      host.forward(name, detail);
-      if (name === 'diorama:dancheong-restore') restoreDancheong(host.getPlace());
+      if (!w) return;
+      w.host.forward(name, detail);
+      if (name === 'diorama:dancheong-restore') restoreDancheong(w.host.getPlace());
     }));
   }
-  offs.push(on('wing:state', (d) => host.setWingState(d?.wing, d?.state)));
-  offs.push(onDancheong((id) => host.dancheongChanged(id)));
+  // 관 문 상태는 기억해 둔다: 2D로 바꿀 때 새 그림 판에 다시 놓는다
+  const wingStates = new Map();
+  offs.push(on('wing:state', (d) => {
+    if (d?.wing && d?.state) wingStates.set(d.wing, d.state);
+    w?.host.setWingState(d?.wing, d?.state);
+  }));
+  offs.push(onDancheong((id) => w?.host.dancheongChanged(id)));
   offs.push(onPauseChange((paused) => controls.setEnabled(!paused && !w?.split && !w?.room)));
   offs.push(() => fine?.removeEventListener('change', syncPointer));
   if (isPaused()) controls.setEnabled(false);
 
   // 화질 단계(quality.js): 3D에서만 프레임을 재어 오래 느리면 한 단계씩 낮춘다
   const meter = createQualityMeter({ enabled: host.mode === '3d' });
-  w = { root, view, panel, host, assets, controls, offs, split: false, room: false, raf: 0, last: null, tweens: new Map(), coverRoot: container, covered: false, meter };
+  w = { root, view, panel, host, assets, controls, offs, split: false, room: false, raf: 0, last: null, tweens: new Map(), coverRoot: container, covered: false, meter, common, opts, wingStates, contextWatch: null };
+  if (host.mode === '3d') watchHostContext();
   w.raf = requestAnimationFrame(loop);
   return api;
+}
+
+// 3D 그림판을 잃음·되찾음·되찾지 못함(머리글 '그림판 잃음')
+function watchHostContext() {
+  const canvas = w.host.canvas;
+  if (!canvas) return;
+  w.contextWatch = watchContextLoss(canvas, {
+    onLost: () => { console.warn('[world] 3D 그림판을 잃었다. 되찾기를 기다린다'); w?.meter.reset(); },
+    onRestored: () => {
+      if (!w) return;
+      w.meter.reset();
+      w.last = null;
+      w.host.contextRestored?.();
+    },
+    onGiveUp: () => switchTo2D(),
+  });
+}
+
+function switchTo2D() {
+  if (!w || w.host.mode !== '3d') return;
+  console.warn('[world] 3D 그림판을 되찾지 못해 이번 창은 2D 그림 판으로 간다');
+  const place = w.host.getPlace();
+  w.contextWatch?.dispose();
+  w.contextWatch = null;
+  // 방 무대는 3D 장면의 것이다. 열려 있었으면 닫힌 것으로 둔다(방은 부르는 쪽이 관에 다시 들어가며 치운다)
+  if (w.room) { w.room = false; w.root.classList.remove('is-room'); }
+  try { w.host.dispose(); } catch (e) { console.error('[world] 3D 장면 치우기 실패', e); }
+  w.assets?.dispose();
+  fallbackTo2D();
+  w.assets = createAssets(w.opts.manifest ?? null);
+  w.host = createBoard2D({ ...w.common, assets: w.assets });
+  w.root.dataset.mode = w.host.mode;
+  w.meter.dispose();
+  w.meter = createQualityMeter({ enabled: false });
+  for (const [id, state] of w.wingStates) w.host.setWingState(id, state);
+  if (place && place !== 'corridor') w.host.enterWing(place);
+  else w.host.enterCorridor();
+  if (w.split) { w.host.setMeasureFocus(true); w.host.resize(); }
+  w.controls.setEnabled(!isPaused() && !w.split && !w.room);
+  w.last = null;
+  try { w.opts.onModeChange?.('2d', { place }); } catch (e) { console.error('[world] onModeChange 처리 실패', e); }
 }
 
 export function enterWing(wingId) {
@@ -275,6 +348,7 @@ export function dispose() {
   if (!w) return;
   closeRoom();
   cancelAnimationFrame(w.raf);
+  w.contextWatch?.dispose();
   w.meter.dispose();
   w.offs.forEach((off) => off());
   w.controls.dispose();
@@ -285,6 +359,6 @@ export function dispose() {
 }
 
 const api = {
-  mount, enterWing, enterCorridor, setContext, openSplit, closeSplit, openRoom, closeRoom, getRoomState, setDancheong, getDancheong, getMode, getQuality, dispose,
+  mount, enterWing, enterCorridor, setContext, openSplit, closeSplit, openRoom, closeRoom, getRoomState, setDancheong, getDancheong, getMode, getQuality, isCovered, dispose,
   shake, moveTo, getPlace, getPlayer, getMarker, getCamera, resetCamera, getAnchors, getWingHandle, getThree, getStats, toScreen,
 };

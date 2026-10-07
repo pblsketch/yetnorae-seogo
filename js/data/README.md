@@ -561,8 +561,8 @@ export function show(container, ctx = {}) { … return { dispose() }; }
 | `settings:reduce-motion` | `{ value: boolean }` | 설정 → 모두 |
 | `settings:text-scale` | `{ value: 1 \| 1.15 \| 1.3 }` | 설정 → 모두 |
 | `rhythm:no-beat` | `{ value: boolean, reason: 'muted' \| 'slash' \| null }` | 소리 엔진 → 재기·방·보스. 박자 없는 방식으로 바뀜/돌아옴 |
-| `help:notebook-glow` | `{ wing, genre, conceptIds }` | 진행 엔진 → 수첩. 관 오답이 기준(3) 이상 |
-| `help:journal-glow` | `{ stage, conceptIds, songId? }` | 진행 엔진 → 일지. 보스 같은 단계 틀림이 기준(3) 이상 |
+| `help:notebook-glow` | `{ wing, genre, conceptIds, songId }` | 진행 엔진 → 수첩. 관 오답이 기준(3) 이상. `genre`는 **대상** 갈래(칸·덤은 그 관 갈래, 탑은 향가, 바구니는 고른 행선지 관의 갈래)이고 노래 갈래가 아니다. `conceptIds`는 대상 갈래 개념 가운데 그 노래의 감정서와 어긋나는 것(`js/core/contrast.js`), 없으면 대상 갈래 개념 모두. `songId`는 돌아온 노래('추가 제안(F6)') |
+| `help:journal-glow` | `{ stage, conceptIds, songId? }` | 진행 엔진 → 일지. 보스 같은 단계 틀림이 기준(3) 이상. 1·3단계의 `conceptIds`는 꽂은 자리 갈래 개념 가운데 학생이 쓴 도구(와 접기·두드리기)의 증거와 어긋나는 것, 없으면 그 갈래 개념 모두. 2단계는 틀린 탭이 난 조각의 갈래 개념 |
 | `concept:changed` | `{ conceptId, state, songs }` | 진행 엔진 → 일지·카드. 연필·먹 전환 |
 | `wing:state` | `{ wing, state }` | 진행 엔진 → 세계. 관이 열리거나 끝남 |
 
@@ -755,7 +755,7 @@ T2가 정한 처리 방식이다. 위 절의 이름과 모양은 바꾸지 않�
 
 - 브라우저에서는 `createStore({ storage: localStorage })`처럼 저장소를 넣는다. 엔진 파일은 `window`·`localStorage`·주소를 직접 읽지 않는다.
 - 행동은 모두 `{ ok, reason?, … }`을 돌려준다. 막힌 행동(`ok: false`)은 아무것도 바꾸지 않고 저장하지 않는다.
-- 판정 결과의 `returned: [{ index, songId, genre, to? }]`로 화면이 `diorama:pop-out`을 낸다. 디오라마 사건은 엔진이 내지 않는다(엔진은 `wing:state`, `concept:changed`, `help:*`, `save:failed`만 낸다).
+- 판정 결과의 `returned: [{ index, songId, genre, to?, target }]`로 화면이 `diorama:pop-out`을 낸다(`genre`는 노래 갈래로 삐져나오는 모양에 쓰고, `target`은 그 자리의 대상 `{ genre }` 또는 `{ towerUnits }`으로 맞대어 보기와 수첩 도움에 쓴다). 디오라마 사건은 엔진이 내지 않는다(엔진은 `wing:state`, `concept:changed`, `help:*`, `save:failed`만 낸다).
 
 ### 저장
 
@@ -838,7 +838,7 @@ T2가 정한 처리 방식이다. 위 절의 이름과 모양은 바꾸지 않�
 ### 세계 바탕 손잡이 — `js/world/world.js`
 
 ```js
-mount(container, { wings, manifest, appearance, reduceMotion, onArrive })
+mount(container, { wings, manifest, appearance, reduceMotion, onArrive, onModeChange })
 enterWing(관 id) · enterCorridor()
 setContext(label, handler)        // 오른쪽 아래 상황 버튼. label이 없으면 숨김. Enter·Space도 같은 동작
 openSplit(panelEl) · closeSplit() // 반반 틀. 여는 동안 이동 조작·상황 버튼이 숨고 탭 이동이 멈춘다
@@ -846,7 +846,8 @@ setDancheong(관 id, 0~1) · getDancheong(관 id)
 getMode() → '3d' | '2d'
 dispose()
 // 그 밖: reduceMotion(), setDeviceReduceMotion(v), particleScale(), shake(초) → 줄이기면 false,
-//        getAnchors(), getThree() → { THREE, scene, camera, renderer, root } | null, toScreen(p), getStats(), isPaused()
+//        getAnchors(), getThree() → { THREE, scene, camera, renderer, root } | null, toScreen(p), getStats(), isPaused(),
+//        isCovered() → 세계가 data-world-cover 겹에 가려져 있는지
 ```
 
 - `wings`를 주지 않으면 `js/registry.js`의 `wings`를 쓴다.
@@ -856,6 +857,8 @@ dispose()
   - `position`: 3D는 세계 좌표 `{ x, z }`(m), 2D는 그림 판 백분율 `{ x, y }`
   - `anchor`: 가까운 자리. `{ key: 'door', wing }`(회랑의 관 문) · `{ key: 'slots' | 'bonus', index }` · `{ key: 'basket' | 'returnedShelf' | 'roomDoor' | 'entrance' | 'nextDoor' | 'mentorSeat' }` · `null`
   - `place`: `'corridor'` 또는 관 id
+- `onModeChange('2d', { place })`: 3D 그림판(WebGL 맥락)을 잃고 `TUNING.contextRestoreMs`(3초) 안에 되찾지 못해 세계가 2D 그림 판으로 바뀐 뒤 한 번 부른다. 세계는 관 문 상태와 지금 자리(회랑 또는 관)를 새 그림 판에 다시 놓고, 부르는 쪽(세션)은 판 중인 관에 다시 들어가 관 한 판을 2D로 다시 그린다. 이번 창만 2D이고 저장하지 않는다. 되찾으면 부르지 않고 그 자리에서 다시 그린다.
+- 키보드(Enter·Space = 상황 버튼, 방향키·WASD = 이동)는 세계가 가려졌거나(`data-world-cover`) 반반 틀·방 무대·회전 안내 동안, 또는 초점이 대화 상자(`role="dialog"`) 안에 있으면 아무것도 하지 않고 기본 동작(스크롤, 초점 단추 누르기)을 막지 않는다. 2D 누를 자리도 반반 틀·방 무대·회전 안내 동안에는 걷지 않는다.
 - 단청: 마친 관은 부르는 쪽이 `setDancheong(id, 1)`로 알린다. `diorama:dancheong-restore`를 받으면 지금 관의 단청을 0→1로 천천히 올린다(움직임 줄이기면 바로).
 - 관 문: `wing:state`의 `state`가 `'locked'`면 닫히고, 그 밖은 열린다. 처음에는 입구만 열려 있다.
 
@@ -1044,12 +1047,13 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 | `preMeasured` | 미리 잰 노래. 감정서 객체, `{ action: 동작 id }`, 또는 `true`(그 노래의 `stray` 역할 가운데 `to`가 지금 관인 것의 관 동작으로 계산). 감정서가 채워진 채 열린다 |
 | `notebook` · `notebookGlow` | 갈래 id → 수첩 쪽(`js/data/songs/index.js`의 `notebook`), 이미 받은 도움 `[{ wing, genre, conceptIds }]`. 열려 있는 동안 `help:notebook-glow`도 듣는다 |
 | `journal` · `journalGlow` | 보스 일지: `{ concepts }`(저장의 `progress.concepts`), 반짝일 개념 id. `help:journal-glow`·`concept:changed`도 듣는다 |
+| `revealed` · `marksKnown` | 그 노래가 드러났는지(판정에서 맞음, 튜토리얼을 마친 튜토리얼 노래 — `progress.isRevealed`), 박 밖 음보에 여음·후렴·되풀이 이름표를 달아도 되는지(드러났거나 고려가요관에서 잰 노래 — `progress.marksKnown`). 둘 다 없으면 단위를 '덩이'라 부르고 이름표 없이 점선 테두리만 보인다. 관에서 후렴 고리 걸기가 되풀이 구절을 찾으면 그 재기 안에서 이름표를 단다 |
 | `introSeen` · `onIntroSeen(kind)` | 첫 사용 안내 깃발 `{ common, unique }`(false면 보인다). 본 뒤 `onIntroSeen('common' \| 'unique')`를 부른다. 저장은 부르는 쪽: `unique` ↔ `wings[관].uniqueActionIntroSeen`, `common`은 첫 노래(튜토리얼) 하나뿐이므로 `tutorialDone` 등으로 정한다 |
 | `reduceMotion()` | 움직임 줄이기(없으면 `world.reduceMotion()`·`#app.reduce-motion`) |
 | `signal` | 중단 신호(나가기). 중단되면 반반 틀을 닫는다 |
 
 - 보스 결과에는 `action`(마지막으로 쓴 도구) 말고도 `actions`(쓴 도구의 증거 모두, 쓴 순서)가 더 붙는다. 관에서는 `actions`가 없다.
-- 감정서 글의 단위 이름은 갈래 단위 이름(장·구·연·행)을 쓰고, 보스에서는 갈래가 드러나지 않게 '덩이'라고 쓴다.
+- 감정서 글의 단위 이름은 노래가 드러나기 전(관·입구)과 보스에서는 갈래가 드러나지 않게 '덩이'라고 쓰고, 드러난 노래(`ctx.revealed`)만 갈래 단위 이름(장·구·연·줄·행)을 쓴다('추가 제안(F6)').
 - 화면 글(버튼, 안내, 감정서 문구)은 `js/measure/labels.js`에 모았다. 스타일은 `css/measure.css`이고 `index.html`에 연결해야 한다(연결 단계).
 
 ### 고유 동작 `ctx` 더하기(7.2)
@@ -1546,3 +1550,34 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - 모든 고려가요 줄의 원문 글(띄어쓰기까지)을 `tests/fixtures/goryeo-line-text.mjs`에 두고, `check-goryeo`가 음보를 `joinFeet`로 이은 글과 맞댄다. 낱말 안에서 나눈 곳에 `joined`가 빠지면('살어리 랏다') 잡힌다. 사본의 띄어쓰기는 음보 경계마다 노래 출처의 전사본과 맞춰 보았다.
 - 「청산별곡」의 '살어리 / 랏다'(여섯 줄)에도 `joined`를 달았다. 낭송 줄 글이 '살어리 살어리 랏다'에서 '살어리 살어리랏다'로 바뀌어 그 세 가지 줄 글만 새로 읽혔다.
 - 「서경별곡」 방(「정석가」 작품 방의 견주기)은 되풀이 머리도 여음처럼 흐리게 보인다.
+
+## 추가 제안(F6) — 드러남과 맞대어 보기(2026-10-07 교사 결정)
+
+학생이 단위 이름이나 오답 도움만 보고 갈래를 알아맞히지 않고, 생김새로 판단하게 하려는 바꿈이다. 새 사건 이름은 없고 저장 형식도 그대로다.
+
+### 모듈
+
+| 파일 | 내보내는 것 |
+| --- | --- |
+| `js/core/contrast.js` | `mismatches(song, target, actionIds)` → `[{ lineKind: 'fold' \| 'tap' \| 'action' \| 'refrains', conceptId, action? }]`, `targetGenre(target)`, `tapCounts(tap)`, `CONTRAST_RULES`, `contrastSoundness(songs, actionIds, { rules, tableWings })`. 브라우저 전역을 쓰지 않고 Node에서 바로 import된다 |
+| `js/play/contrast-panel.js` | `openContrast(host, { song, sheet, neutral, found, page, target, signal })` → `Promise<'paired' \| 'closed'>`, `CONTRAST_NUDGE_AFTER`(2) |
+| `js/core/progress.js` 더하기 | `isRevealed(songId)`, `marksKnown(songId)`. `bossPlaceUnseen(songId, wingId, { actions })`·`bossPlaceStage3(wingId, { actions })`의 `actions`는 그 노래를 잴 때 쓴 도구 id 목록(일지 도움 개념 계산에만 쓴다) |
+
+### 대상과 어긋나는 줄
+
+- 대상(`target`): 칸·덤 `{ genre: 관 갈래 }`, 향가관 탑 `{ towerUnits: 층 구 수 }`, 바구니 `{ genre: 고른 행선지 관의 갈래 }`, 보스 관 자리 `{ genre: 그 자리 갈래 }`.
+- `actionIds`: 감정서에 실린 고유 동작. 관은 그 관 동작 하나(미리 잰 노래는 보낸 관의 동작), 보스는 학생이 실제로 쓴 도구들, 없으면 접기·두드리기 줄만 본다.
+- `lineKind`는 `sheetLines`(`js/measure/sheet.js`)의 줄 종류와 같다. `'action'`이면 `action`에 그 동작 id가 있다. `conceptId`는 대상 갈래의 개념이고, 『분류 수첩』 줄의 `conceptIds`와 짝을 짓는다(탑은 '이 층은 … 덩이' 줄이 `hyangga-lines`).
+- **건전성**: 어떤 규칙도 대상 갈래의 노래를 걸지 않는다. 모든 노래 × 고유 동작(없음·하나씩·모두)에서 `mismatches(노래, { genre: 노래 갈래 }, …)`이 비고, 향가관 탑 노래는 자기 층에서 빈다. `check-data` [6]이 실제 45편과 시험 묶음으로 확인하고, 건전하지 않은 규칙(예: '세 음보 줄 80% 미만 → 고려가요와 어긋남'은 「동동」·「정읍사」·「사모곡」을 건다)을 음성 사례로 잡는다. 규칙을 더하거나 노래를 바꾸면 이 점검을 다시 돌린다.
+
+### 드러남
+
+- `isRevealed(id)`: 어느 관의 칸·덤·바구니에 고정된 노래, `prewaiting`·`returned`에 든 노래(바구니에서 맞게 보낸 노래), `tutorialDone`이면 튜토리얼 노래. 기록에서 다시 계산한다.
+- `marksKnown(id)`: 드러났거나 `wings.goryeo.measured`에 든 노래(고려가요관에서 후렴 고리 걸기를 거침).
+- 한 판 화면은 재기 화면에 `revealed`·`marksKnown`을 넘긴다. 입구 튜토리얼은 넘기지 않는다(드러나기 전). 칸(탑)이 묶이면 `playCeremony`의 `lead`로 그 관의 단위 이름 한 줄(`js/play/labels.js`의 `unitReveal`)을 첫 가객 카드 위에 보이고, 입구는 재기를 마친 뒤 `STORY.entrance.unitReveal`을 보인다.
+
+### 맞대어 보기(한 판 화면)
+
+- 판정 결과의 `returned`마다 차례로: `mismatches(노래, x.target, 감정서의 동작)`가 비면 건너뛴다(창 없음). 아니면 `PLAY_TUNING.contrastAfterMs`(1.2초, 움직임 줄이기면 0) 뒤 `openContrast`를 열고 닫힐 때까지 기다린다. 감정서는 이번 창에서 잰 것, 없으면 `deriveSheet`로 계산한 것이다.
+- 창은 `role="dialog"`·`aria-modal`이고 Tab은 창 안에서만 돈다. Esc는 창을 닫는다(노래는 판정 때 이미 손에 있다). 진행 엔진을 부르지 않고 아무것도 저장하지 않는다.
+- 보스에는 이 창이 없다.

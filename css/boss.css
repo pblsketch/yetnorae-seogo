@@ -171,6 +171,9 @@
 .boss-remix-tap { min-width: 9em !important; min-height: 64px !important; font-weight: 700; font-size: calc(18px * var(--text-scale)); border-width: 3px !important; }
 .boss-remix-tap.is-hit { animation: boss-pop 0.15s ease-out; }
 @keyframes boss-pop { 50% { transform: scale(0.94); } }
+/* 틀린 탭 뒤 튕김: 판정 창 길이만큼 북이 물러나 흐려지고 탭을 받지 않는다(기록 없음) */
+.boss-remix-tap.is-bounced { opacity: 0.55; border-style: dashed !important; animation: boss-bounce 0.35s ease-out; }
+@keyframes boss-bounce { 30% { transform: translateY(-6px) scale(0.96); } 60% { transform: translateY(2px); } }
 .boss-remix-lines { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
 .boss-remix-row {
   flex: 0 0 auto;
@@ -305,7 +308,7 @@
 }
 
 /* 움직임 줄이기 */
-.reduce-motion .boss-fog, .reduce-motion .boss-jom, .reduce-motion .boss-king { animation: none !important; }
+.reduce-motion .boss-fog, .reduce-motion .boss-jom, .reduce-motion .boss-king, .reduce-motion .boss-remix-tap.is-bounced { animation: none !important; }
 
 /* 3단계와 마침: 좀 대왕(가운데 왼쪽)과 선대 사서(오른쪽)가 보이도록 글 카드를 옆으로 비킨다 */
 .boss[data-stage='stage3'] .boss-mid { justify-content: flex-end; }

@@ -11,11 +11,14 @@ import {
   SAVE_KEY, SAVE_VERSION, createStore, validateName, defaultProgress, normalizeData,
 } from '../js/core/save.js';
 import { createProgress, openRecord, TUNABLES } from '../js/core/progress.js';
+import { mismatches, targetGenre, tapCounts, CONTRAST_RULES } from '../js/core/contrast.js';
+import { songs as REAL_SONGS } from '../js/data/songs/index.js';
 import {
   judgeArea, routeStray, judgeUnseenPlacement, judgeSingerGroup, judgeRemixTap, judgeRemixLine,
   judgeStage3Placement, REMIX_TAP_WINDOW_MS,
 } from '../js/core/judge.js';
 import { buildWingCard, buildFinalCard } from '../js/core/cards.js';
+import { graphemeCount, fallbackGraphemeCount, cleanText } from '../js/core/text.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 let failures = 0;
@@ -131,6 +134,23 @@ section('1. 이름 기록: 만들기, 같은 이름, 길이, 생김새, 지우�
   check(!validateName('가'.repeat(13)).ok && validateName('가'.repeat(13)).reason === 'too-long', '13자는 막는다');
   check(!validateName('가나다라', { nameMax: 3 }).ok && validateName('가나다', { nameMax: 3 }).ok, '이름 길이 상한은 조정할 수 있다');
   check(!validateName(null).ok, '글이 아닌 이름은 막는다');
+  // 글자 수는 눈에 보이는 글자 단위(확장 자소 덩어리)로 센다(js/core/text.js)
+  const FAMILY = '\u{1F468}‍\u{1F469}‍\u{1F467}';   // 사람 셋을 이은 이모지 하나(코드 포인트 5)
+  const HAN_NFD = '한'.normalize('NFD');                        // ㅎ+ㅏ+ㄴ 첫가끝 셋
+  check([...FAMILY].length === 5 && [...HAN_NFD].length === 3, '(음성) 코드 포인트로 세면 이모지 하나가 5자, 풀어 쓴 한 글자가 3자다(예전 세기)');
+  check(graphemeCount(FAMILY) === 1 && graphemeCount(HAN_NFD) === 1 && graphemeCount('가나다') === 3 && graphemeCount('') === 0, "'" + FAMILY + "'와 풀어 쓴 '한'은 1자로 센다");
+  check(fallbackGraphemeCount(FAMILY) === 1 && fallbackGraphemeCount(HAN_NFD) === 1 && fallbackGraphemeCount('é') === 1
+    && fallbackGraphemeCount('\u{1F1F0}\u{1F1F7}\u{1F1F0}\u{1F1F7}') === 2 && fallbackGraphemeCount('\u{1F44B}\u{1F3FD}') === 1 && fallbackGraphemeCount('가 나') === 3,
+  'Intl.Segmenter가 없을 때의 어림도 이음 이모지·결합 부호·국기 짝·피부색·풀어 쓴 한글을 한 글자로 센다');
+  check(cleanText('  ' + HAN_NFD + '글 ') === '한글', '글은 NFC로 맞추고 앞뒤 공백을 뺀다');
+  check(validateName(FAMILY.repeat(12)).ok, '이모지 12개 이름(코드 포인트 60)은 12자라 된다');
+  check(!validateName(FAMILY.repeat(13)).ok && validateName(FAMILY.repeat(13)).reason === 'too-long', '이모지 13개 이름은 13자라 막는다');
+  const nfdName = validateName(HAN_NFD.repeat(12));
+  check(nfdName.ok && nfdName.name === '한'.repeat(12), '풀어 쓴 한글 12자(코드 포인트 36)는 12자이고 NFC로 맞춰 쓴다');
+  for (const f of ['js/core/save.js', 'js/core/progress.js', 'js/story/dom.js']) {
+    const src = fs.readFileSync(root + f, 'utf8');
+    check(!/\[\.\.\.(?:s|String\([^)]*\))\]\.length/.test(src) && /graphemeCount/.test(src), f + ': 글자 수를 코드 포인트가 아니라 글자 단위 도우미로 센다');
+  }
 
   const storage = memoryStorage();
   const emit = recorder();
@@ -357,7 +377,7 @@ section('4. 관 열림 순서(spec 3.2)와 건너뛰기 불가');
 
   // 주소 인자, 창, 문서를 읽지 않는다(소스 검사). 검사기가 실제로 잡는지도 본다.
   const banned = /\b(location|URLSearchParams|document|window|localStorage|sessionStorage|navigator)\b/;
-  const files = ['save.js', 'progress.js', 'judge.js', 'cards.js'].map((f) => root + 'js/core/' + f);
+  const files = ['save.js', 'progress.js', 'judge.js', 'cards.js', 'contrast.js'].map((f) => root + 'js/core/' + f);
   const hits = files.filter((f) => {
     const src = fs.readFileSync(f, 'utf8').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
     return banned.test(src);
@@ -487,7 +507,8 @@ section('5. 판정(spec 6): 다 찼을 때만, 틀린 것만 돌려보냄, 맞�
 // ── 6. 오답 도움 ──
 section('6. 오답 도움(spec 6.4): 관에서 오답 3번부터 틀릴 때마다 수첩 반짝임');
 {
-  const { engine, emit } = bareEngine();
+  // 어긋나는 개념은 감정서(노래 글)에서 계산하므로 실제 노래 데이터로 본다
+  const { engine, emit } = bareEngine({ songs: REAL_SONGS });
   engine.completeTutorial();
   const wrongOnce = () => {
     engine.place('hyangga', 'shelf', 0, 'seodongyo');
@@ -503,10 +524,14 @@ section('6. 오답 도움(spec 6.4): 관에서 오답 3번부터 틀릴 때마�
   engine.place('hyangga', 'shelf', 2, 'gasiri');
   engine.judge('hyangga', 'shelf');
   const g = emit.of('help:notebook-glow');
-  check(g.length === 1 && g[0].detail.wing === 'hyangga' && g[0].detail.genre === 'goryeo' && same(g[0].detail.conceptIds, conceptsOfGenre('goryeo').map((c) => c.id)), '오답 3번: 틀린 노래 갈래 쪽의 관련 개념으로 반짝인다');
+  // 「가시리」(고려가요, 네 연)를 탑의 10구 층에: 대상은 향가(그 층), 실리는 개념은 감정서와 어긋나는 향가 개념
+  const gasiri = REAL_SONGS.find((x) => x.id === 'gasiri');
+  const expect3 = [...new Set(mismatches(gasiri, { towerUnits: 10 }, 'aa-door').map((m) => m.conceptId))];
+  check(g.length === 1 && g[0].detail.wing === 'hyangga' && g[0].detail.genre === 'hyangga' && same(g[0].detail.conceptIds, expect3) && same(expect3, ['hyangga-lines', 'hyangga-exclaim']), '오답 3번: 그 자리(탑 10구 층)의 갈래 쪽에서 감정서와 어긋나는 개념으로 반짝인다 ' + JSON.stringify(g[0]?.detail));
+  check(g[0].detail.genre !== 'goryeo' && !g[0].detail.conceptIds.some((c) => c.startsWith('goryeo')), '(음성) 틀린 노래 자기 갈래(고려가요) 쪽이나 그 개념으로 반짝이지 않는다');
   engine.place('hyangga', 'shelf', 2, 'cheongsanri-byeokgyesu');
   engine.judge('hyangga', 'shelf');
-  check(emit.of('help:notebook-glow').length === 2 && emit.of('help:notebook-glow')[1].detail.genre === 'sijo', '오답 4번: 또 반짝인다');
+  check(emit.of('help:notebook-glow').length === 2 && emit.of('help:notebook-glow')[1].detail.genre === 'hyangga', '오답 4번: 또 반짝인다(시조 노래여도 대상인 향가 쪽)');
   check(engine.progress.wings.hyangga.wrongCount === 4, '관별 오답 수가 쌓인다');
   // 다른 관의 오답 수는 따로 센다
   const { engine: e2, emit: em2 } = bareEngine({ tunables: { wingWrongHelp: 1 } });
@@ -517,6 +542,64 @@ section('6. 오답 도움(spec 6.4): 관에서 오답 3번부터 틀릴 때마�
   e2.judge('hyangga', 'shelf');
   check(em2.of('help:notebook-glow').length === 2, '한 판정에 돌아온 노래가 둘이면 오답 둘(기준을 넘은 만큼 반짝임). 기준값은 조정할 수 있다');
   check(TUNABLES.wingWrongHelp === 3 && TUNABLES.bossWrongHelp === 3, '기본 기준값은 3');
+  // 바구니: 대상은 고른 행선지 관의 갈래. 칸 노래를 자기 갈래 행선지로 넣으면 어긋나는 줄이 없어 그 갈래 개념 모두
+  const { engine: e3, emit: em3 } = bareEngine({ songs: REAL_SONGS, tunables: { wingWrongHelp: 1 } });
+  e3.completeTutorial();
+  e3.place('hyangga', 'basket', 0, 'cheongsanri-byeokgyesu', 'gasa');
+  e3.place('hyangga', 'basket', 1, 'seodongyo', 'hyangga');
+  const rb3 = e3.judge('hyangga', 'basket');
+  const bg = em3.of('help:notebook-glow').map((x) => x.detail);
+  const cheong = REAL_SONGS.find((x) => x.id === 'cheongsanri-byeokgyesu');
+  const expGasa = [...new Set(mismatches(cheong, { genre: 'gasa' }, 'aa-door').map((m) => m.conceptId))];
+  check(rb3.returned.length === 2 && same(rb3.returned.map((x) => x.target), [{ genre: 'gasa' }, { genre: 'hyangga' }]), '판정 결과의 돌아온 노래마다 대상(행선지 갈래)이 실린다');
+  check(bg.length === 2 && bg[0].genre === 'gasa' && expGasa.length > 0 && same(bg[0].conceptIds, expGasa), '바구니: 고른 행선지(가사관) 갈래 쪽의 어긋나는 개념 ' + JSON.stringify(bg[0]));
+  check(bg[1].genre === 'hyangga' && same(bg[1].conceptIds, conceptsOfGenre('hyangga').map((c) => c.id)), '어긋나는 줄이 없으면 대상 갈래 개념 모두(칸 노래를 자기 갈래 행선지로 바구니에)');
+  check(bg.every((d) => d.songId), '도움 신호에 그 노래 id가 실린다');
+}
+
+// ── 6-2. 맞대어 보기 규칙(js/core/contrast.js) ──
+section('6-2. 맞대어 보기: 감정서에서 그 자리와 어긋나는 줄 찾기(순수 함수)');
+{
+  const S = (id) => REAL_SONGS.find((x) => x.id === id);
+  const kinds = (list) => list.map((m) => m.lineKind + '/' + m.conceptId + (m.action ? '/' + m.action : '')).sort();
+  check(same(kinds(mismatches(S('chang-naegoja'), { genre: 'sijo' }, 'stairs')), ['tap/sijo-4beat']), '사설시조를 시조 칸에(시조관): 두드리기 줄만 어긋난다(가운데 장이 네 음보를 넘음)');
+  check(same(kinds(mismatches(S('gwandong-byeolgok'), { genre: 'sijo' }, 'stairs')), ['action/sijo-final3/stairs', 'fold/sijo-3jang']), '가사를 시조 칸에: 접기(세 장이 아님)와 계단(종장 없음)');
+  check(same(kinds(mismatches(S('dongjitdal'), { genre: 'goryeo' }, 'refrain-link')), ['action/goryeo-refrain/refrain-link', 'tap/goryeo-3beat']), '시조를 고려가요 칸에(고려가요관): 네 음보와 되풀이 구절 없음');
+  check(same(kinds(mismatches(S('seodongyo'), { towerUnits: 8 }, 'aa-door')), ['fold/hyangga-lines']), '4구 향가를 8구 층에: 접기 줄만');
+  check(mismatches(S('chan-giparangga'), { towerUnits: 10 }, 'aa-door').length === 0, '제 층의 향가는 어긋나는 줄이 없다');
+  check(mismatches(S('dongdong'), { genre: 'goryeo' }, ['refrain-link', 'walk']).length === 0, '세 음보 줄이 80%가 안 되는 고려가요(「동동」)도 고려가요 칸과 어긋나지 않는다');
+  // 보스: 쓴 도구만 본다
+  const gap = S('gapminga');
+  check(!mismatches(gap, { genre: 'sijo' }, []).some((m) => m.lineKind === 'action') && mismatches(gap, { genre: 'sijo' }, ['stairs']).some((m) => m.conceptId === 'sijo-final3'), '쓰지 않은 도구의 줄은 어긋남에 들지 않는다');
+  check(targetGenre({ towerUnits: 4 }) === 'hyangga' && targetGenre({ genre: 'gasa' }) === 'gasa', '대상 갈래: 탑은 향가');
+  check(same(tapCounts({ mode: 'gu', gu: 3 }), [1, 1, 1]) && same(tapCounts({ mode: 'lines', feet: [[3, 0], [2]] }), [3, 2]), '두드리기 박 수: 향가는 덩이마다 한 박, 고려가요는 후렴만 있는 줄을 뺀다');
+  // 음성 사례: 처음 제안된 '세 음보 줄 80% 미만' 규칙은 고려가요 노래를 건다(건전하지 않다)
+  const ratioRule = { genre: 'goryeo', lineKind: 'tap', conceptId: 'goryeo-3beat', test: (e) => { const c = tapCounts(e.tap); return c.filter((x) => x === 3).length / c.length < 0.8; } };
+  check(mismatches(S('dongdong'), { genre: 'goryeo' }, null, [...CONTRAST_RULES, ratioRule]).length > 0, '(음성) 비율 규칙을 넣으면 「동동」이 자기 갈래 칸과 어긋난다고 나온다');
+}
+
+// ── 6-3. 드러남(판정에서 맞은 노래는 갈래 단위 이름으로 부른다) ──
+section('6-3. 드러남: 판정에서 맞아 고정된 노래, 바구니로 보낸 노래, 튜토리얼 노래');
+{
+  const { engine } = bareEngine();
+  check(!engine.isRevealed('taesan'), '튜토리얼 전에는 튜토리얼 노래도 드러나지 않았다');
+  engine.completeTutorial();
+  check(engine.isRevealed('taesan'), '튜토리얼을 마치면 튜토리얼 노래가 드러난다');
+  engine.place('hyangga', 'shelf', 0, 'seodongyo');
+  engine.place('hyangga', 'shelf', 1, 'gasiri');
+  check(!engine.isRevealed('seodongyo'), '(음성) 꽂기만 하고 판정 전이면 드러나지 않는다');
+  engine.place('hyangga', 'shelf', 2, 'chan-giparangga');
+  engine.judge('hyangga', 'shelf');
+  check(engine.isRevealed('seodongyo') && engine.isRevealed('chan-giparangga') && !engine.isRevealed('gasiri'), '판정에서 맞아 고정된 노래만 드러난다(틀린 노래는 아니다)');
+  engine.place('hyangga', 'basket', 0, 'gasiri', 'goryeo');
+  engine.place('hyangga', 'basket', 1, 'cheongsanri-byeokgyesu', 'gasa');
+  engine.judge('hyangga', 'basket');
+  check(engine.isRevealed('gasiri') && !engine.isRevealed('cheongsanri-byeokgyesu'), '바구니에서 맞게 보낸 노래는 드러나고, 틀린 노래는 아니다');
+  check(engine.marksKnown('gasiri') && !engine.marksKnown('cheongsan-byeolgok'), '박 밖 음보 이름표: 드러난 노래는 단다, 고려가요관에서 재지 않은 노래는 달지 않는다');
+  const p2 = JSON.parse(JSON.stringify(engine.progress));
+  p2.wings.goryeo.measured = ['cheongsan-byeolgok'];
+  const { engine: e2 } = bareEngine({ progress: p2 });
+  check(e2.marksKnown('cheongsan-byeolgok') && !e2.isRevealed('cheongsan-byeolgok'), '고려가요관에서 잰 노래(후렴 고리 걸기를 거침)는 드러나기 전에도 이름표를 단다');
 }
 
 // ── 7. 길 잃은 노래의 행선지 ──
@@ -651,7 +734,10 @@ section('9. 보스(spec 10): 열림 조건, 단계, 1단계 기록, 일지 도�
   engine.bossPlaceUnseen('samogok', 'sijo');
   const w3 = engine.bossPlaceUnseen('samogok', 'saseol');
   const jg = emit.of('help:journal-glow');
-  check(engine.progress.boss.stageWrong === 3 && jg.length === 1 && jg[0].detail.stage === 1 && jg[0].detail.songId === 'samogok' && same(jg[0].detail.conceptIds, conceptsOfGenre('goryeo').map((c) => c.id)), '같은 단계에서 3번 틀리면 일지의 관련 개념이 반짝인다');
+  const samo = REAL_SONGS.find((x) => x.id === 'samogok');
+  const expSaseol = [...new Set(mismatches(samo, { genre: 'saseol' }, []).map((m) => m.conceptId))];
+  check(engine.progress.boss.stageWrong === 3 && jg.length === 1 && jg[0].detail.stage === 1 && jg[0].detail.songId === 'samogok' && expSaseol.length > 0 && same(jg[0].detail.conceptIds, expSaseol), '같은 단계에서 3번 틀리면 일지가 반짝인다: 꽂은 자리(사설시조) 갈래의 어긋나는 개념 ' + JSON.stringify(jg[0]?.detail));
+  check(!jg[0].detail.conceptIds.some((c) => c.startsWith('goryeo')), '(음성) 노래 자기 갈래(고려가요) 개념은 싣지 않는다');
   check(engine.progress.boss.unseen.samogok.journalHelp === true && engine.progress.boss.unseen.gapminga.journalHelp === false, '1단계에서는 그 노래에 일지 도움을 기록한다');
   engine.bossPlaceUnseen('samogok', 'goryeo');
   engine.bossChooseSinger('samogok', 'court-goryeo');
@@ -748,6 +834,19 @@ let finishedProgress = null;
   // 먹이 아닌 개념은 근거가 될 수 없다
   const { engine: eP } = bareEngine({ progress: (() => { const x = JSON.parse(JSON.stringify(engine.progress)); x.concepts['sijo-final3'] = { state: 'pencil', songs: ['taesan'] }; return x; })() });
   check(!eP.completeEnding({ line: '노래', wing: 'sijo', conceptId: 'sijo-final3', note: '' }).ok, '먹이 아닌 개념은 근거로 고를 수 없다');
+  // 엔딩 글도 글자 단위로 세고 NFC로 맞춰 저장한다
+  {
+    const FAMILY = '\u{1F468}‍\u{1F469}‍\u{1F467}';
+    const fresh = () => bareEngine({ progress: JSON.parse(JSON.stringify(engine.progress)) }).engine;
+    check(fresh().completeEnding({ line: FAMILY.repeat(40), wing: 'sijo', conceptId: 'sijo-final3', note: FAMILY.repeat(60) }).ok, '이모지 40개 한 줄(코드 포인트 200), 60개 한마디는 40자·60자라 된다');
+    const long = fresh().completeEnding({ line: FAMILY.repeat(41), wing: 'sijo', conceptId: 'sijo-final3', note: '' });
+    check(!long.ok && long.reason === 'line-length', '이모지 41개 한 줄은 41자라 막는다');
+    const longNote = fresh().completeEnding({ line: '노래', wing: 'sijo', conceptId: 'sijo-final3', note: FAMILY.repeat(61) });
+    check(!longNote.ok && longNote.reason === 'note-length', '이모지 61개 한마디는 61자라 막는다');
+    const eN = fresh();
+    const rN = eN.completeEnding({ line: ' ' + '한글 노래'.normalize('NFD') + '  ', wing: 'sijo', conceptId: 'sijo-final3', note: '마음'.normalize('NFD') });
+    check(rN.ok && eN.progress.ending.line === '한글 노래' && eN.progress.ending.note === '마음', '풀어 쓴(NFD) 한 줄과 한마디는 NFC로 맞춰 저장한다');
+  }
   const okEnd = engine.completeEnding({ line: '  '.concat('가'.repeat(40), ' '), wing: 'sijo', conceptId: 'sijo-final3', note: '나'.repeat(60) });
   check(okEnd.ok && engine.progress.ending.completed && engine.isCompleted() && engine.progress.ending.line === '가'.repeat(40), '40자 한 줄, 60자 한마디로 꽂으면 서고가 완성된다');
   check(engine.progress.ending.completedAt && engine.progress.ending.wing === 'sijo' && engine.progress.ending.conceptId === 'sijo-final3', '엔딩 선택을 기록한다');

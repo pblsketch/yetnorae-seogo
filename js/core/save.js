@@ -8,11 +8,12 @@ import { AREA_SIZES } from './judge.js';
 import { SONG_TABLE } from '../data/song-table.js';
 import { PLAY_WING_IDS } from '../data/wings.js';
 import { CONCEPT_IDS, CONCEPT_STATES } from '../data/concepts.js';
+import { cleanText, graphemeCount } from './text.js';
 
 export const SAVE_KEY = 'yetnorae-seogo-v1';
 export const SAVE_VERSION = 1;
 
-// 이름 길이(조정 가능, spec 22). 글자 수는 유니코드 글자 단위로 센다.
+// 이름 길이(조정 가능, spec 22). 글자 수는 눈에 보이는 글자 단위(확장 자소 덩어리, ./text.js)로 센다.
 export const NAME_LIMITS = Object.freeze({ nameMin: 1, nameMax: 12 });
 
 export const APPEARANCES = ['a', 'b'];
@@ -28,7 +29,7 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isStr = (v) => typeof v === 'string';
 const uniqStrings = (a) => (Array.isArray(a) ? [...new Set(a.filter(isStr))] : []);
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
-const charLength = (s) => [...s].length;
+const charLength = graphemeCount;
 
 // ───────────────────────── 기본값 ─────────────────────────
 
@@ -252,7 +253,7 @@ export function normalizeData(raw, opts = {}) {
 export function validateName(raw, limits = {}) {
   const { nameMin, nameMax } = { ...NAME_LIMITS, ...limits };
   if (!isStr(raw)) return { ok: false, name: '', reason: 'empty' };
-  const name = raw.normalize('NFC').trim();
+  const name = cleanText(raw);
   const len = charLength(name);
   if (len === 0) return { ok: false, name, reason: 'empty' };
   if (len < nameMin) return { ok: false, name, reason: 'too-short' };
