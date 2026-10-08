@@ -12,7 +12,7 @@ import { CONCEPT_IDS, CONCEPT_STATES } from '../data/concepts.js';
 import { cleanText, graphemeCount } from './text.js';
 
 export const SAVE_KEY = 'yetnorae-seogo-v1';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 // 이름 길이(조정 가능, spec 22). 글자 수는 눈에 보이는 글자 단위(확장 자소 덩어리, ./text.js)로 센다.
 export const NAME_LIMITS = Object.freeze({ nameMin: 1, nameMax: 12 });
@@ -22,9 +22,36 @@ export const WING_STATES = ['locked', 'open', 'done'];
 export const BOSS_STATES = ['locked', 'stage1', 'stage2', 'stage3', 'done'];
 export const TEXT_SCALES = [1, 1.15, 1.3];
 
-// 옛 버전 → 다음 버전으로 옮기는 함수. 버전을 올릴 때 여기에 더한다(지금은 버전 1뿐이라 비어 있다).
-// 예: MIGRATIONS[1] = (data) => ({ ...data, version: 2, … })
-export const MIGRATIONS = {};
+// 옛 버전 → 다음 버전으로 옮기는 함수. 버전을 올릴 때 여기에 더한다.
+//  1 → 2(2026-10-08, 갈래 판별): 관의 measured가 '형식을 분석하고 갈래 판별까지 맞힌 노래'가 되었다(판별 기록).
+//    판별 단계가 없던 버전 1에서 손에 들었거나 판정 전 자리에 꽂아 둔 노래는 판별하지 않았으므로 자리를 비우고
+//    measured에서 빼 다시 떠다니게 한다(다시 분석하고 판별한다). 판정에서 맞아 고정된 노래와 미리 분석한 노래는 그대로 둔다.
+export const MIGRATIONS = {
+  1: (data) => migrateDecisions(data),
+};
+
+function migrateDecisions(data) {
+  const out = clone(data);
+  out.version = 2;
+  for (const slot of Object.values(isObj(out.slots) ? out.slots : {})) {
+    const pr = isObj(slot) ? slot.progress : null;
+    if (!isObj(pr) || !isObj(pr.wings)) continue;
+    for (const [w, ws] of Object.entries(pr.wings)) {
+      if (!isObj(ws)) continue;
+      const keep = new Set(Array.isArray(pr.prewaiting?.[w]) ? pr.prewaiting[w] : []);
+      const pl = isObj(ws.placements) ? ws.placements : {};
+      for (const area of Object.keys(AREA_SIZES)) {
+        if (!Array.isArray(pl[area])) continue;
+        pl[area] = pl[area].map((s) => {
+          if (isObj(s) && s.fixed === true) { keep.add(s.songId); return s; }
+          return null;
+        });
+      }
+      if (Array.isArray(ws.measured)) ws.measured = ws.measured.filter((id) => keep.has(id));
+    }
+  }
+  return out;
+}
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isStr = (v) => typeof v === 'string';

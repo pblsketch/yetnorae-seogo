@@ -8,6 +8,8 @@ try {
   game = await openGame(server.url);
   const { page } = game;
   await page.waitForSelector('#app');
+  // #app 틀은 index.html에 처음부터 있고 내용은 모듈이 채운다. 채워질 때까지 기다린 뒤 읽는다(못 채우면 아래 검사가 실패한다).
+  await page.waitForFunction(() => (document.querySelector('#app')?.textContent ?? '').trim().length > 0, null, { timeout: 15000 }).catch(() => {});
   const text = await page.textContent('#app');
   assert(text.trim().length > 0, '첫 화면에 내용이 있다');
   const threeOk = await page.evaluate(async () => { const THREE = await import('three'); return typeof THREE.Scene === 'function'; });

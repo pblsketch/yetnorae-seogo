@@ -3,7 +3,7 @@
 // 감정서는 노래 데이터에서 계산한 값(song-shape.js deriveSheet)과 언제나 같으므로 노래와 동작 id만으로 계산한다.
 //
 // mismatches(song, target, actionIds) → [{ lineKind, conceptId, action? }]
-//   target     { genre } — 칸·덤(그 관 갈래), 바구니(고른 행선지 관의 갈래), 보스 관 자리(그 자리 갈래)
+//   target     { genre } — 갈래 판별(학생이 고른 갈래), 칸·덤(그 관 갈래), 바구니(행선지 관의 갈래), 보스 관 자리(그 자리 갈래)
 //              { towerUnits: n } — 향가관 탑의 n구 층
 //   actionIds  감정서에 실린 고유 동작 id. 문자열 하나(관), 목록(보스: 학생이 실제로 쓴 도구), null(고유 동작 줄 없음)
 //   lineKind   감정서 줄의 종류: 'fold'(접기) · 'tap'(두드리기) · 'action'(고유 동작, action에 그 동작 id) · 'refrains'
@@ -18,7 +18,7 @@ import { deriveFoldEvidence, deriveTapEvidence, deriveActionEvidence, HYANGGA_GU
 const arr = (v) => (Array.isArray(v) ? v : []);
 
 // 두드리기 증거가 감정서에 보이는 모양 그대로의 두드린 수 목록.
-// 향가는 덩이 하나에 한 번(구 수를 세는 두드리기라 음보가 아니다), 고려가요는 박에 드는 음보가 있는 줄마다, 나머지는 덩이마다 음보 수.
+// 향가는 부분 하나에 한 번(구 수를 세는 두드리기라 음보가 아니다), 고려가요는 박에 드는 음보가 있는 줄마다, 나머지는 부분마다 음보 수.
 export function tapCounts(tap) {
   if (!tap) return [];
   if (tap.mode === 'gu') return Array.from({ length: tap.gu ?? 0 }, () => 1);
@@ -48,7 +48,7 @@ export const CONTRAST_RULES = Object.freeze([
   tower('action', 'hyangga-exclaim', (e, a, t) => t.towerUnits === 10 && !a.present, 'aa-door'),
   // ── 고려가요: 한 줄이 대개 세 음보, 후렴·여음이 있다 ──
   // 세 음보가 중심이지만 네 음보·두 음보 줄도 끼는 갈래라(한국민족문화대백과사전 「속요」) 비율이나 '네 음보 줄 하나'로 걸지 않는다.
-  // 음보로 센 두드리기(향가의 구 세기가 아님)에서 세 음보인 줄·덩이가 하나도 없을 때만 어긋난다(Codex 점검 C2, 2026-10-07).
+  // 음보로 센 두드리기(향가의 구 세기가 아님)에서 세 음보인 줄·부분이 하나도 없을 때만 어긋난다(Codex 점검 C2, 2026-10-07).
   rule('goryeo', 'tap', 'goryeo-3beat', (e) => { if (e.tap.mode === 'gu') return false; const c = tapCounts(e.tap); return c.length > 0 && !c.includes(3); }),
   rule('goryeo', 'action', 'goryeo-refrain', (e, a) => !a.present, 'refrain-link'),
   // ── 시조: 세 장, 장마다 네 음보, 종장 첫 음보 세 글자 ──
@@ -74,7 +74,7 @@ export const CONTRAST_RULES = Object.freeze([
 
 // 맞대어 보기에서 어긋나는 줄의 개념과 짝지을 『분류 수첩』 줄을 고른다.
 // 개념마다 그 개념을 가진 줄 가운데 가장 좁은 줄(개념 수가 가장 적은 줄)만 고른다. 여러 개념을 묶은 줄(예: 사설시조와 가사를
-// 견주는 줄)은 더 좁은 줄이 없을 때만 짝이 된다(Codex 점검 B2: 덩이 수 어긋남에 무관한 줄까지 밝아지지 않게).
+// 견주는 줄)은 더 좁은 줄이 없을 때만 짝이 된다(Codex 점검 B2: 부분 수 어긋남에 무관한 줄까지 밝아지지 않게).
 // lines: [{ id, conceptIds }] → 짝이 되는 줄 id 목록(수첩 순서)
 export function pairedLineIds(conceptIds, lines) {
   const ids = new Set();

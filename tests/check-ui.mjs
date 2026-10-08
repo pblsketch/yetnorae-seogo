@@ -14,8 +14,13 @@
 //   7. 글자 크기 3단계 × 844×390·1366×768에서 넘침 없음: 시작, 설정, 회랑, 관(한 판 화면), 대화 상자, 재기 반반 화면,
 //      수첩·일지·도감, 작품 방, 보스, 엔딩. 시작 화면과 위 띠는 전체 화면을 켠 상태('전체 화면 끄기')에서도,
 //      기록 목록의 '모습 바꾸기' 상자(3D 미리보기 카드)도 본다.
-// 음성 사례: 대비 낮은 글, 받침 없이 그림 위에 놓인 글, 화면 밖 요소, 잘린 글, 48px 미만 단추, 색만 다른 갈래 자리를
-// 일부러 넣으면 검사가 잡는다.
+//   8. 닫기 단추(교사 의견 2026-10-07): 위 띠의 수첩·일지·도감 창, 재기 화면의 수첩 서랍, 오답 뒤 맞대어 보기 창(짝 짓기 전)에
+//      오른쪽 위 ✕(이름 '닫기', 44px 이상, 화면 안, 가리지 않음, 창 바탕과 3:1 이상)가 있고, 누르면 닫히며(초점은 연 단추로,
+//      맞대어 보기는 노래가 손에 있고 기록은 그대로), Esc로도 닫힌다. 844×390(글자 1·1.3)·1366×768·1180×820(글자 1.3).
+//      그림은 tests/shots/teacher-fb/에 남긴다.
+// 음성 사례: 대비 낮은 글, 받침 없이 그림 위에 놓인 글, 화면 밖 요소, 잘린 글, 48px 미만 단추, 색만 다른 갈래 자리,
+// 없거나·화면 밖이거나·작거나·구석이 아니거나·흐리거나·이름 없거나·가려진 닫기 단추를 일부러 넣으면 검사가 잡는다.
+import { fileURLToPath } from 'node:url';
 import { startServer } from './lib/server.mjs';
 import { openGame, VIEWPORTS } from './lib/browser.mjs';
 import { defaultData, defaultProgress, SAVE_KEY } from '../js/core/save.js';
@@ -78,6 +83,27 @@ function seedAllDone(boss, device = {}) {
   for (const c of CONCEPTS) p.concepts[c.id] = { state: 'ink', songs: WING_TABLE[c.genre].shelf.slice(0, 2) };
   p.boss.state = boss;
   if (boss === 'done') for (const g of BOSS_TABLE.unseenOrder) p.boss.unseen[BOSS_TABLE.unseen[g]] = { done: true, firstTryCorrect: true, journalHelp: false, singerGroupCorrect: true };
+  return wrap(p, device);
+}
+// 시조관이 열린 기록(향가관·고려가요관을 마쳤다). 칸 노래 둘을 시조로 판별해 손에 들었고, 길 잃은 「창 내고쟈」는
+// 사설시조로 판별해 바구니에 담겼다(행선지 사설시조관). 판별 기록은 measured와 바구니다(저장 버전 2)
+function seedSijoHand(device = {}) {
+  const p = defaultProgress();
+  p.tutorialDone = true;
+  p.wings.hyangga = doneWing('hyangga');
+  p.wings.goryeo = doneWing('goryeo');
+  p.wings.sijo.state = 'open';
+  p.wings.sijo.uniqueActionIntroSeen = true;
+  p.wings.sijo.measured = ['ireondeul', 'imomi-jukgo', 'chang-naegoja'];
+  p.wings.sijo.placements.basket = [{ songId: 'chang-naegoja', to: 'saseol', fixed: false }, null];
+  p.rooms.hyangga = ROOM_RECORDS.hyangga;
+  p.rooms.goryeo = ROOM_RECORDS.goryeo;
+  for (const w of ['hyangga', 'goryeo']) p.keepsakes.push(...WING_TABLE[w].shelf);
+  p.prewaiting.goryeo = ['gasiri'];
+  p.prewaiting.sijo = ['dongjitdal'];
+  p.prewaiting.gasa = ['myeonangjeongga'];
+  p.returned.sijo = ['cheongsanri-byeokgyesu'];
+  p.concepts['sijo-3jang'] = { state: 'pencil', songs: ['taesan'] };
   return wrap(p, device);
 }
 // 작품 방만 남은 기록(작품 방 점검의 기록을 그대로 쓰고 기기 설정만 바꾼다)
@@ -636,17 +662,20 @@ async function scenesFor(server, vp, scale) {
       await sleep(200);
       await scan(page, tag + ' 재기 중 수첩', { contrast });
       await page.keyboard.press('Escape').catch(() => {});
-      // 재기를 끝낸다(접기 → 빗금 → 문 → 감정서). 감정서에서 한 번 살핀다.
+      // 형식 분석을 끝낸다(① 나누기 → ② 빗금 → ③ 문 → ④ 갈래 판별 → 확인). ④ 화면과 판별 확인 화면에서 한 번씩 살핀다.
       if (await ui.has('.measure .m-drawer:not([hidden]) .m-drawer-close')) await ui.press('.measure .m-drawer:not([hidden]) .m-drawer-close');
-      let sheetSeen = false;
+      let decideSeen = false;
+      let decidedSeen = false;
       for (let i = 0; i < 300 && (await ui.has('.measure')); i++) {
-        const n = await ui.ev(measureNext, { action: 'aa-door', tool: null, ranges: [], toolUsed: false });
+        const n = await ui.ev(measureNext, { action: 'aa-door', tool: null, ranges: [], toolUsed: false, genre: 'hyangga' });
         if (n.kind === 'done') break;
         if (n.kind === 'wait') { await sleep(100); continue; }
         if (n.kind === 'beat') throw new Error('박자 방식으로 열렸다(점검 기록은 빗금)');
-        if (n.kind === 'sheet' && !sheetSeen) { sheetSeen = true; await scan(page, tag + ' 감정서', { contrast }); }
+        if (n.kind === 'decide' && !decideSeen) { decideSeen = true; await scan(page, tag + ' ④ 갈래 판별(분석표)', { contrast }); }
+        if (n.kind === 'decided' && !decidedSeen) { decidedSeen = true; await scan(page, tag + ' 갈래 판별 확인', { contrast }); }
         await ui.press(n.sel, 8000).catch(() => {});
       }
+      ok(decideSeen && decidedSeen, tag + ' 형식 분석 뒤 ④ 갈래 판별 화면을 거친다');
       await ui.waitGone('.measure', 20000);
       await ui.press('.play-spine[data-area="shelf"][data-index="0"]');
       await ui.waitContext('꽂기');
@@ -786,7 +815,8 @@ async function scenesFor(server, vp, scale) {
   }
 }
 
-// 바구니 행선지도 갈래 이름표로 고른다(색만이 아님)
+// ④ 갈래 판별의 다섯 갈래 단추는 갈래 이름표로 고른다(색만이 아님). 다른 갈래로 판별한 노래는 바구니에 저절로 담기고
+// 바구니는 살펴보기만 한다(행선지 고르기 단추가 없다)
 async function checkBasketCues(server) {
   const game = await openGame(server.url, { viewport: VIEWPORTS.chromebook, disable3d: true, seed: seedFresh({ slashMode: true }) });
   const { page } = game;
@@ -794,7 +824,7 @@ async function checkBasketCues(server) {
   try {
     await openRecord(ui);
     await closeIntro(ui);
-    // 떠도는 노래 하나를 재어 손에 든다(빠르게: 길 잃은 시조 한 편)
+    // 뒤섞인 노래 하나를 분석해 판별한다(빠르게: 길 잃은 시조 한 편)
     await ui.press('.play-song[data-song="cheongsanri-byeokgyesu"]');
     await ui.waitContext('잡기');
     await ui.press('.world-context');
@@ -813,28 +843,172 @@ async function checkBasketCues(server) {
           if (w) return '.measure .m-text button.m-word[data-i="' + w.dataset.i + '"]';
         }
         if (step === 'action') { const h = [...root.querySelectorAll('.m-text button.m-word.is-target')].find((w) => w.dataset.w === '0' && w.dataset.f === '0'); if (h) return '.measure .m-text button.m-word[data-i="' + h.dataset.i + '"]'; }
-        if (step === 'sheet') return '.measure .m-finish';
+        if (step === 'decide') return 'decide';
+        if (step === 'decided' || step === 'sheet') return '.measure .m-finish';
         return 'wait';
       });
       if (n === null) break;
       if (n === 'wait') { await sleep(100); continue; }
+      if (n === 'decide') {
+        await injectScan(page);
+        const cues = await ui.ev(() => window.__genreCues('.measure .m-genre'));
+        ok(cues.bad.length === 0 && cues.labels.length === 5, '④ 갈래 판별의 다섯 갈래 단추는 갈래 이름표로 구분된다 ' + JSON.stringify(cues.labels));
+        // 분석 화면(오른쪽 반)만 본다. 반반 틀 왼쪽의 2D 그림 판 이름표가 반쪽 밖으로 잘리는 것은 이 작업 전부터다(findings)
+        await scan(page, '2D 1366 ④ 갈래 판별', { scope: '.world-panel' });
+        await ui.press('.measure .m-genre[data-genre="sijo"]');
+        continue;
+      }
       await ui.press(n).catch(() => {});
     }
     await ui.waitGone('.measure', 20000);
     await ui.press('.play-spine[data-area="basket"][data-index="0"]');
-    await ui.waitContext('꽂기');
+    await ui.waitContext('살펴보기');
     await ui.press('.world-context');
-    await ui.press('.play-dialog .play-pick[data-song="cheongsanri-byeokgyesu"]');
-    await ui.waitSel('.play-dialog .play-dest');
-    await injectScan(page);
-    const cues = await ui.ev(() => window.__genreCues('.play-dialog .play-dest'));
-    ok(cues.bad.length === 0, '바구니의 갈 관 고르기는 관 이름표로 구분된다 ' + JSON.stringify(cues.labels));
-    await scan(page, '2D 1366 바구니 행선지 대화 상자');
+    await ui.waitSel('.play-dialog');
+    const bd = await ui.ev(() => ({ dest: document.querySelectorAll('.play-dialog .play-dest').length, pick: document.querySelectorAll('.play-dialog .play-pick').length, text: document.querySelector('.play-dialog')?.innerText ?? '' }));
+    ok(bd.dest === 0 && bd.pick === 0 && bd.text.includes('「청산리 벽계수야」') && bd.text.includes('시조관'), '시조로 판별한 길 잃은 노래는 행선지(시조관)와 함께 바구니에 담기고, 행선지 고르기가 없다 ' + JSON.stringify(bd));
+    await scan(page, '2D 1366 바구니(살펴보기) 대화 상자');
   } catch (e) {
     failures++;
-    console.error('✗ 바구니 행선지 점검 중단: ' + (e?.stack ?? e).toString().split('\n').slice(0, 3).join(' | '));
+    console.error('✗ 갈래 판별·바구니 점검 중단: ' + (e?.stack ?? e).toString().split('\n').slice(0, 3).join(' | '));
   } finally {
     await game.close();
+  }
+}
+
+// ───────── 8. 닫기 단추(교사 의견 2026-10-07: 오른쪽 창에 닫는 단추가 없다) ─────────
+// 창(boxSel) 안의 닫기 단추(btnSel)가 보이고, 화면 안에 있고, 44px 이상이고, 창의 오른쪽 위 구석에 있고, 가리지 않았고,
+// 이름이 '닫기'이고, 창 바탕과 3:1 이상 대비되는지 본다. 문제 목록을 돌려준다(페이지로 넘겨진다).
+function closeButtonProblems(boxSel, btnSel) {
+  const box = document.querySelector(boxSel);
+  if (!box) return ['창 없음 ' + boxSel];
+  const btn = box.querySelector(btnSel);
+  if (!btn) return ['닫기 단추 없음 ' + btnSel];
+  const out = [];
+  const s = getComputedStyle(btn);
+  let op = 1;
+  for (let n = btn; n && n.nodeType === 1; n = n.parentElement) op *= Number(getComputedStyle(n).opacity);
+  if (btn.closest('[hidden]') || s.display === 'none' || s.visibility === 'hidden' || op < 0.9) out.push('보이지 않음');
+  const r = btn.getBoundingClientRect();
+  const b = box.getBoundingClientRect();
+  if (r.width < 44 || r.height < 44) out.push('작음 ' + Math.round(r.width) + 'x' + Math.round(r.height));
+  if (r.left < 0 || r.top < 0 || r.right > innerWidth + 0.5 || r.bottom > innerHeight + 0.5) out.push('화면 밖 ' + [r.left, r.top, r.right, r.bottom].map(Math.round).join(','));
+  if (b.right - r.right > 40 || r.top - b.top > 40) out.push('오른쪽 위 구석이 아님(창 오른쪽에서 ' + Math.round(b.right - r.right) + 'px, 위에서 ' + Math.round(r.top - b.top) + 'px)');
+  const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+  if (!top || !(top === btn || btn.contains(top))) out.push('가려짐(' + (top?.className ?? '없음') + ')');
+  const name = (btn.getAttribute('aria-label') ?? btn.textContent ?? '').trim();
+  if (name !== '닫기') out.push('이름 "' + name + '"');
+  const rgb = (c) => (c.match(/[\d.]+/g) ?? []).slice(0, 4).map(Number);
+  const lum = ([r0, g0, b0]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r0) + 0.7152 * f(g0) + 0.0722 * f(b0); };
+  let bgEl = box;
+  while (bgEl && (rgb(getComputedStyle(bgEl).backgroundColor)[3] === 0)) bgEl = bgEl.parentElement;
+  const c1 = rgb(s.backgroundColor);
+  const c2 = rgb(getComputedStyle(bgEl ?? document.body).backgroundColor);
+  if (c1.length >= 3 && c1[3] !== 0 && c2.length >= 3) {
+    const [hi, lo] = [lum(c1), lum(c2)].sort((x, y) => y - x);
+    const ratio = (hi + 0.05) / (lo + 0.05);
+    if (ratio < 3) out.push('창 바탕과 대비 ' + ratio.toFixed(2) + ':1');
+  } else out.push('단추 바탕이 투명');
+  return out;
+}
+
+async function checkCloseButtons(server) {
+  const SHOTS = fileURLToPath(new URL('./shots/teacher-fb', import.meta.url));   // 실행 위치와 상관없이 tests/shots 아래(전체 점검은 tests/에서 돈다)
+  const runs = [
+    { label: '844×390 3D', id: 'phone', size: VIEWPORTS.phone, disable3d: false, touch: true, scales: [1, 1.3] },
+    { label: '1366×768 3D', id: 'chromebook', size: VIEWPORTS.chromebook, disable3d: false, touch: false, scales: [1.3] },
+    { label: '1180×820 2D', id: 'tablet', size: VIEWPORTS.tablet, disable3d: true, touch: true, scales: [1.3] },
+  ];
+  for (const vp of runs) for (const scale of vp.scales) {
+    const tag = '닫기 단추 ' + vp.label + ' 글자 ' + scale;
+    const shot = (name) => SHOTS + '/' + name + '-' + vp.id + '-' + scale + '.png';
+    const game = await openGame(server.url, { viewport: vp.size, disable3d: vp.disable3d, touch: vp.touch, seed: seedSijoHand({ textScale: scale, slashMode: true }) });
+    const { page } = game;
+    const ui = makeUi(page, vp.touch);
+    const problems = (box, btn) => page.evaluate(`(${closeButtonProblems.toString()})(${JSON.stringify(box)}, ${JSON.stringify(btn)})`);
+    const focused = () => ui.ev(() => { const a = document.activeElement; return a ? (a.className || a.tagName) : null; });
+    try {
+      await openRecord(ui);
+      await closeIntro(ui);
+      // (a) 회랑·관 화면의 수첩·일지·도감 창: 위 띠 단추로 열고 ✕로 닫는다(초점은 연 단추로). 일지는 Esc로도 닫는다
+      for (const p of ['notebook', 'journal', 'collection']) {
+        await ui.press(`.play-btn[data-open="${p}"]`);
+        await ui.waitSel(`.play-panel[data-panel="${p}"]`);
+        const pr = await problems('.play-panel', '.play-panel-close');
+        ok(pr.length === 0, tag + ' 위 띠 ' + p + ' 창: 오른쪽 위에 보이는 닫기 단추(✕) ' + JSON.stringify(pr));
+        await page.screenshot({ path: shot('hall-' + p) });
+        if (p === 'journal') {
+          await page.keyboard.press('Escape');
+          await ui.waitGone('.play-panel');
+          ok(true, tag + ' 위 띠 일지 창: Esc로 닫힌다');
+          continue;
+        }
+        await ui.press('.play-panel .play-panel-close');
+        await ui.waitGone('.play-panel');
+        const f = await focused();
+        ok(String(f).includes('play-btn') && (await ui.ev((k) => document.activeElement?.dataset?.open === k, p)), tag + ' 위 띠 ' + p + ' 창: ✕로 닫히고 초점은 연 단추로 돌아온다 (' + f + ')');
+      }
+      // (b) 재기 화면 오른쪽 수첩 서랍
+      await ui.press('.play-song[data-song="gwandong-byeolgok"]');
+      await ui.waitContext('잡기');
+      await ui.press('.world-context');
+      await ui.waitSel('.world.is-split .measure');
+      for (let i = 0; i < 5 && (await ui.has('.measure .m-intro-ok')); i++) { await ui.press('.measure .m-intro-ok'); await sleep(200); }
+      await ui.press('.measure .m-book-btn');
+      await ui.waitSel('.measure .m-drawer:not([hidden])');
+      await sleep(200);
+      let pr = await problems('.measure .m-drawer:not([hidden])', '.m-drawer-close');
+      ok(pr.length === 0, tag + ' 재기 수첩 서랍: 오른쪽 위에 보이는 닫기 단추(✕) ' + JSON.stringify(pr));
+      await page.screenshot({ path: shot('measure-notebook') });
+      await ui.press('.measure .m-drawer:not([hidden]) .m-drawer-close');
+      await ui.waitGone('.measure .m-drawer:not([hidden])');
+      ok(await ui.ev(() => document.activeElement?.classList.contains('m-book-btn')), tag + ' 재기 수첩 서랍: ✕로 닫히고 초점은 수첩 단추로 돌아온다');
+      await ui.press('.measure .m-book-btn');
+      await ui.waitSel('.measure .m-drawer:not([hidden])');
+      await page.keyboard.press('Escape');
+      await ui.waitGone('.measure .m-drawer:not([hidden])');
+      ok(await ui.has('.measure'), tag + ' 재기 수첩 서랍: Esc로 서랍만 닫힌다(재기는 그대로)');
+      await ui.press('.measure .m-quit');
+      await ui.waitGone('.measure', 20000);
+      // (c) 틀린 갈래 판별 뒤 맞대어 보기 창: 「관동별곡」(가사)을 분석해 시조로 판별 → 창 → ✕로 닫으면 분석 화면에서
+      //     다시 고르고, 창은 기록을 바꾸지 않는다(오답은 판별할 때 이미 셌다)
+      // 그만둔 노래 자리에 이미 서 있으면 걷지 않고 곧바로 분석 화면이 열린다(잡기 단추 없이). 둘 다 기다린다
+      // 떠다니는 노래는 둥실거려 누르기가 가끔 빗나간다(소프트웨어 그리기에서 더 잦다). 학생처럼 반응이 없으면 다시 누른다(최대 3번).
+      const ready = () => { const c = document.querySelector('.world-context'); return !!document.querySelector('.world.is-split .measure') || (!!c && !c.hidden && c.textContent.startsWith('잡기')); };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await ui.press('.play-song[data-song="gwandong-byeolgok"]').catch(() => {});
+        if (await ui.waitFn(ready, null, 10000).then(() => true, () => false)) break;
+      }
+      await ui.waitFn(ready, null, 30000);
+      if (!(await ui.has('.world.is-split .measure'))) await ui.press('.world-context');
+      await ui.waitSel('.world.is-split .measure');
+      for (let i = 0; i < 400 && !(await ui.has('.measure[data-step="decide"]')); i++) {
+        const n = await ui.ev(measureNext, { action: 'stairs', tool: null, ranges: [], toolUsed: false, genre: 'sijo' });
+        if (n.kind === 'wait' || n.kind === 'decide' || n.kind === 'done') { await sleep(100); continue; }
+        if (n.kind === 'beat') throw new Error('박자 방식으로 열렸다(점검 기록은 빗금)');
+        await ui.press(n.sel, 8000).catch(() => {});
+      }
+      await ui.press('.measure .m-genre[data-genre="sijo"]');
+      await ui.waitSel('.play-contrast', 15000);
+      await sleep(300);
+      const before = JSON.stringify((await ui.saved()).slots['s-ui'].progress);
+      pr = await problems('.play-contrast', '.play-contrast-close');
+      ok(pr.length === 0, tag + ' 맞대어 보기 창(짝 짓기 전): 오른쪽 위에 보이는 닫기 단추(✕) ' + JSON.stringify(pr));
+      await page.screenshot({ path: shot('contrast') });
+      await ui.press('.play-contrast .play-contrast-close');
+      await ui.waitGone('.play-contrast');
+      const after = await ui.ev(() => ({ step: document.querySelector('.measure')?.dataset.step ?? null, open: !!document.querySelector('.play-contrast'), genres: [...document.querySelectorAll('.measure .m-genre')].filter((b) => !b.disabled).length }));
+      ok(after.step === 'decide' && after.genres === 5 && !after.open && JSON.stringify((await ui.saved()).slots['s-ui'].progress) === before, tag + ' 맞대어 보기 창: ✕로 닫으면 분석 화면에서 다시 고르고 기록은 그대로다 ' + JSON.stringify(after));
+      await ui.press('.measure .m-quit');
+      await ui.waitGone('.measure', 20000);
+      ok(game.errors.length === 0, tag + ': 콘솔 오류 없음 ' + game.errors.slice(0, 3).join(' | '));
+    } catch (e) {
+      failures++;
+      console.error('✗ ' + tag + ' 점검 중단: ' + (e?.stack ?? e).toString().split('\n').slice(0, 3).join(' | '));
+      try { await page.screenshot({ path: shot('fail') }); } catch { /* 그림 못 남김 */ }
+    } finally {
+      await game.close();
+    }
   }
 }
 
@@ -901,6 +1075,47 @@ async function negatives(server) {
       return out;
     });
     ok(cue.bad.length >= 2, '(음성) 색만 다르고 모양·이름표가 같은 갈래 자리를 잡는다 ' + JSON.stringify(cue.bad));
+    // 닫기 단추 검사: 바른 ✕는 통과하고, 없음·화면 밖·작음·왼쪽 아래·흐린 글자 단추·이름 없음·가림을 잡는다
+    const closeNeg = await page.evaluate(`(() => {
+      const check = ${closeButtonProblems.toString()};
+      const make = (cls, btnStyle, attrs = '') => {
+        const box = document.createElement('section');
+        box.className = 'neg-cbox ' + cls;
+        box.style.cssText = 'position:fixed;left:200px;top:100px;width:400px;height:240px;background:#f3ead6;z-index:99';
+        box.innerHTML = btnStyle === null ? '<p>닫기 없음</p>' : '<button class="neg-close x-close" ' + attrs + ' style="' + btnStyle + '"></button>';
+        document.body.append(box);
+        return box;
+      };
+      const out = {};
+      const good = make('c-good', 'position:absolute;right:6px;top:6px', 'aria-label="닫기"');
+      out.good = check('.c-good', '.neg-close'); good.remove();
+      const none = make('c-none', null);
+      out.none = check('.c-none', '.neg-close'); none.remove();
+      const off = make('c-off', 'position:absolute;right:-1000px;top:6px', 'aria-label="닫기"');
+      out.off = check('.c-off', '.neg-close'); off.remove();
+      const small = make('c-small', 'position:absolute;right:6px;top:6px;width:24px;height:24px;min-width:0;min-height:0', 'aria-label="닫기"');
+      out.small = check('.c-small', '.neg-close'); small.remove();
+      const corner = make('c-corner', 'position:absolute;left:6px;bottom:6px', 'aria-label="닫기"');
+      out.corner = check('.c-corner', '.neg-close'); corner.remove();
+      const faint = make('c-faint', 'position:absolute;right:6px;top:6px;background:#efe6d2;border-color:#efe6d2', 'aria-label="닫기"');
+      out.faint = check('.c-faint', '.neg-close'); faint.remove();
+      const noname = make('c-noname', 'position:absolute;right:6px;top:6px');
+      out.noname = check('.c-noname', '.neg-close'); noname.remove();
+      const covered = make('c-covered', 'position:absolute;right:6px;top:6px', 'aria-label="닫기"');
+      const lid = document.createElement('div');
+      lid.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:120;background:transparent';
+      document.body.append(lid);
+      out.covered = check('.c-covered', '.neg-close'); covered.remove(); lid.remove();
+      return out;
+    })()`);
+    ok(closeNeg.good.length === 0, '닫기 단추 검사: 오른쪽 위의 ✕(이름 닫기)는 통과한다 ' + JSON.stringify(closeNeg.good));
+    ok(closeNeg.none.some((x) => x.startsWith('닫기 단추 없음')), '(음성) 닫기 단추가 없는 창을 잡는다');
+    ok(closeNeg.off.some((x) => x.startsWith('화면 밖')), '(음성) 화면 밖으로 밀려난 닫기 단추를 잡는다 ' + JSON.stringify(closeNeg.off));
+    ok(closeNeg.small.some((x) => x.startsWith('작음')), '(음성) 44px보다 작은 닫기 단추를 잡는다');
+    ok(closeNeg.corner.some((x) => x.startsWith('오른쪽 위 구석이 아님')), '(음성) 오른쪽 위가 아닌 곳의 닫기 단추를 잡는다');
+    ok(closeNeg.faint.some((x) => x.startsWith('창 바탕과 대비')), '(음성) 창 바탕과 거의 같은 색의 닫기 단추를 잡는다 ' + JSON.stringify(closeNeg.faint));
+    ok(closeNeg.noname.some((x) => x.startsWith('이름')), '(음성) 이름(닫기)이 없는 단추를 잡는다');
+    ok(closeNeg.covered.some((x) => x.startsWith('가려짐')), '(음성) 다른 것에 가려진 닫기 단추를 잡는다');
   } finally {
     await game.close();
   }
@@ -920,6 +1135,7 @@ try {
   await checkReduceMotion(server);
   await checkPortrait(server);
   await checkBasketCues(server);
+  await checkCloseButtons(server);
   for (const vp of VPS) {
     for (const scale of SCALES) {
       console.log('\n── 화면 ' + vp.label + ', 글자 크기 ' + scale);

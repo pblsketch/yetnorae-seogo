@@ -96,7 +96,7 @@ const items = await expectedItems();
 const { songs } = await import('../js/data/songs/index.js');
 const voices = JSON.parse(fs.readFileSync(path.join(root, 'tools/voice/voices.json'), 'utf8'));
 const vm = JSON.parse(fs.readFileSync(path.join(root, 'assets/audio/voice/manifest.json'), 'utf8'));
-const voiceRows = vm.clips.filter((c) => c.lineAsrMatch < 0.6 || c.cut === 'energy').map((c) => ({ songId: c.songId, lineText: c.lineText ?? c.text }));
+const voiceRows = vm.clips.filter((c) => c.lineAsrMatch < 0.6 || c.cut === 'energy' || c.cut === 'per-foot').map((c) => ({ songId: c.songId, lineText: c.lineText ?? c.text }));
 const ctx = { items, songs, voiceRows, approved: voices.approved };
 const pending = songs.filter((s) => s.verification === 'pending');
 const missing = judgeDoc(md, ctx);
@@ -105,8 +105,17 @@ ok(missing.length === 0, `새로 쓴 글 ${items.length}개, 노래 ${songs.leng
 ok(items.length > 500 && items.some((i) => i.from === 'js/result/card.js WORDS'), `대조할 글을 실제로 모았음(${items.length}개, 결과 카드의 말 포함)`);
 ok(['wonwangsaengga', 'songmiingok', 'dongdong', 'cheongsan-byeolgok'].every((id) => md.includes(`(특히 먼저)`) && md.includes(`「${songs.find((s) => s.id === id).title}」 — `)), "「원왕생가」·「속미인곡」·「동동」·「청산별곡」을 먼저 들어 볼 낭송으로 앞세움");
 ok(!md.includes(FORBIDDEN) && !md.normalize('NFC').includes(FORBIDDEN), '출판사 이름 없음');
+// 낭송용 발음 표기(tools/voice/pronounce.json)는 교사가 볼 수 있게 문서의 '낭송용 발음 표기' 절에 모두 있어야 한다
+const pronRules = fs.existsSync(path.join(root, 'tools/voice/pronounce.json')) ? JSON.parse(fs.readFileSync(path.join(root, 'tools/voice/pronounce.json'), 'utf8')).rules ?? [] : [];
+const pronMissing = (doc) => (doc.includes('### 낭송용 발음 표기') ? pronRules.filter((r) => !doc.includes(`**${r.from} → ${r.to}**`)) : ['절 없음']);
+ok(pronMissing(md).length === 0, `낭송용 발음 표기 ${pronRules.length}개(${pronRules.map((r) => r.from + '→' + r.to).join(', ') || '없음'})가 문서의 '낭송용 발음 표기' 절에 있음`);
 
 console.log('\n[음성 사례]');
+if (pronRules.length) {
+  const r0 = pronRules[0];
+  ok(pronMissing(md.split('\n').filter((l) => !l.includes(`**${r0.from} → ${r0.to}**`)).join('\n')).length > 0, `낭송용 발음 표기(${r0.from}→${r0.to})가 문서에서 빠지면 잡는다`);
+}
+ok(pronMissing(md.replace('### 낭송용 발음 표기', '### 다른 절')).length > 0, "'낭송용 발음 표기' 절이 없으면 잡는다");
 {
   const pick = items.find((i) => i.from === 'js/data/story.js' && i.text.length > 12);
   const lines = md.split('\n');

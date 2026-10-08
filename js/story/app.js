@@ -195,7 +195,9 @@ export async function startApp(container) {
     box.setAttribute('aria-label', STORY.wingIntro[wingId]);
     const close = button('story-btn story-wing-intro-close', STORY.wingIntroClose);
     close.addEventListener('click', () => box.remove(), { once: true });
-    box.append(el('p', 'story-wing-intro-text', STORY.wingIntro[wingId]), close);
+    const words = el('div', 'story-wing-intro-words');
+    words.append(el('p', 'story-wing-intro-text', STORY.wingIntro[wingId]), el('p', 'story-wing-intro-premise', STORY.wingPremise));
+    box.append(words, close);
     game.layer.append(box);
   }
 

@@ -28,5 +28,35 @@ body { font-family: var(--font-ui); font-size: calc(16px * var(--text-scale)); -
 #app { position: fixed; inset: 0; height: 100dvh; background: var(--hanji); }
 button { font: inherit; min-width: var(--touch-min); min-height: var(--touch-min); cursor: pointer; }
 :focus-visible { outline: 3px solid var(--juhong); outline-offset: 2px; }
+/* 창의 오른쪽 위 닫기 단추(X): 먹 바탕에 한지색 엇갈린 두 획. 이름은 aria-label '닫기'(글꼴에 없는 글자를 쓰지 않으려고 획은 CSS로 그린다) */
+.x-close {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  margin: 0;
+  padding: 0;
+  border: 2px solid var(--meok);
+  border-radius: 10px;
+  background: var(--meok);
+  color: var(--hanji);
+  cursor: pointer;
+}
+.x-close::before, .x-close::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 26px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--hanji);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.x-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.x-close:hover { background: var(--meok-soft); border-color: var(--meok-soft); }
+.x-close:focus-visible { outline: 3px solid var(--juhong); outline-offset: 2px; }
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 @media (prefers-reduced-motion: reduce) { :root { --prefers-reduced-motion: 1; } }

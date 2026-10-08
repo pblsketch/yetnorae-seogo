@@ -156,7 +156,7 @@
 
 ### 3.3 행선지 결과 (spec 4.3, `ROUTING`)
 
-규칙: 길 잃은 노래가 바구니 판정을 통과했을 때, 도착할 관이 지금 관보다 뒤(아직 마치지 않은 관)이고 그 노래가 그 관의 칸 노래면 **미리 잰 대기**(`prewait`), 그 밖은 **돌아온 노래 선반**(`returned`)이다. 관은 순서대로만 열리므로 결과는 미리 정해진다. 검증기가 규칙으로 다시 계산해 아래 목록과 맞춰 본다.
+규칙: 길 잃은 노래가 바구니 판정을 통과했을 때(행선지는 갈래 판별이 정한 그 갈래의 관, 2026-10-08부터 학생이 고르지 않는다), 도착할 관이 지금 관보다 뒤(아직 마치지 않은 관)이고 그 노래가 그 관의 칸 노래면 **미리 분석한 대기**(`prewait`, 옛 이름 미리 잰 대기), 그 밖은 **돌아온 노래 선반**(`returned`)이다. 관은 순서대로만 열리므로 결과는 미리 정해진다. 검증기가 규칙으로 다시 계산해 아래 목록과 맞춰 본다.
 
 | 관 | 미리 잰 상태로 기다리는 노래 | 돌아온 노래 선반 |
 | --- | --- | --- |
@@ -447,7 +447,7 @@ export const remix = {
 | `walk` | `{ action, applicable: true, steps, stopsAtThree }` — 걸은 단위 수, 세 단위에서 멈추는지 | `{ steps: 12, stopsAtThree: false }` |
 | `rapid-unroll` | `{ action, applicable, middleFeet, overFour }` — 3장 갈래의 가운데 장 음보 수와 4음보를 넘는지. 3장 갈래가 아니면 `applicable: false` | `{ applicable: true, middleFeet: 9, overFour: true }` |
 
-미리 잰 노래(spec 4.3)는 바구니를 보낸 관의 고유 동작으로 잰 감정서를 그대로 들고 온다.
+미리 분석한 노래(옛 이름 미리 잰 노래, spec 4.3)는 바구니를 보낸 관의 고유 동작으로 채운 분석표(감정서)를 그대로 들고 오고, 갈래 판별도 이미 마쳤다.
 
 ---
 
@@ -561,7 +561,7 @@ export function show(container, ctx = {}) { … return { dispose() }; }
 | `settings:reduce-motion` | `{ value: boolean }` | 설정 → 모두 |
 | `settings:text-scale` | `{ value: 1 \| 1.15 \| 1.3 }` | 설정 → 모두 |
 | `rhythm:no-beat` | `{ value: boolean, reason: 'muted' \| 'slash' \| null }` | 소리 엔진 → 재기·방·보스. 박자 없는 방식으로 바뀜/돌아옴 |
-| `help:notebook-glow` | `{ wing, genre, conceptIds, songId }` | 진행 엔진 → 수첩. 관 오답이 기준(3) 이상. `genre`는 **대상** 갈래(칸·덤은 그 관 갈래, 탑은 향가, 바구니는 고른 행선지 관의 갈래)이고 노래 갈래가 아니다. `conceptIds`는 대상 갈래 개념 가운데 그 노래의 감정서와 어긋나는 것(`js/core/contrast.js`), 없으면 대상 갈래 개념 모두. `songId`는 돌아온 노래('추가 제안(F6)') |
+| `help:notebook-glow` | `{ wing, genre, conceptIds, songId }` | 진행 엔진 → 수첩. 관 오답이 기준(3) 이상. `genre`는 **대상** 갈래(틀린 갈래 판별은 학생이 고른 갈래, 탑은 향가. 칸·덤·바구니는 판별한 노래만 받으므로 지금은 틀리지 않는다)이고 노래 갈래가 아니다. `conceptIds`는 대상 갈래 개념 가운데 그 노래의 분석표(감정서)와 어긋나는 것(`js/core/contrast.js`), 없으면 대상 갈래 개념 모두. `songId`는 틀리게 판별한 노래나 돌아온 노래('추가 제안(F6)', '추가 제안(F7)') |
 | `help:journal-glow` | `{ stage, conceptIds, songId? }` | 진행 엔진 → 일지. 보스 같은 단계 틀림이 기준(3) 이상. 1·3단계의 `conceptIds`는 꽂은 자리 갈래 개념 가운데 학생이 쓴 도구(와 접기·두드리기)의 증거와 어긋나는 것, 없으면 그 갈래 개념 모두. 2단계는 틀린 탭이 난 조각의 갈래 개념 |
 | `concept:changed` | `{ conceptId, state, songs }` | 진행 엔진 → 일지·카드. 연필·먹 전환 |
 | `wing:state` | `{ wing, state }` | 진행 엔진 → 세계. 관이 열리거나 끝남 |
@@ -574,7 +574,7 @@ export function show(container, ctx = {}) { … return { dispose() }; }
 
 ```js
 {
-  version: 1,
+  version: 2,                    // 2: 갈래 판별(measured의 뜻이 바뀜, 2026-10-08). 1은 MIGRATIONS[1]로 옮긴다
   device: {
     volume: { bgm: 0.6, voice: 1, sfx: 0.8 },   // 0~1
     muted: false,               // 소리 끄기(spec 14 접근성)
@@ -620,11 +620,11 @@ export function show(container, ctx = {}) { … return { dispose() }; }
         bonus: [null, null, null],   // null 또는 { songId, fixed }
       },
       wrongCount: 0,            // 이 관의 오답 수(삐져나온 노래 하나 = 1)
-      measured: [],             // 이 관에서 재기를 마친 노래 id(감정서는 데이터에서 다시 계산)
+      measured: [],             // 이 관에서 형식을 분석하고 갈래 판별에서 맞힌 노래 id, 잡아 든 미리 분석한 노래(판별 기록. 분석표는 데이터에서 다시 계산)
     },
     // goryeo, sijo, gasa, saseol도 같은 모양
   },
-  prewaiting: { goryeo: [], sijo: [], gasa: [], saseol: [] },  // 관 id → 미리 잰 상태로 기다리는 노래 id
+  prewaiting: { goryeo: [], sijo: [], gasa: [], saseol: [] },  // 관 id → 미리 분석한 상태로 기다리는 노래 id
   returned: { sijo: [], gasa: [] },                            // 관 id → '돌아온 노래' 선반의 노래 id
   concepts: {                   // 개념 13개 모두
     'sijo-3jang': { state: 'none', songs: [] },   // state: 'none' | 'pencil' | 'ink', songs: 확인해 준 서로 다른 노래 id
@@ -646,7 +646,7 @@ export function show(container, ctx = {}) { … return { dispose() }; }
 - 미리 잰 노래가 그 관 칸에 묶이면 `prewaiting`에서 빼지 않아도 된다(묶인 칸이 우선). 엔진이 정한다.
 - 결과 카드는 그림을 저장하지 않고 이 기록으로 다시 그린다(spec 12).
 - 서고 완성 = `ending.completed`. 시작 화면의 '서고 완성' 표시도 이것을 본다.
-- `version`이 다르면 저장 엔진이 처리 경로를 둔다(처리 방식은 저장 엔진 작업이 정한다).
+- `version`이 다르면 저장 엔진이 처리 경로를 둔다(`docs/contracts.md` '저장 문서'). 1 → 2는 고정되지 않은 자리를 비우고 `measured`를 고정된 노래·미리 분석한 노래만 남긴다('추가 제안(F7)').
 
 ---
 
@@ -1033,7 +1033,7 @@ dispose()
 ### 재기 화면 손잡이 — `js/measure/measure.js`
 
 ```js
-openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 AbortError로 끝난다
+openMeasure(ctx) → Promise<감정서>   // 6절 모양(화면 이름 '분석표'). ctx.decide가 있으면 decided(판별한 갈래 id)가 붙는다. 중단 신호면 AbortError로 끝난다
 ```
 
 | `ctx` 열쇠 | 뜻 |
@@ -1045,16 +1045,17 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 | `rhythm` | `{ engine, buildGrid?, createTapSession?, offsetMs? }` — 소리 엔진 하나와 박자 함수(없으면 `js/core/rhythm.js`의 것). `offsetMs`는 저장의 `device.calibrationOffsetMs` |
 | `noBeat` | 처음 박자 없는 방식인지(없으면 `engine.noBeat.value`). 그 뒤로는 `rhythm:no-beat`를 따른다 |
 | `setSlashMode(v)` | 빗금 권유를 받아들였을 때 부른다. 설정 저장은 부르는 쪽이 한다(없으면 `engine.setSlashMode`) |
-| `preMeasured` | 미리 잰 노래. 감정서 객체, `{ action: 동작 id }`, 또는 `true`(그 노래의 `stray` 역할 가운데 `to`가 지금 관인 것의 관 동작으로 계산). 감정서가 채워진 채 열린다 |
+| `preMeasured` | 미리 분석한 노래(판별 없음). 감정서 객체, `{ action: 동작 id }`, 또는 `true`(그 노래의 `stray` 역할 가운데 `to`가 지금 관인 것의 관 동작으로 계산). 감정서가 채워진 채 열린다 |
 | `notebook` · `notebookGlow` | 갈래 id → 수첩 쪽(`js/data/songs/index.js`의 `notebook`), 이미 받은 도움 `[{ wing, genre, conceptIds }]`. 열려 있는 동안 `help:notebook-glow`도 듣는다 |
 | `journal` · `journalGlow` | 보스 일지: `{ concepts }`(저장의 `progress.concepts`), 반짝일 개념 id. `help:journal-glow`·`concept:changed`도 듣는다 |
-| `revealed` · `marksKnown` | 그 노래가 드러났는지(판정에서 맞음, 튜토리얼을 마친 튜토리얼 노래 — `progress.isRevealed`), 박 밖 음보에 여음·후렴·되풀이 이름표를 달아도 되는지(드러났거나 고려가요관에서 잰 노래 — `progress.marksKnown`). 둘 다 없으면 단위를 '덩이'라 부르고 이름표 없이 점선 테두리만 보인다. 관에서 후렴 고리 걸기가 되풀이 구절을 찾으면 그 재기 안에서 이름표를 단다 |
+| `revealed` · `marksKnown` | 그 노래가 드러났는지(갈래 판별에서 맞음, 판정에서 맞음, 튜토리얼을 마친 튜토리얼 노래 — `progress.isRevealed`), 박 밖 음보에 여음·후렴·되풀이 이름표를 달아도 되는지(드러난 노래 — `progress.marksKnown`). 둘 다 없으면 단위를 '부분'이라 부르고 이름표 없이 점선 테두리만 보인다. 관에서 후렴 고리 걸기가 되풀이 구절을 찾으면 그 분석 안에서 이름표를 단다 |
+| `decide` · `decideGuide` | '추가 제안(F7)': ④ 갈래 판별. `decide(갈래 id, 분석표) → Promise<{ correct, note? }>`(관·입구만, 보스는 넘기지 않는다), `decideGuide`는 입구 튜토리얼이 가리킬 갈래 id |
 | `introSeen` · `onIntroSeen(kind)` | 첫 사용 안내 깃발 `{ common, unique }`(false면 보인다). 본 뒤 `onIntroSeen('common' \| 'unique')`를 부른다. 저장은 부르는 쪽: `unique` ↔ `wings[관].uniqueActionIntroSeen`, `common`은 첫 노래(튜토리얼) 하나뿐이므로 `tutorialDone` 등으로 정한다 |
 | `reduceMotion()` | 움직임 줄이기(없으면 `world.reduceMotion()`·`#app.reduce-motion`) |
 | `signal` | 중단 신호(나가기). 중단되면 반반 틀을 닫는다 |
 
 - 보스 결과에는 `action`(마지막으로 쓴 도구) 말고도 `actions`(쓴 도구의 증거 모두, 쓴 순서)가 더 붙는다. 관에서는 `actions`가 없다.
-- 감정서 글의 단위 이름은 노래가 드러나기 전(관·입구)과 보스에서는 갈래가 드러나지 않게 '덩이'라고 쓰고, 드러난 노래(`ctx.revealed`)만 갈래 단위 이름(장·구·연·줄·행)을 쓴다('추가 제안(F6)').
+- 감정서(분석표) 글의 단위 이름은 노래가 드러나기 전(관·입구)과 보스에서는 갈래가 드러나지 않게 '부분'(`js/measure/text.js` `NEUTRAL_UNIT`, 옛 이름 '덩이')이라고 쓰고, 드러난 노래(`ctx.revealed`, 또는 ④에서 맞힌 뒤)만 갈래 단위 이름(장·구·연·줄·행)을 쓴다('추가 제안(F6)', 'F7').
 - 화면 글(버튼, 안내, 감정서 문구)은 `js/measure/labels.js`에 모았다. 스타일은 `css/measure.css`이고 `index.html`에 연결해야 한다(연결 단계).
 
 ### 고유 동작 `ctx` 더하기(7.2)
@@ -1207,7 +1208,7 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - **들어올 때 다시 그리기**: `enterWing` 다음에 `diorama:slot-set`(칸·덤·판정 전 바구니, `returned` 0~3, 보스를 마쳤으면 시조관 `mentor`), 묶였으면 `diorama:shelf-bound`와 `diorama:fog-recede`를 차례로 낸다. 바구니에서 이미 보낸(고정된) 노래는 다시 그리지 않는다.
 - **삐져나옴**: 판정에서 돌아온 노래마다 `diorama:pop-out`을 내고, `PLAY_TUNING.popOutMs`(2.4초) 뒤 그 자리가 여전히 비어 있으면 `slot-set { songId: null }`을 낸다. 바구니에서 보낸 노래는 `sentMs`(1.2초) 뒤 `slot-set { area: 'basket', songId: null }`.
 - **첫 사용 안내 깃발**: 재기 화면에 `introSeen: { common: progress.tutorialDone, unique: wings[관].uniqueActionIntroSeen }`을 넘기고, `onIntroSeen('unique')`면 `markUniqueActionIntroSeen(관)`을 부른다. 공통 동작 안내는 입구 튜토리얼 몫이다.
-- **미리 잰 노래**: 입구에서 기다리는 노래(`waitingAt(관)` 가운데 아직 잡지 않은 것)를 잡으면 `preMeasured: true`로 재기 화면을 열고, 마치면 `markMeasured`로 손에 든다. 손에 든 노래 = 그 관의 `measured` 가운데 아직 꽂지 않은 것(판을 마친 관은 덤 노래).
+- **미리 분석한 노래**: 입구에서 기다리는 노래(`waitingAt(관)` 가운데 아직 잡지 않은 것)를 잡으면 `preMeasured: true`로 분석 화면을 열고(④ 없음), 마치면 `markMeasured`로 손에 든다. 그 밖의 노래는 ④ 갈래 판별에서 맞혀야(`decideGenre`) 손에 든다. 손에 든 노래 = 그 관의 `measured` 가운데 아직 꽂지 않은 것(판을 마친 관은 덤 노래). 다른 갈래로 판별한 노래는 손에 들지 않고 바구니에 담긴다('추가 제안(F7)').
 - **작품 방 ctx 더하기**(7.3): `manifest`(자산 목록)를 더 넘긴다. 3D일 때 `three`는 세계 바탕의 `{ THREE, root(지금 관 모형 root), camera }`이지만, 방은 화면을 덮는 `container` 안에 스스로 장면을 만든다(그 위로 세계는 보이지 않는다). 방이 등록되지 않았으면 자리표시와 '방에서 나가기'만 보이고 마칠 길이 없다.
 - **판의 끝**: `diorama:dancheong-restore` → 판 카드(`showCard`, 자료는 `buildWingCard(store.currentRecord(), 관)`) → 다음 관 문틈 소리(다음 관 배경음을 `leakMs` 동안 틀었다가 되돌린다) → 덤 노래가 떠다닌다.
 - **창 숨김**: `visibilitychange`에서 `audio:pause`/`audio:resume`(`reason: 'hidden'`)을 낸다.
@@ -1361,7 +1362,7 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 
 ### 박자 손잡이(`rhythm`) 더하기
 
-- 재기 화면의 `{ engine, buildGrid?, createTapSession?, offsetMs? }`에 선택 열쇠 `buildRemixGrid(remix, getSong)`·`createRemixSession(grid, opts)`를 더한다. 없으면 `js/core/rhythm.js`의 것. 점검 페이지가 빠른 박자 칸을 끼우는 데 쓴다.
+- 재기 화면의 `{ engine, buildGrid?, createTapSession?, buildPauseGrid?, createPauseTapSession?, offsetMs? }`(두드리기는 쉼 칸 `buildPauseGrid`·`createPauseTapSession`을 쓴다, 2026-10-07)에 선택 열쇠 `buildRemixGrid(remix, getSong)`·`createRemixSession(grid, opts)`를 더한다. 없으면 `js/core/rhythm.js`의 것. 점검 페이지가 빠른 박자 칸을 끼우는 데 쓴다.
 
 ### 단계와 기록
 
@@ -1473,6 +1474,12 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - **도구 더하기**: 실제 조각은 승인 배정대로만 만든다(`--voice`는 견본·빠르기 재기에만). `--max-usd`(기본 3)를 넘을 요청은 보내지 않고 멈춘다. 실제 조각을 만든 뒤 '듣기 대신 점검'으로 받아쓰기 일치가 0.6 아래인 줄과 음절 비율로 자른(`cut: 'energy'`) 조각을 알린다.
 - **자르기 되짚기**: 받아쓰기 낱말 시각이 엉뚱하면(여러 낱말을 한 덩어리로 듣는 등) 음보 하나가 줄 대부분을 삼키고 다른 음보가 0.1초 남짓이 된다. 받아쓰기로 자른 조각이 0.15초보다 짧거나, 조각 길이의 몫이 음절 수 몫의 0.35배보다 작거나, 두 음절 이상인 조각이 2.5배보다 크면 그 줄은 음절 비율로 다시 자른다(`cut: 'energy'`, 들어 볼 조각).
 - **빠르기**: 노래 데이터의 `tempo`는 승인 배정된 목소리로 그 노래의 모든 줄을 읽혀 잰 자연 빠르기(`--write-tempo`)다.
+- **음보마다 따로 읽기**(`cut: 'per-foot'`, 2026-10-08 교사 승인): 줄을 읽혀 자른 조각의 경계가 어긋난 줄(낭송 감사 `design/voice-audit/report.md` 5절의 57줄)은 `build_voice.py --per-foot --lines <줄 목록>`으로 그 줄의 음보(향가는 구, 고려가요 여음·후렴도)마다 그 음보의 `reading`을 TTS 한 번씩 읽힌다. 목소리·모델·설정은 승인 배정 그대로이고 자르지 않는다. 다듬기는 `whole` 조각과 같고(앞 10ms·뒤 50ms 틈, 페이드), 칸을 조금 넘으면 뒤 틈만 10ms까지 줄인다(말소리는 늘이거나 줄이지 않는다). 음량은 같은 노래의 다른 조각(같은 목소리)의 조각별 LUFS 가운데값에 맞춘다. 조각 경로와 이름은 그대로다.
+  - 생성 기록 `clips[]`: `cut: 'per-foot'`, `spokenText`(실제로 읽힌 글 — 그 음보의 글, 아주 짧은 음보는 뒤에 쉼표 정도의 맥락이 붙을 수 있다), `lineText`(그 음보가 든 줄 글), `gainDb`, `lufs`, 뒤 틈을 줄였으면 `tailPadSec`. `lineAsr`·`lineAsrMatch`·`lineGainDb`는 없다. `generator.perFoot`에 다듬기·음량 방법을 적는다.
+  - 점검(`check-voice`): `cut`은 `asr`·`energy`·`whole`·`per-foot` 가운데 하나, `per-foot`이면 `spokenText`가 그 음보의 글(낭송용 발음 표기 적용)로 시작하고 뒤에는 쉼표·마침표 같은 문장 부호만 붙는다.
+- **낭송용 발음 표기**(`tools/voice/pronounce.json`, 2026-10-08): 낭송 목소리가 옛 표기를 실제로 다른 소리로 읽는 곳만(받아쓰기로 확인, `design/voice-audit/syllable_audit.py`), TTS에 보내는 글에서 그 글자를 바꾼다. 노래 데이터의 `reading`과 화면 글은 바꾸지 않는다. 규칙은 `{ from, to, why, evidence, standard, decided }`이고 `from`·`to`는 한글 음절 수가 같아야 한다. 지금은 `뫼 → 뭬` 하나(표준 발음법 4항 붙임: ㅚ는 [ㅞ]도 허용).
+  - 생성 기록: 바꾼 글로 읽힌 조각은 `spokenText`에 실제로 읽힌 글을 남긴다(줄 단위면 줄 글 전체, `lineText`는 화면 글). `generator.pronounce`에 그때의 표를 적는다.
+  - 점검(`check-voice`): 조각마다 실제로 읽힌 글(`spokenText`, 없으면 `lineText`)이 지금 표를 적용한 글과 같아야 한다. 표를 바꾸고 그 글이 든 줄을 다시 만들지 않으면 실패한다. 음절 수가 바뀌는 규칙도 실패. 글 확인 문서의 '낭송용 발음 표기' 절에 표가 모두 있어야 한다(`check-review-doc`).
 
 ## 추가 제안(T30a) — 글꼴, 출처 화면, 글 확인 문서
 
@@ -1514,7 +1521,7 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - **줄 글 잇기**: `joinFeet(feet, layer)`(`js/core/song-shape.js`)가 음보를 빈칸으로 잇되 `joined` 앞은 붙인다. `songText`, 낭송 계획(`tools/voice/plan.mjs`의 줄 글), 「정석가」 방·보스 리믹스 글줄·묶기 연출의 첫 소절이 이 함수를 쓴다. 그래서 낱말 안에서 다시 나눠도 낭송에 읽힐 줄 글이 그대로라 낭송 캐시로 다시 자르기만 하면 된다.
 - **음보 수**: `feetCounts(song)`은 고려가요에서 줄마다 **박에 드는** 음보 수를 낸다(후렴만 있는 줄은 0). `goryeo-3beat`는 박에 드는 음보가 있는 줄 가운데 세 음보 줄이 80% 이상일 때 나온다(4.5 표의 '모든 줄'을 이렇게 읽는다).
 - **두드리기 증거(6절)**: 고려가요는 `{ mode: 'lines', feet: [[줄마다 박에 드는 음보 수], …], refrains: 여음·후렴 음보 수 }`. 감정서는 0인 줄(듣기만 하는 후렴 줄)을 빼고 센다. `[여음·후렴이 있다]` 줄(글은 `js/measure/labels.js`의 `L.sheetRefrains`)은 두드리기 증거가 아니라 후렴 고리 걸기 증거(`refrain-link`, `present: true`)가 있을 때만 그 줄 뒤에 붙는다(줄 종류 `refrains`). 고유 동작이 그 증거를 맡게 하고(spec 5.4), 보스에서 도구를 쓰기 전에 갈래가 드러나지 않게 하려는 것이다. 보스(`neutral`) 감정서는 '줄' 대신 '덩이'를 쓴다.
-- **박자 칸**(`js/core/rhythm.js`): 여음·후렴·되풀이 머리 칸도 낭송 칸으로 놓이고 박에 `offbeat: kind`가 붙는다. `createTapSession`은 그 칸에 판정 창을 열지 않고 놓친 박으로도 세지 않는다. 그래서 그 칸 때문에 단위를 다시 듣거나 '놓친 박 3개' 빗금 권유가 뜨지 않는다. `listenOnly(단위)`는 박이 하나도 없는 단위(후렴만 있는 줄)다. 낭송 조각 이름(10절)과 번호는 그대로다(여음 조각도 `<연>-<줄>-<음보>.mp3`).
+- **박자 칸**(`js/core/rhythm.js`): 여음·후렴·되풀이 머리 칸도 낭송 칸으로 놓이고 박에 `offbeat: kind`가 붙는다. `createTapSession`은 그 칸에 판정 창을 열지 않고 놓친 박으로도 세지 않는다. 재기 두드리기의 쉼 칸(`buildPauseGrid`, 2026-10-07)에서는 그 조각 뒤에 쉼이 없고(`pauseSec: 0`, 이어 읽는다) `createPauseTapSession`도 창을 열지 않는다. 그래서 그 칸 때문에 단위를 다시 듣거나 '놓친 박 3개' 빗금 권유가 뜨지 않는다. `listenOnly(단위)`는 박이 하나도 없는 단위(후렴만 있는 줄)다. 낭송 조각 이름(10절)과 번호는 그대로다(여음 조각도 `<연>-<줄>-<음보>.mp3`).
 - **재기 화면**: 두루마리 단위 덩이에서 박 밖 음보는 이름표 글자('여음'·'후렴'·'되풀이', `MARK_NAMES`)와 점선 테두리·옅은 바탕으로 늘 보인다(색에만 기대지 않음, 단청색은 쓰지 않음). 보스(`createTextView(…, { neutral: true })`)에서는 이름표와 종류 클래스(`is-yeoeum` 등)·`data-mark`를 달지 않고 같은 점선 테두리(`is-offbeat`)로만 묶는다. 안내도 `L.tapHintPlain`·`L.slashPlainHint`·`L.listenOnlyPlain`을 쓴다. 두드리기는 후렴만 있는 줄도 들려주되 장구를 쉬게 하고(안내 `L.listenOnly`), 빗금에서는 박 밖 말을 누를 수 없고 후렴만 있는 줄은 처음부터 마친 줄이다. 낱말 안에서 나눈 음보는 띄우지 않고 가는 경계선만 보인다. 조각(`piecesOf`)에 `mark`·`markStart`·`joined`·`breakBefore`가 붙는다. `breakBefore`는 그 말 앞에서 쪽을 나눌 수 있는지이고, 낱말 안에서 나눈 음보의 첫 말(`joined`) 앞은 거짓이다(한 낱말이 두 쪽으로 갈라지지 않게).
 - **글 확인 문서**: 고려가요 줄은 박 밖 음보를 `[여음 나ᄂᆞᆫ]`처럼 묶어 보이고 줄 끝에 박 수(또는 '듣기만 하는 줄')를 적는다. 노래마다 근거는 `citationNote`의 '음보 세기'에 있다.
 
@@ -1566,15 +1573,15 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 
 ### 대상과 어긋나는 줄
 
-- 대상(`target`): 칸·덤 `{ genre: 관 갈래 }`, 향가관 탑 `{ towerUnits: 층 구 수 }`, 바구니 `{ genre: 고른 행선지 관의 갈래 }`, 보스 관 자리 `{ genre: 그 자리 갈래 }`.
+- 대상(`target`): 갈래 판별 `{ genre: 학생이 고른 갈래 }`('F7'), 칸·덤 `{ genre: 관 갈래 }`, 향가관 탑 `{ towerUnits: 층 구 수 }`, 바구니 `{ genre: 행선지 관의 갈래 }`, 보스 관 자리 `{ genre: 그 자리 갈래 }`.
 - `actionIds`: 감정서에 실린 고유 동작. 관은 그 관 동작 하나(미리 잰 노래는 보낸 관의 동작), 보스는 학생이 실제로 쓴 도구들, 없으면 접기·두드리기 줄만 본다.
 - `lineKind`는 `sheetLines`(`js/measure/sheet.js`)의 줄 종류와 같다. `'action'`이면 `action`에 그 동작 id가 있다. `conceptId`는 대상 갈래의 개념이고, 『분류 수첩』 줄의 `conceptIds`와 짝을 짓는다(탑은 '이 층은 … 덩이' 줄이 `hyangga-lines`).
 - **건전성**: 어떤 규칙도 대상 갈래의 노래를 걸지 않는다. 모든 노래 × 고유 동작(없음·하나씩·모두)에서 `mismatches(노래, { genre: 노래 갈래 }, …)`이 비고, 향가관 탑 노래는 자기 층에서 빈다. `check-data` [6]이 실제 45편과 시험 묶음으로 확인하고, 건전하지 않은 규칙(예: '세 음보 줄 80% 미만 → 고려가요와 어긋남'은 「동동」·「정읍사」·「사모곡」을 건다)을 음성 사례로 잡는다. 규칙을 더하거나 노래를 바꾸면 이 점검을 다시 돌린다.
 
 ### 드러남
 
-- `isRevealed(id)`: 어느 관의 칸·덤·바구니에 고정된 노래, `prewaiting`·`returned`에 든 노래(바구니에서 맞게 보낸 노래), `tutorialDone`이면 튜토리얼 노래. 기록에서 다시 계산한다.
-- `marksKnown(id)`: 드러났거나 `wings.goryeo.measured`에 든 노래(고려가요관에서 후렴 고리 걸기를 거침).
+- `isRevealed(id)`: 어느 관의 `measured`에 든 노래(갈래 판별에서 맞힘, 'F7'), 칸·덤·바구니에 고정된 노래, `prewaiting`·`returned`에 든 노래(바구니에서 보낸 노래), `tutorialDone`이면 튜토리얼 노래. 기록에서 다시 계산한다.
+- `marksKnown(id)`: 드러난 노래('F7' 뒤로 `isRevealed`와 같다. 분석 도중에는 후렴 고리 걸기가 되풀이 구절을 찾은 순간부터 그 화면이 이름표를 단다).
 - 한 판 화면은 재기 화면에 `revealed`·`marksKnown`을 넘긴다. 입구 튜토리얼은 넘기지 않는다(드러나기 전). 칸(탑)이 묶이면 `playCeremony`의 `lead`로 그 관의 단위 이름 한 줄(`js/play/labels.js`의 `unitReveal`)을 첫 가객 카드 위에 보이고, 입구는 재기를 마친 뒤 `STORY.entrance.unitReveal`을 보인다.
 
 ### 맞대어 보기(한 판 화면)
@@ -1582,3 +1589,21 @@ openMeasure(ctx) → Promise<감정서>   // 6절 모양. 중단 신호면 Abort
 - 판정 결과의 `returned`마다 차례로: `mismatches(노래, x.target, 감정서의 동작)`가 비면 건너뛴다(창 없음). 아니면 `PLAY_TUNING.contrastAfterMs`(1.2초, 움직임 줄이기면 0) 뒤 `openContrast`를 열고 닫힐 때까지 기다린다. 감정서는 이번 창에서 잰 것, 없으면 `deriveSheet`로 계산한 것이다.
 - 창은 `role="dialog"`·`aria-modal`이고 Tab은 창 안에서만 돈다. Esc는 창을 닫는다(노래는 판정 때 이미 손에 있다). 진행 엔진을 부르지 않고 아무것도 저장하지 않는다.
 - 보스에는 이 창이 없다.
+
+## 추가 제안(F7) — 형식 분석의 ④ 갈래 판별(2026-10-08 교사 결정)
+
+전제: 먹안개가 다섯 관을 휘저어 노래가 뒤섞였다. 학생은 노래마다 형식을 분석하고(① 연·장·행·구 나누기, ② 음보 나누기, ③ 관의 형식 확인) ④ 갈래를 판별한 뒤 제자리로 보낸다. 판별을 거치지 않으면 '향가관에 있으니 향가'라고 잘못 알게 되므로, 판단은 꽂기가 아니라 판별에서 한다(`docs/business-rules.md` 4·5절). 새 사건 이름은 없다. 저장 버전은 2다(`measured`의 뜻이 바뀜).
+
+### 모듈
+
+| 파일 | 내보내는 것·바뀐 것 |
+| --- | --- |
+| `js/core/progress.js` | `decideGenre(관, 노래 id, 갈래 id)` → `{ ok, correct, genre?, own?, to?, basket?: { index, full }, target?, help? }`. 맞으면 `measured`에 넣고, 다른 갈래면 `placements.basket`에 `{ songId, to: 그 갈래의 관, fixed: false }`로 담는다. 틀리면 `wrongCount` 하나, 기준 이상이면 `help:notebook-glow { genre: 고른 갈래 }`. 막히는 까닭: `bad-wing`·`locked`·`not-in-wing`(그 관 판의 지금 노래가 아님: 판 중이면 칸·길 잃은 노래, 마친 관이면 덤 노래)·`bound`·`decided`(이미 판별했거나 미리 분석한 노래)·`invalid`. `isDecided(관, 노래 id)`. `place`는 판별한 노래만(`not-decided`), 칸·탑·덤은 그 관 갈래(`other-genre`), 바구니는 다른 갈래(`own-genre`)만 받고 바구니의 `to`는 저절로 정한다(넘긴 `to`가 다르면 `bad-destination`). `unplace`는 바구니를 빼지 않는다(`auto-basket`). `markMeasured`는 그 관 `prewaiting`의 노래만(`not-decided`) |
+| `js/core/save.js` | `SAVE_VERSION` 2, `MIGRATIONS[1]`(고정되지 않은 자리를 비우고 `measured`를 고정된 노래·그 관 `prewaiting` 노래만 남긴다) |
+| `js/measure/measure.js` | `ctx.decide`·`ctx.decideGuide`(위 표). 단계 `data-step`: `fold` → `tap` → `action` → `decide` → `decided`(미리 분석한 노래와 판별 없는 단독 화면은 `sheet`). 단계 이름 줄 `.m-stepname`(`L.steps`). ④는 오른쪽 `.m-side.is-scroll`(분석표 `.m-decide-sheet`, 안내 `.m-decide`), 아래 조작 줄에 다섯 갈래 단추 `.m-genre[data-genre]`(고른 뒤 틀리면 `.is-tried`, 안내 대상은 `.is-guide`). 맞으면 `root.dataset.decided`, `.m-decide-right`·`.m-decide-term`(`UNIT_TERMS`)·`.m-decide-note`, '확인' `.m-finish`. 판별하지 않고 끝내는 단추는 없다 |
+| `js/measure/labels.js` | `L.steps`, `L.decide*`, `L.intro.decide`, `UNIT_TERMS`(갈래 id → 단위 이름 한 줄), `ACTION_TEXT[동작].sub`(도구 이름 옆 정확한 설명) |
+| `js/measure/text.js` | `NEUTRAL_UNIT`('부분'). `unitName(song, true)`가 이것을 돌려준다 |
+| `js/play/contrast-panel.js` | `openGenreContrast(host, { song, sheet, genre, notebook, neutral, signal })`: `mismatches(노래, { genre }, 분석표의 동작)`로 짚을 줄을 정해 `openContrast(…, { decide: true })`를 연다. `decide`면 안내 `L.contrastPromptGenre`, 단추 '다시 판별하기', 짚을 줄이 없으면 `data-pairless`로 짝짓기 없이 나란히(`L.contrastNoPair`, 단추가 바로 보임). 돌려주는 값에 `'compared'`가 더해졌다 |
+| `js/play/wing.js` | 분석 화면에 `decide`를 넘기고(미리 분석한 노래 빼고), 판별 뒤 바구니에 담긴 노래를 `slot-set { area: 'basket', to }`로 그리고 차면 `judge('basket')`. 관에 들어올 때마다(판을 마치기 전) `L.premise(관 이름)` 알림. 손 목록은 '판별한 노래'와 갈래 이름표, 남은 뒤섞인 노래 수(`L.mixedLeft`). 바구니 대화 상자는 보기만(행선지 고르기 단추 `.play-dest` 없음) |
+| `js/story/entrance.js` | 튜토리얼에 `decide`(시조면 맞음, 아니면 `openGenreContrast` 뒤 다시. 기록 없음)와 `decideGuide: 'sijo'` |
+| `js/data/story.js` | 편지의 전제 두 줄, `STORY.wingPremise`(관 들어가기 글 아래 `.story-wing-intro-premise`), `entrance.decideNote` |

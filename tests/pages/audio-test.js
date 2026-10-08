@@ -104,20 +104,27 @@ class FakeCtx extends EventTarget {
     const rec = { name: null, when: null, stopped: false };
     return {
       buffer: null, loop: false, connect() {}, disconnect() {},
-      start(when = 0) { rec.when = when; rec.name = c.names.get(this.buffer) ?? 'synth'; c.starts.push(rec); },
+      start(when = 0) { rec.when = when; rec.name = c.names.get(this.buffer) ?? 'synth'; rec.buf = this.buffer; c.starts.push(rec); },
       stop() { rec.stopped = true; },
     };
   }
 }
 
 // 가짜 소리 판 엔진 하나: 사건 버스와 재생 진행을 따로 둔다(다른 점검의 소리 엔진과 섞이지 않게)
-function fakeEngine(initialState = 'suspended') {
+// durOf(path) → 그 파일 소리의 길이(초). null이면 없는 파일. 주지 않으면 아주 짧은 소리(10표본)
+function fakeEngine(initialState = 'suspended', durOf = null) {
   let tickFn = null;
   let c = null;
   const names = new WeakMap();
   const e = createAudioEngine({
     createContext: () => { c = new FakeCtx(initialState); c.names = names; return c; },
-    loadBuffer: async (path, cx) => { const b = cx.createBuffer(1, 10, 8000); names.set(b, path.replace(/^assets\/audio\//, '').replace(/\.mp3$/, '')); return b; },
+    loadBuffer: async (path, cx) => {
+      const d = durOf ? durOf(path) : 10 / 8000;
+      if (d === null) throw new Error('없는 파일');
+      const b = cx.createBuffer(1, Math.max(1, Math.round(d * 8000)), 8000);
+      names.set(b, path.replace(/^assets\/audio\//, '').replace(/\.mp3$/, ''));
+      return b;
+    },
     bus: { on: () => () => {}, emit: () => {} },
     timers: { setInterval: (fn) => { tickFn = fn; return 1; }, clearInterval: () => { tickFn = null; } },
   });
@@ -374,6 +381,69 @@ window.__audioTest = {
     return { beatSec: g.beatSec, countInAt: countIn ? countIn.when - t0 : null, firstAt: armAt - t0, gap: armAt - (countIn?.when ?? 0), armBeforeCountIn: armCall <= (countIn?.when ?? -1), completed: r.completed };
   },
 
+  // 쉼에 두드리기 칸(rhythm.js buildPauseGrid): '준비' 딱 소리 → 1초 뒤 첫 음보 → 조각마다 실제 길이 + 쉼 1초.
+  // 판정 회차는 단위 시각을 정할 때 시각표와 함께 열린다. 없는 조각은 딸깍 소리 길이로 셈한다. 멈췄다 재개하면 '준비'부터 다시
+  async pauseGridCase() {
+    const durs = { '0-0': 0.4, '0-1': 0.6, '0-2': 0.5, '0-3': 0.3, '1-1': null };
+    const { e, ctx, advance } = fakeEngine('running', (p) => {
+      const m = /t-sijo\/(\d-\d)\.mp3$/.exec(p);
+      if (!m) return 0.05;
+      return m[1] in durs ? durs[m[1]] : 0.5;
+    });
+    e.unlock();
+    const g = R.buildPauseGrid(song);
+    const s = R.createPauseTapSession(g, {});
+    const arms = [];
+    const judge = { arm: (seg, at, tm) => { arms.push({ seg, at, now: ctx().currentTime, beats: tm?.beats?.length ?? 0, firstOpen: tm ? tm.beats[0].clipEnd - 0.15 : null }); s.arm(seg, at, tm); }, disarm: (seg) => s.disarm(seg) };
+    const beats = [];
+    const closes = [];
+    const t0 = ctx().currentTime;
+    const h = e.play(g, [0, 1, 2], {
+      judge,
+      countIn: true,
+      // 학생처럼 조각이 끝난 뒤 쉼 가운데(조각 끝 + 0.4초)에 친다
+      onBeat: (b) => { beats.push(b); s.tap(b.clipEnd + 0.4); },
+      onSegmentEnd: ({ segment }) => closes.push(s.close(segment)),
+    });
+    await flush();
+    const tickBuf = e.debug().synth.get('tick');
+    const first = ctx().starts.slice();
+    const ready = first.filter((x) => x.buf === tickBuf);
+    advance(ctx().currentTime + 40);
+    const r = await h.finished;
+    const voices = ctx().starts.filter((x) => x.name.startsWith('voice/'));
+    const clickBuf = e.debug().synth.get('click');
+    const clicks = ctx().starts.filter((x) => x.buf && x.buf === clickBuf);
+    // 멈췄다 재개: '준비'부터 다시, 진행 중이던 단위를 새 시각에 다시 연다
+    const arms2 = [];
+    const restarts = [];
+    const s2 = R.createPauseTapSession(g, {});
+    const h2 = e.play(g, [0, 1], { judge: { arm: (seg, at, tm) => { arms2.push({ seg, at }); s2.arm(seg, at, tm); }, disarm: (seg) => s2.disarm(seg) }, countIn: true, onRestart: (x) => restarts.push(x.segment) });
+    await flush();
+    const readyBefore = ctx().starts.filter((x) => x.buf === tickBuf).length;
+    advance(ctx().currentTime + 2.0);
+    e.pause('menu');
+    gate.active = true; e.resume('menu'); gate.active = false;
+    await flush();
+    const readyAfter = ctx().starts.filter((x) => x.buf === tickBuf).length;
+    advance(ctx().currentTime + 40);
+    const r2 = await h2.finished;
+    e.dispose();
+    return {
+      ready: ready.map((x) => x.when - t0),
+      voiceWhen: voices.slice(0, 9).map((x) => +(x.when - t0).toFixed(4)),
+      voiceNames: voices.slice(0, 9).map((x) => x.name),
+      clickWhen: clicks.map((x) => +(x.when - t0).toFixed(4)),
+      beat0: beats[0] ? { when: beats[0].when - t0, clipEnd: beats[0].clipEnd - t0, pauseEnd: beats[0].pauseEnd - t0 } : null,
+      arms: arms.map((a) => ({ seg: a.seg, at: +(a.at - t0).toFixed(4), now: +(a.now - t0).toFixed(4), beats: a.beats, firstOpen: +(a.firstOpen - t0).toFixed(4) })),
+      closes: closes.map((c) => ({ seg: c.segment, ok: c.ok, missed: c.missed })),
+      completed: r.completed,
+      restarts, readyBefore, readyAfter,
+      rearmed: arms2.filter((a) => a.seg === 0).length,
+      completed2: r2.completed,
+    };
+  },
+
   // 이어 내다가 단위 끝(onSegmentEnd)에서 멈추면 다음 단위를 내지 않는다(놓친 단위에서 멈추기)
   async stopOnEndCase() {
     const { e, ctx, advance } = fakeEngine('running');
@@ -430,8 +500,13 @@ window.__audioTest = {
     const tapSound = log.slice(from).map((r) => r.name).pop();
 
     from = log.length;
-    const cal = await engine.playCalibration({ count: 8, intervalSec: 0.2 }).finished;
-    const bellSound = log.slice(from).map((r) => r.name)[0];
+    const calBeats = [];
+    const cal = await engine.playCalibration({ count: 8, intervalSec: 0.2, onBeat: (b) => calBeats.push(b) }).finished;
+    const calLog = log.slice(from);
+    const calNames = calLog.map((r) => r.name);
+    const bellSound = calNames.find((n) => n !== 'tick');
+    const firstBellAt = calLog.find((r) => r.name === 'sfx:bell')?.when ?? null;
+    const countAt = calLog.filter((r) => r.name === 'tick').map((r) => r.when);
 
     engine.sfx('fog');
     await wait(150);
@@ -447,7 +522,9 @@ window.__audioTest = {
 
     return {
       noBeat: noBeat.slice(), masterMuted, masterOn, vol, volSet, volClamped,
-      tapTime, tapSound, bells: cal.bells, bellSound, sfxMissing,
+      tapTime, tapSound, bells: cal.bells, bellSound, sfxMissing, calNames, firstBellAt, countAt,
+      calBeats: calBeats.map((b) => b.kind + (b.kind === 'count' ? b.n : b.index)),
+      tickMissing: missing.includes('assets/audio/sfx/tick.mp3'),
       fetch404Missing, fetch404Completed: r2.completed === true,
     };
   },

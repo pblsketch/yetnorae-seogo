@@ -86,6 +86,17 @@ node tests/check-voice.mjs
 - 이미 받은 줄은 `tools/voice_cache/`에 있어 다시 돈을 쓰지 않는다. 목소리 기준 음성은 `assets/raw/voice-ref/`에서 되살린다. 둘 다 저장소 밖이므로 다른 기기에서는 사용자에게 받아 같은 자리에 둔다.
 - 쓴 돈이 한도(`--max-usd`, 기본 3 USD)에 닿으면 도구가 멈춘다(동시 요청 때문에 조금 넘을 수 있으니 한도를 여유 있게 정하지 않는다). 만든 것은 캐시에 남으므로 승인을 받아 한도를 올린 뒤 같은 명령을 다시 돌리면 이어서 만든다.
 - 끝에 도구가 알리는 '받아쓰기 일치 0.6 아래 줄'과 '음절 비율로 자른 조각'은 글 확인 문서의 '먼저 들어 볼 낭송'에 모이고, 사람이 귀로 확인한다.
+- **경계가 어긋난 줄만 음보마다 따로 읽히기**(교사 승인 뒤): 줄 목록 JSON(`{"lines": [[노래 id, 줄 key], …], "context": {}}`, 예: `design/voice-audit/regen-lines.json`)을 만들고
+
+  ```sh
+  python tools/voice/build_voice.py --per-foot --lines <줄 목록> --dry-run --max-usd 0.3      # 요청 수·요금(키 없이)
+  YETNORAE_FISH_API_KEY="$(cat "$LOCALAPPDATA/yetnorae/fish.key")" \
+    python tools/voice/build_voice.py --per-foot --lines <줄 목록> --backup design/voice-audit/backup-<시각> --max-usd 0.3 --credit-wait 150
+  node tools/manifest/build.mjs && node tools/text/review-doc.mjs && node tests/check-voice.mjs
+  ```
+
+  그 줄의 조각만 바뀌고(`cut: 'per-foot'`), 바꾸기 전 조각과 생성 기록·자산 목록 조각은 `--backup` 폴더에 같은 경로로 남는다. 되돌리려면 그 폴더의 `assets/`를 저장소 맨 위에 그대로 덮어 쓰고 `node tools/manifest/build.mjs`를 다시 돌린다. 한 음절 음보가 이상하게 나오면 줄 목록의 `context`에 `{"<조각 경로>": ","}`를 넣어 그 음보만 쉼표를 붙여 다시 읽힌다. `--credit-wait`는 끝에 충전액의 차이(실제 차감)만 알린다(충전액 자체는 쓰지 않는다). 음보마다 읽은 줄 전체 목록은 `design/voice-audit/regen-lines-all.json`이고, 음량 목표는 줄 단위 조각만 보고 정하므로 같은 목록으로 다시 돌려도 결과가 같다.
+- **낭송용 발음 표기**: 낭송이 옛 표기를 다른 소리로 읽으면(예: '뫼'를 '뿌·삐'처럼) `design/voice-audit/syllable_audit.py`로 같은 종류를 전체에서 찾고, 후보 표기를 `design/voice-audit/pron_trial.py`로 두 목소리에 짧게 시험해(`--dry-run`으로 요금 먼저) 받아쓰기로 고른 뒤 `tools/voice/pronounce.json`에 규칙을 더한다. 그 글자가 든 줄을 `--per-foot`로 다시 만들고(칸을 넘으면 그 음보에 `context`로 뒤 쉼표), `node tools/manifest/build.mjs && node tools/text/review-doc.mjs && node tests/check-voice.mjs && node tests/check-review-doc.mjs`.
 
 ## 7. 그림 만들기
 

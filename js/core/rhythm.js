@@ -1,5 +1,6 @@
 // 박자 엔진. 화면과 소리 판 없이 시각(초)만 다룬다. Node에서 바로 시험한다.
-// 노래의 낭송 조각을 일정한 박자 칸에 놓고, 탭을 판정 창으로 판정하고, 박자 보정값과 리믹스 지점을 계산한다.
+// 노래의 낭송 조각을 일정한 박자 칸(이어 읽기)이나 쉼 칸(재기 두드리기: 조각 뒤 쉼)에 놓고, 탭을 판정 창으로 판정하고,
+// 박자 보정값과 리믹스 지점을 계산한다.
 // 시각은 모두 '초'이고, 판정 창과 보정값만 'ms'다. 소리 판(audio.js)이 정한 시작 시각을 받아 칸을 연다(arm).
 import { voiceClipPath, isMetricFoot } from './song-shape.js';
 
@@ -19,7 +20,18 @@ export const CALIBRATION_BEATS = 8;           // 박자 보정 종소리 수
 export const CALIBRATION_INTERVAL_SEC = 0.8;  // 종소리 간격
 export const CALIBRATION_MIN_MATCHED = 5;     // 종과 짝지어진 탭이 이보다 적으면 보정 실패(보정값 0)
 export const CALIBRATION_SKIP_OFFSET_MS = 0;  // 보정을 건너뛰면 쓰는 값
+export const CALIBRATION_COUNTDOWN = 3;       // 종소리 앞에 같은 간격으로 '셋·둘·하나'를 센다(짝짓지 않는다)
 export const REMIX_WINDOW_MS = { before: 700, after: 1500 }; // 리믹스 바뀌는 지점 판정 창(지점 앞/뒤)
+
+// ── 쉼에 두드리기(교사 결정 2026-10-07): 재기 두드리기는 음보(향가는 구) 하나를 읽고 쉬는 사이에 친다 ──
+export const TAP_PAUSE_SEC = 1.0;             // 음보 조각 뒤의 쉼. 이 쉼에 장구를 친다
+export const TAP_PAUSE_LEAD_MS = 150;         // 판정 창은 조각이 끝나기 이만큼 앞에서 열린다
+export const TAP_PAUSE_AFTER_MS = 150;        // 쉼이 끝난 뒤 이만큼까지 받는다
+export const TAP_READY_SEC = 1.0;             // 새로 시작할 때 '준비' 소리 뒤 첫 음보까지
+export const TAP_READY_SOUND = 'tick';        // '준비' 소리(장구·종과 다른 짧은 딱 소리, 판정하지 않는다)
+export const PAUSE_UNIT_GAP_SEC = 0.2;        // 단위를 판정한 뒤 다음 단위 첫 음보까지(그 사이에 멈출 수 있게)
+export const PAUSE_TAIL_SEC = 0.05;           // 마지막 창이 닫힌 뒤 단위를 판정하기까지의 여유
+export const PAUSE_FALLBACK_CLIP_SEC = 0.6;   // 조각 길이를 모를 때 어림(소리 엔진은 실제 조각 길이를 쓴다)
 
 const arr = (v) => (Array.isArray(v) ? v : []);
 // 부동소수 오차로 경계(정확히 150ms)가 밖으로 밀리지 않게 마이크로초 단위로 반올림한다.
@@ -178,6 +190,120 @@ export function createTapSession(grid, { offsetMs = 0, windowMs = TAP_WINDOW_MS,
   };
 }
 
+// ── 쉼에 두드리기 칸(재기 두드리기) ──
+// 음보(향가는 구) 조각 하나를 낸 뒤 정해진 쉼(TAP_PAUSE_SEC)을 두고, 학생은 그 쉼에 장구를 친다.
+// 조각 길이는 조각을 불러와야 알 수 있으므로 칸에는 순서와 쉼만 두고, 시각은 낼 때 pauseSegmentTiming으로 정한다.
+// 고려가요 여음·후렴·되풀이 머리(offbeat)는 쉼 없이 이어 읽고 판정 창도 없다.
+// 단위의 끝(판정하는 때)은 마지막 쉼 + 창 뒤 여유 + 보정값(늦게 치는 기기) 뒤라서, 마지막 음보의 창이 잘리지 않는다.
+// opts: { pauseSec, leadMs, afterMs, offsetMs, readySec, gapSec, clipSec(조각 길이 어림) }
+// 돌려주는 값: { songId, genre, pause: true, pauseSec, leadMs, afterMs, tailSec, gapSec, countInSec, countInSound,
+//               fallbackClipSec, beats, segments }
+//  beats[i]: { index, segment, unit, line, foot, path, pauseSec, offbeat? }   segments[i]: { index, unit, line, beats }
+export function buildPauseGrid(song, opts = {}) {
+  const pauseSec = opts.pauseSec ?? TAP_PAUSE_SEC;
+  const leadMs = opts.leadMs ?? TAP_PAUSE_LEAD_MS;
+  const afterMs = opts.afterMs ?? TAP_PAUSE_AFTER_MS;
+  const offsetMs = Number.isFinite(opts.offsetMs) ? opts.offsetMs : 0;
+  if (!(pauseSec > 0)) throw new Error('쉼은 0보다 길어야 한다: ' + pauseSec);
+  const beats = [];
+  const segments = tapUnits(song).map((u, index) => {
+    const seg = { index, unit: u.unit, line: u.line, beats: [] };
+    for (const b of u.beats) {
+      const beat = { index: beats.length, segment: index, unit: b.unit, line: b.line, foot: b.foot, path: b.path ?? null, pauseSec: b.offbeat ? 0 : pauseSec };
+      if (b.offbeat) beat.offbeat = b.offbeat;
+      seg.beats.push(beat.index);
+      beats.push(beat);
+    }
+    return seg;
+  });
+  return {
+    songId: song.id, genre: song.genre, pause: true,
+    pauseSec, leadMs, afterMs,
+    tailSec: (afterMs + Math.max(0, offsetMs)) / 1000 + PAUSE_TAIL_SEC,
+    gapSec: opts.gapSec ?? PAUSE_UNIT_GAP_SEC,
+    countInSec: opts.readySec ?? TAP_READY_SEC,
+    countInSound: TAP_READY_SOUND,
+    fallbackClipSec: opts.clipSec ?? PAUSE_FALLBACK_CLIP_SEC,
+    beats, segments,
+  };
+}
+
+// 쉼 칸 단위 하나를 at부터 낼 때의 시각. clipSecOf(박) → 그 조각의 길이(초, 모르면 null → 어림).
+// 돌려주는 값: { segment, at, end, beats: [{ beat, when(조각 시작), clipEnd(조각 끝 = 쉼 시작), pauseEnd }] }
+export function pauseSegmentTiming(grid, segIndex, at, clipSecOf = null) {
+  const seg = grid.segments[segIndex];
+  if (!seg) throw new Error('없는 단위: ' + segIndex);
+  let t = at;
+  const beats = seg.beats.map((bi) => {
+    const b = grid.beats[bi];
+    const c = clipSecOf?.(b);
+    const clip = Number.isFinite(c) && c >= 0 ? c : grid.fallbackClipSec ?? PAUSE_FALLBACK_CLIP_SEC;
+    const when = t;
+    const clipEnd = when + clip;
+    const pauseEnd = clipEnd + (b.pauseSec ?? 0);
+    t = pauseEnd;
+    return { beat: bi, when, clipEnd, pauseEnd };
+  });
+  return { segment: segIndex, at, end: t + (grid.tailSec ?? 0), beats };
+}
+
+// 쉼에 두드리기 회차. 판정 창: [조각 끝 − leadMs, 쉼 끝 + afterMs](경계 포함). 보정값은 탭 시각에서 뺀다.
+// 소리 엔진이 단위를 낼 때 arm(단위, 시작 시각, 시각표)으로 연다(시각표가 없으면 어림 길이로 셈한다).
+// tap 결과: { hit: true, … } | { hit: false, again: true }(이미 친 쉼) | { hit: false, outside: true }(낭송 중 등 창 밖)
+//  창 밖 탭은 놓친 박으로 세지 않는다. 쉼에 치지 않은 음보만 단위를 닫을 때 놓친 박이 된다(그 단위를 다시 듣는다).
+// 놓친 박이 회차 전체로 기준(MISS_SUGGEST_SLASH)에 닿는 순간 한 번 suggestSlash: true.
+export function createPauseTapSession(grid, { offsetMs = 0, leadMs = grid.leadMs ?? TAP_PAUSE_LEAD_MS, afterMs = grid.afterMs ?? TAP_PAUSE_AFTER_MS, missLimit = MISS_SUGGEST_SLASH } = {}) {
+  const armed = new Map();          // 단위 → [{ beat, open, close, hit }]
+  const passed = new Set();
+  const missesBy = grid.segments.map(() => 0);
+  let totalMissed = 0;
+  let suggested = false;
+  const metric = (segIndex) => grid.segments[segIndex].beats.filter((bi) => !grid.beats[bi].offbeat);
+
+  return {
+    arm(segIndex, at, timing = null) {
+      if (!grid.segments[segIndex]) throw new Error('없는 단위: ' + segIndex);
+      const tm = timing ?? pauseSegmentTiming(grid, segIndex, at);
+      armed.set(segIndex, tm.beats.filter((b) => !grid.beats[b.beat].offbeat).map((b) => ({ beat: b.beat, open: b.clipEnd - leadMs / 1000, close: b.pauseEnd + afterMs / 1000, hit: false })));
+    },
+    disarm(segIndex) { armed.delete(segIndex); },
+    tap(tapTime) {
+      if (typeof tapTime !== 'number' || !Number.isFinite(tapTime)) return { hit: false, ignored: true };
+      const x = tapTime - offsetMs / 1000;
+      let best = null;
+      let again = false;
+      for (const [segIndex, list] of armed) {
+        for (const e of list) {
+          if (toMs(x - e.open) < 0 || toMs(e.close - x) < 0) continue;
+          if (e.hit) { again = true; continue; }
+          if (!best || e.open < best.e.open) best = { e, segIndex };
+        }
+      }
+      if (!best) return again ? { hit: false, again: true } : { hit: false, outside: true };
+      best.e.hit = true;
+      const b = grid.beats[best.e.beat];
+      return { hit: true, beat: b.index, segment: best.segIndex, unit: b.unit, line: b.line, foot: b.foot, deltaMs: toMs(x - best.e.open) - leadMs };
+    },
+    close(segIndex) {
+      const list = armed.get(segIndex) ?? metric(segIndex).map((bi) => ({ beat: bi, hit: false }));
+      armed.delete(segIndex);
+      const missedBeats = list.filter((e) => !e.hit).map((e) => e.beat);
+      const missed = missedBeats.length;
+      missesBy[segIndex] += missed;
+      totalMissed += missed;
+      let suggestSlash = false;
+      if (!suggested && totalMissed >= missLimit) { suggested = true; suggestSlash = true; }
+      if (missed === 0) passed.add(segIndex);
+      return { segment: segIndex, ok: missed === 0, missed, missedBeats, totalMissed, suggestSlash, replay: missed > 0 };
+    },
+    // 박이 하나도 없는 단위(후렴만 있는 줄): 두드릴 것이 없어 듣기만 한다
+    listenOnly: (segIndex) => metric(segIndex).length === 0,
+    missesBySegment: () => missesBy.slice(),
+    totalMissed: () => totalMissed,
+    done: () => passed.size === grid.segments.length,
+  };
+}
+
 // ── 박자 보정(spec 15) ──
 
 // 종소리 시각들
@@ -192,9 +318,18 @@ export function pulseGrid({ count, intervalSec, sound }) {
   return { songId: null, genre: null, tempo: 60 / intervalSec, beatSec: intervalSec, ...layout([{ unit: 0, line: null, beatSec: intervalSec, beats }], 0) };
 }
 
-// 보정용 박자 칸: 단위 하나, 종소리 박 count개(낭송 조각 없음)
-export function calibrationGrid({ count = CALIBRATION_BEATS, intervalSec = CALIBRATION_INTERVAL_SEC } = {}) {
-  return pulseGrid({ count, intervalSec, sound: 'bell' });
+// 보정용 박자 칸: 단위 하나, (countdown이면 같은 간격의 '셋·둘·하나' 딱 소리 countdown개 뒤에) 종소리 박 count개(낭송 조각 없음).
+// 세는 박에는 cue: 'count'와 남은 수(n: 3, 2, 1)가 붙는다. 종소리만 보정에 쓴다.
+export function calibrationGrid({ count = CALIBRATION_BEATS, intervalSec = CALIBRATION_INTERVAL_SEC, countdown = 0 } = {}) {
+  if (!countdown) return pulseGrid({ count, intervalSec, sound: 'bell' });
+  if (!(count > 0) || !(intervalSec > 0) || !(countdown > 0)) throw new Error('박 수와 간격은 0보다 커야 한다');
+  const beats = [
+    ...Array.from({ length: countdown }, (_, i) => ({ unit: 0, line: null, foot: i, path: null, sound: TAP_READY_SOUND, cue: 'count', n: countdown - i })),
+    ...Array.from({ length: count }, (_, i) => ({ unit: 0, line: null, foot: countdown + i, path: null, sound: 'bell' })),
+  ];
+  const grid = { songId: null, genre: null, tempo: 60 / intervalSec, beatSec: intervalSec, ...layout([{ unit: 0, line: null, beatSec: intervalSec, beats }], 0) };
+  grid.beats.forEach((b, i) => { if (beats[i].cue) { b.cue = beats[i].cue; b.n = beats[i].n; } });
+  return grid;
 }
 
 // 걷기 한 걸음의 박자 칸: 노래 빠르기로 장구 네 번(spec 5.4 '네 박마다 한 걸음')

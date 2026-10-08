@@ -10,6 +10,9 @@
     python tools/voice/build_voice.py [--only id,id] [--write-tempo] [--max-usd 3]
                                                                       # 실제 조각(assets/audio/voice/…)과 생성 기록. 목소리는 승인 배정
                                                                       # (voices.json approved: default + bySong, 노래마다 목소리)
+    python tools/voice/build_voice.py --per-foot --lines <줄 목록.json> --dry-run      # 경계가 어긋난 줄만 음보마다 따로: 요청 수·요금
+    python tools/voice/build_voice.py --per-foot --lines <줄 목록.json> --backup <폴더> --max-usd 0.3
+                                                                      # 그 줄의 조각만 바꾼다(cut: per-foot). 바꾸기 전 조각은 --backup에
 
 키: 환경 변수 YETNORAE_FISH_API_KEY로만 받는다. 키를 화면·기록·파일 어디에도 쓰지 않고, 오류 글에서도 지운다.
     예) YETNORAE_FISH_API_KEY="$(cat "$LOCALAPPDATA/yetnorae/fish.key")" python tools/voice/build_voice.py …
@@ -65,6 +68,7 @@ REF_BACKUP = os.path.join(ROOT, 'assets', 'raw', 'voice-ref')   # 승인한 기�
 SONGS_DIR = os.path.join(ROOT, 'js', 'data', 'songs')
 PART = os.path.join(ROOT, 'assets', 'manifest.parts', 'voice.json')
 CONFIG = os.path.join(HERE, 'voices.json')
+PRONOUNCE = os.path.join(HERE, 'pronounce.json')   # 낭송용 발음 표기 표(TTS에 보내는 글에만 쓴다. 화면 글은 그대로)
 API = 'https://api.fish.audio'
 ENV_KEY = 'YETNORAE_FISH_API_KEY'
 
@@ -122,6 +126,32 @@ def redact(text):
     if KEY:
         s = s.replace(KEY, '[지움]')
     return re.sub(r'(?i)(bearer\s+)[A-Za-z0-9._\-]+', r'\1[지움]', s)
+
+
+def load_pronounce(path=None):
+    """낭송용 발음 표기 표: [(바꿀 글, 읽힐 글)]. 받아쓰기로 실제로 다른 소리로 읽힌다고 확인한 옛 표기만 둔다(예: 뫼 → 뭬).
+    바꾼 글은 한글 음절 수가 같아야 한다(음보 길이·자르기 맞춤이 그대로이도록)."""
+    path = path or PRONOUNCE
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding='utf-8') as f:
+        rules = json.load(f).get('rules') or []
+    out = []
+    for r in rules:
+        a, b = r.get('from'), r.get('to')
+        if not (isinstance(a, str) and isinstance(b, str) and hangul_only(a) and hangul_only(b)):
+            raise SystemExit(f'낭송용 발음 표기 표({rel(path)})의 규칙이 이상하다: {r}')
+        if len(hangul_only(a)) != len(hangul_only(b)):
+            raise SystemExit(f'낭송용 발음 표기 표: "{a}" → "{b}"는 음절 수가 달라 쓸 수 없다')
+        out.append((a, b))
+    return out
+
+
+def pronounce(text, rules=None):
+    """화면 글(오늘 소리) → TTS에 보낼 글. 표의 규칙을 차례로 모두 바꾼다."""
+    for a, b in (PRON if rules is None else rules):
+        text = text.replace(a, b)
+    return text
 
 
 def say(*parts):
@@ -296,6 +326,9 @@ def hangul_only(s):
 
 def syllables(s):
     return len(hangul_only(s))
+
+
+PRON = []                    # main에서 load_pronounce()로 채운다(자체 시험은 따로 넣는다)
 
 
 def similarity(a, b):
@@ -605,15 +638,46 @@ def assignment(cfg, song_ids):
     return out
 
 
+def tts_text(text, cand):
+    """TTS에 보내는(청구되는) 글: 후보의 direction + 글."""
+    return (cand.get('direction', '') + ' ' + text).strip()
+
+
+def tts_stamp(full, ref_sha, cand, cfg):
+    """원본 소리 캐시의 해시(글·모델·기준 음성·설정·말 빠르기)."""
+    return digest({'model': cfg['model'], 'text': full, 'ref': ref_sha, 'params': dict(cfg['tts']), 'speed': cand.get('speed', 1)})
+
+
+def tts_cache_path(stamp, cfg):
+    return os.path.join(CACHE, 'raw', stamp[:2], stamp + '.' + cfg['tts'].get('format', 'wav'))
+
+
+RESERVED = [0.0]             # 보냈지만 아직 셈하지 않은 요청의 돈(동시 요청이 한도를 넘지 않게 미리 잡아 둔다)
+
+
+def reserve(usd):
+    """요청 하나를 보내기 전에: 쓴 돈 + 보내는 중인 요청 + 이 요청이 --max-usd를 넘으면 보내지 않고 멈춘다."""
+    with SPEND_LOCK:
+        if spend_usd() + RESERVED[0] + usd > MAX_USD + 1e-12:
+            raise SystemExit(f'이 요청(추정 ${usd:.5f})을 보내면 한도 ${MAX_USD:g}를 넘는다(쓴 돈 ${spend_usd():.4f}, '
+                             f'보내는 중 ${RESERVED[0]:.4f}). 더 부르지 않는다(만든 것은 캐시에 남는다).')
+        RESERVED[0] += usd
+
+
+def release(usd):
+    with SPEND_LOCK:
+        RESERVED[0] = max(0.0, RESERVED[0] - usd)
+
+
 def tts(text, ref, cand, cfg):
-    """줄 하나의 원본 소리(캐시). 말 빠르기는 후보의 speed(기본 1) 그대로 — 빨리 읽히지 않는다."""
+    """줄 하나(--per-foot면 음보 하나)의 원본 소리(캐시). 말 빠르기는 후보의 speed(기본 1) 그대로 — 빨리 읽히지 않는다."""
     params = dict(cfg['tts'])
     speed = cand.get('speed', 1)
-    full = (cand.get('direction', '') + ' ' + text).strip()
-    stamp = digest({'model': cfg['model'], 'text': full, 'ref': ref['sha256'], 'params': params, 'speed': speed})
+    full = tts_text(text, cand)
+    stamp = tts_stamp(full, ref['sha256'], cand, cfg)
     if FAKE:
         return fake_line(text.split(), speed, seed=int(stamp[:6], 16))[0], stamp, False
-    path = os.path.join(CACHE, 'raw', stamp[:2], stamp + '.' + params.get('format', 'wav'))
+    path = tts_cache_path(stamp, cfg)
     with SPEND_LOCK:
         lock = TTS_LOCKS.setdefault(stamp, threading.Lock())
     with lock:   # 같은 글(예: 되풀이 줄)을 여러 일꾼이 한꺼번에 부르지 않게 한다
@@ -626,8 +690,13 @@ def tts_once(path, full, ref, params, speed, cfg, stamp):
             return f.read(), stamp, True
     payload = {'text': full, 'references': [{'audio': ref['audio'], 'text': ref['text']}],
                'prosody': {'speed': speed, 'volume': 0}, 'normalize': True, **params}
-    audio = request('/v1/tts', payload, cfg['model'], kind='msgpack')
-    spent('ttsBytes', len(full.encode('utf-8')))
+    cost = len(full.encode('utf-8')) / 1e6 * PRICE_PER_MBYTE
+    reserve(cost)
+    try:
+        audio = request('/v1/tts', payload, cfg['model'], kind='msgpack')
+        spent('ttsBytes', len(full.encode('utf-8')))
+    finally:
+        release(cost)
     if len(audio) < 1000:
         raise ApiError(f'소리가 너무 짧게 왔다({len(audio)}바이트): {full}')
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -745,7 +814,7 @@ def dry_run(plan, cfg, columns):
             totals['bytes'] += b
             for _, assign in columns:
                 cand = cfg['candidates'][assign[song['id']]]
-                totals['billed'] += len((cand.get('direction', '') + ' ' + line['text']).strip().encode('utf-8'))
+                totals['billed'] += len(tts_text(line['text'], cand).encode('utf-8'))
         totals['probe'] += sum(len(l['text'].encode('utf-8')) for l in probe_lines(song))
     voices = sorted({c for _, a in columns for c in a.values()})
     say(f'목소리 {", ".join(name for name, _ in columns)}({", ".join(voices)}) · 모델 {cfg["model"]}(유료) · 노래 {totals["songs"]}편 · 줄 단위로 읽힘')
@@ -771,12 +840,13 @@ def build_line(line, song, ref, cand, cfg, use_asr=True):
     cm = clip_map(song)
     paths = line['clips']
     feet = [cm[p]['text'] for p in paths]
+    said_feet = [pronounce(f) for f in feet]   # 받아쓰기 맞춤은 실제로 읽힌 글로
     counts = [max(1, syllables(f)) for f in feet]
     if use_asr == 'multi' and len(paths) == 1:
         use_asr = False   # 빠르기 재기: 자를 일이 없는 줄(향가 구 등)은 받아쓰기를 부르지 않는다
 
     def read(text):
-        audio, stamp, cached = tts(text, ref, cand, cfg)
+        audio, stamp, cached = tts(pronounce(text), ref, cand, cfg)
         x = decode(audio)
         heard = None
         words = None
@@ -786,16 +856,16 @@ def build_line(line, song, ref, cand, cfg, use_asr=True):
                 fake_words = fake_line(text.split(), cand.get('speed', 1), seed=int(stamp[:6], 16))[1]
             heard = asr(audio, len(x) / SR, timestamps=len(paths) > 1, fake_words=fake_words)
             words = heard['words'] if len(paths) > 1 else None
-            if words is not None and asr_boundaries(words, feet) is None and not FAKE:
+            if words is not None and asr_boundaries(words, said_feet) is None and not FAKE:
                 # 헛들은 받아쓰기(다른 말 등): 앞뒤 무음을 뺀 소리로 한 번 더 듣는다(다른 소리라 캐시도 따로).
                 s0, e0 = speech_span(x)
                 again = asr(wav_bytes(x[s0:e0]), (e0 - s0) / SR, timestamps=True)
                 shifted = [{**w, 'start': w['start'] + s0 / SR, 'end': w['end'] + s0 / SR} for w in again['words']]
-                if asr_boundaries(shifted, feet) is not None:
+                if asr_boundaries(shifted, said_feet) is not None:
                     heard, words = {**again, 'words': shifted}, shifted
-        pieces, method, cuts = cut_line(x, feet, words)
+        pieces, method, cuts = cut_line(x, said_feet, words)
         return {'x': x, 'stamp': stamp, 'cached': cached, 'heard': heard, 'pieces': pieces, 'method': method, 'cuts': cuts,
-                'spoken': text}
+                'spoken': text, 'tts': pronounce(text)}
 
     got = read(line['text'])
     if len(paths) > 1 and piece_trouble(got['pieces'], counts) is not None:
@@ -811,7 +881,7 @@ def build_line(line, song, ref, cand, cfg, use_asr=True):
     heard = got['heard']
     return {'pieces': out, 'method': got['method'], 'cuts': got['cuts'], 'stamp': got['stamp'], 'cached': got['cached'],
             'whole': whole, 'asr': heard['text'] if heard else None, 'lufsBefore': measured, 'gainDb': gain_db,
-            'spoken': got['spoken']}
+            'spoken': got['spoken'], 'tts': got['tts']}
 
 
 def synth_lines(work, ref, cand, cfg, jobs, use_asr=True):
@@ -1006,11 +1076,13 @@ def run_build(plan, assign, cfg, sample, jobs, write_tempo=False, tempo_override
     manifest_path = os.path.join(out_root, 'assets', 'audio', 'voice', 'manifest.json')
     old = {}
     old_voices = {}
+    old_per_foot = None
     if os.path.exists(manifest_path):
         with open(manifest_path, encoding='utf-8') as f:
             got = json.load(f)
         old = {c['path']: c for c in got.get('clips', [])}
         old_voices = (got.get('generator') or {}).get('voices') or {}
+        old_per_foot = (got.get('generator') or {}).get('perFoot')
     entries = dict(old)
     rows = []
     calls = sum(1 for r in results.values() if not r['cached'])
@@ -1039,9 +1111,11 @@ def run_build(plan, assign, cfg, sample, jobs, write_tempo=False, tempo_override
                     'lineText': r['spoken'], 'cut': r['method'], 'lineGainDb': round(r['gainDb'], 2),
                     'sha256': sha256_file(path), 'generation': r['stamp'],
                 }
+                if r['tts'] != r['spoken']:
+                    entry['spokenText'] = r['tts']     # 낭송용 발음 표기로 실제로 읽힌 글
                 if r['asr'] is not None:
                     entry['lineAsr'] = r['asr']
-                    entry['lineAsrMatch'] = round(similarity(r['spoken'], r['asr']), 3)
+                    entry['lineAsrMatch'] = round(similarity(r['tts'], r['asr']), 3)
                 entries[p] = entry
                 rows.append(entry)
         for f in os.listdir(song_dir):
@@ -1077,25 +1151,38 @@ def run_build(plan, assign, cfg, sample, jobs, write_tempo=False, tempo_override
     generator = {
         'service': 'Fish Audio API', 'model': cfg['model'], 'plan': f'유료 API 충전(종량 과금) · 플랫폼 구독 {account["packageType"]}',
         'assignment': record, 'voices': voices, 'tts': cfg['tts'],
-        'method': '줄 단위 낭송을 받아쓰기 낱말 시각(없으면 음절 비율)과 소리 골짜기로 음보마다 자름 · 늘이거나 줄이지 않음',
+        'method': METHOD,
         'fill': FILL, 'targetLufs': TARGET_LUFS, 'peakMaxDb': PEAK_MAX_DB, 'bitrate': BITRATE,
     }
+    if PRON:
+        generator['pronounce'] = [{'from': a_, 'to': b_} for a_, b_ in PRON]
+    if old_per_foot and any(e.get('cut') == 'per-foot' for e in clips_sorted):
+        generator['perFoot'] = {**old_per_foot, 'clips': sum(1 for e in clips_sorted if e.get('cut') == 'per-foot')}
     write_json(manifest_path, {'version': 1, 'source': 'Fish Audio', 'generator': generator, 'license': LICENSE,
                                'commercialUse': True, 'clips': clips_sorted})
     if not sample:
-        def gen(e):
-            v = voices[e['voice']]
-            return (f'tools/voice/build_voice.py · 모델 {cfg["model"]} · 목소리 {e["voice"]}({v["designModel"]} seed {v["designSeed"]}, '
-                    f'기준 음성 sha256 {v["referenceSha256"][:12]}) · 유료 API')
-        part = {'version': 1, 'assets': [{
-            'path': e['path'], 'kind': 'voice',
-            'source': f'Fish Audio TTS API({cfg["model"]}) — AI 합성 낭송',
-            'generator': gen(e), 'license': LICENSE, 'commercialUse': True, 'notes': e['text'],
-        } for e in clips_sorted]}
-        write_json(PART, part)
+        write_part(clips_sorted, voices, cfg, PART)
 
     report(rows, plan2, calls, natural)
     return rows, natural, results
+
+
+METHOD = ('줄 단위 낭송을 받아쓰기 낱말 시각(없으면 음절 비율)과 소리 골짜기로 음보마다 자름 · '
+          '경계가 어긋난 줄은 음보마다 따로 읽힘(cut: per-foot, --per-foot) · 늘이거나 줄이지 않음')
+
+
+def write_part(clips_sorted, voices, cfg, part_path):
+    """자산 목록 조각(assets/manifest.parts/voice.json): 조각마다 항목 하나."""
+    def gen(e):
+        v = voices[e['voice']]
+        return (f'tools/voice/build_voice.py · 모델 {cfg["model"]} · 목소리 {e["voice"]}({v["designModel"]} seed {v["designSeed"]}, '
+                f'기준 음성 sha256 {v["referenceSha256"][:12]}) · 유료 API')
+    part = {'version': 1, 'assets': [{
+        'path': e['path'], 'kind': 'voice',
+        'source': f'Fish Audio TTS API({cfg["model"]}) — AI 합성 낭송',
+        'generator': gen(e), 'license': LICENSE, 'commercialUse': True, 'notes': e['text'],
+    } for e in clips_sorted]}
+    write_json(part_path, part)
 
 
 def report(rows, plan, calls, natural):
@@ -1169,6 +1256,299 @@ def check_previews(paths, texts, use_asr):
                 line += ' (알림: 쉼이 긴 미리 듣기라 받아쓰기가 헛들었을 수 있다)'
         say('  ' + line)
     return bad
+
+
+# ── 음보마다 따로 읽히기(--per-foot) ──
+# 줄을 한 번에 읽혀 자르면 경계가 어긋나는 줄(받아쓰기 낱말 시각이 밀리거나, 음보가 이어 읽혀 소리에 골짜기가 없음)이 있다.
+# 그런 줄만 골라 음보(향가는 구, 고려가요 여음·후렴도)마다 그 음보의 오늘 소리를 TTS 한 번씩 읽힌다. 자를 일이 없다.
+# 목소리·모델·설정은 줄 단위와 같고(승인 배정), 다듬기는 'whole' 조각과 같다(그 소리 기준 문턱, 앞 LEAD_PAD·뒤 TAIL_PAD,
+# 짧은 페이드). 음량은 같은 노래의 다른 조각(같은 목소리)의 조각별 음량 가운데값에 맞춘다(봉우리 PEAK_MAX_DB 아래).
+# 조각 경로·이름은 그대로라 게임이 부르는 이름(voiceClipPath)이 바뀌지 않는다. 생성 기록에는 cut: 'per-foot',
+# spokenText(실제로 읽힌 글)를 남긴다. 바꾸기 전의 조각과 생성 기록은 --backup 폴더에 같은 경로로 남긴다(되돌리기용).
+
+FOOT_SEC_PER_SYL = (0.10, 0.45)   # 음보 소리 길이 ÷ 음절 수가 이 밖이면 '들어 볼 것'으로 알린다
+
+
+FOOT_TAIL_MIN = 0.010             # 칸을 조금 넘는 조각은 뒤 틈만 이만큼까지 줄여 칸에 넣는다(말소리는 그대로)
+
+
+def foot_piece(x, tail=TAIL_PAD):
+    """음보 하나를 따로 읽힌 소리를 다듬는다. 줄이 음보 하나뿐인 'whole' 조각과 같은 방법(tail: 소리 끝 뒤에 남길 틈)."""
+    db, _ = frame_db(x)
+    gate = line_gate(db)
+    span = speech_span(x, gate)
+    if span is None:
+        raise RuntimeError('소리가 비었다')
+    s0, e0 = span
+    y = x[max(0, s0 - int(LEAD_PAD * SR)):min(len(x), e0 + int(tail * SR))].copy()
+    fi, fo = int(FADE_IN * SR), int(FADE_OUT * SR)
+    if len(y) > fi + fo:
+        y[:fi] *= np.linspace(0, 1, fi)
+        y[-fo:] *= np.linspace(1, 0, fo)
+    return y
+
+
+def per_foot_spec(path):
+    """--lines 파일(JSON): {"lines": [[노래 id, 줄 key], …], "context": {조각 경로: 덧붙일 글}}.
+    줄 key는 plan.mjs의 줄 key(고려가요 '<연>-<줄>', 나머지 '<단위>-', 향가 '<구>-'). context는 아주 짧은 음보(한 음절 등)를
+    따로 읽혔을 때 소리가 이상하면 쉼표 같은 가벼운 맥락을 붙여 다시 읽히는 데 쓴다(조각 글은 그대로, spokenText에 남는다)."""
+    with open(path, encoding='utf-8') as f:
+        spec = json.load(f)
+    lines = []
+    for pair in spec.get('lines') or []:
+        if not (isinstance(pair, list) and len(pair) == 2):
+            raise SystemExit(f'--lines: 줄은 [노래 id, 줄 key] 모양이어야 한다: {pair}')
+        if tuple(pair) not in lines:
+            lines.append(tuple(pair))
+    if not lines:
+        raise SystemExit('--lines: 줄 목록(lines)이 비었다')
+    return lines, dict(spec.get('context') or {})
+
+
+def per_foot_items(plan, lines, context, assign, cfg):
+    """다시 읽힐 음보 목록: [{song, line, path, clip, spoken, full, cid, cand}]"""
+    songs = {s['id']: s for s in plan['songs']}
+    items = []
+    for sid, key in lines:
+        song = songs.get(sid)
+        if not song:
+            raise SystemExit(f'--lines: 노래 데이터에 없는 노래: {sid}')
+        line = next((l for l in song['lines'] if l['key'] == key), None)
+        if not line:
+            raise SystemExit(f'--lines: {sid}에 줄 {key}가 없다(있는 줄: {", ".join(l["key"] for l in song["lines"][:6])} …)')
+        cid = assign[sid]
+        cand = cfg['candidates'][cid]
+        cm = clip_map(song)
+        for p in line['clips']:
+            spoken = pronounce(cm[p]['text']) + context.get(p, '')
+            items.append({'song': song, 'line': line, 'path': p, 'clip': cm[p], 'spoken': spoken,
+                          'full': tts_text(spoken, cand), 'cid': cid, 'cand': cand})
+    used = {it['path'] for it in items}
+    stray = [p for p in context if p not in used]
+    if stray:
+        raise SystemExit('--lines의 context에 줄 목록 밖 조각: ' + ', '.join(stray))
+    return items
+
+
+def per_foot_cost(items, cfg):
+    """요청 수와 요금 추정(키 없이). 같은 목소리·같은 글은 한 번만 부른다. 캐시 해시는 승인 후보의 referenceSha256으로 미리 셈한다."""
+    reqs = {}
+    for it in items:
+        ref_sha = it['cand'].get('referenceSha256')
+        reqs.setdefault((it['cid'], it['full']), tts_stamp(it['full'], ref_sha, it['cand'], cfg) if ref_sha else None)
+    new = {k: st for k, st in reqs.items() if not (st and os.path.exists(tts_cache_path(st, cfg)))}
+    nbytes = sum(len(full.encode('utf-8')) for (_, full) in new)
+    short = [it for it in items if syllables(it['clip']['text']) <= 1]
+    retry = sum(len((it['full'] + ',').encode('utf-8')) for it in short)
+    return {'feet': len(items), 'requests': len(reqs), 'cached': len(reqs) - len(new), 'new': len(new), 'bytes': nbytes,
+            'usd': nbytes / 1e6 * PRICE_PER_MBYTE, 'short': len(short), 'retryUsd': retry / 1e6 * PRICE_PER_MBYTE}
+
+
+def per_foot_dry_run(items, nlines, cfg):
+    c = per_foot_cost(items, cfg)
+    songs = sorted({it['song']['id'] for it in items})
+    say(f'음보마다 따로 읽히기(--per-foot): 노래 {len(songs)}편 · 줄 {nlines}개 · 음보 조각 {c["feet"]}개 · 모델 {cfg["model"]}(유료)')
+    say(f'  요청: 서로 다른 (목소리, 글) {c["requests"]}개 = 캐시에 있음 {c["cached"]} + 새로 부름 {c["new"]}')
+    say(f'  요금 추정(USD): {c["bytes"]} 바이트 × ${PRICE_PER_MBYTE}/100만 바이트 = ${c["usd"]:.4f} (받아쓰기·목소리 설계 부르지 않음)')
+    say(f'  한 음절 음보 {c["short"]}개를 쉼표를 붙여 한 번씩 더 읽혀도 +${c["retryUsd"]:.4f}')
+    say(f'  한도(--max-usd) ${MAX_USD:g} ' + ('안' if c['usd'] <= MAX_USD else '넘음 — 실제로 돌리면 요청 없이 멈춘다'))
+    return c
+
+
+def lufs_of_file(path):
+    with open(path, 'rb') as f:
+        return lufs(decode(f.read()))
+
+
+def song_lufs_targets(items, out_root, jobs=8):
+    """노래마다 음량 목표(LUFS): 그 노래에서 줄 단위로 만든 조각(같은 목소리)의 조각별 음량 가운데값.
+    음보마다 읽은 조각(생성 기록의 cut per-foot와 이번에 만들 조각)은 빼므로, 같은 줄을 다시 돌려도 목표가 같다.
+    그 노래에 줄 단위 조각이 없으면 같은 목소리의 모든 노래의 줄 단위 조각 가운데값, 그것도 없으면 TARGET_LUFS."""
+    man_path = os.path.join(out_root, 'assets', 'audio', 'voice', 'manifest.json')
+    entries = json.load(open(man_path, encoding='utf-8')).get('clips', []) if os.path.exists(man_path) else []
+    skip = {it['path'] for it in items} | {e['path'] for e in entries if e.get('cut') == 'per-foot'}
+    songs = {it['song']['id']: it['song'] for it in items}
+    voice_of = {it['song']['id']: it['cid'] for it in items}
+    cache = {}
+
+    def measure(paths):
+        todo = [p for p in paths if p not in cache and os.path.exists(os.path.join(out_root, p))]
+        with cf.ThreadPoolExecutor(max_workers=jobs) as pool:
+            for p, v in zip(todo, pool.map(lambda q: lufs_of_file(os.path.join(out_root, q)), todo)):
+                cache[p] = v
+        return [cache[p] for p in paths if cache.get(p) is not None]
+
+    out = {}
+    for sid, song in songs.items():
+        vals = measure([c['path'] for c in song['clips'] if c['path'] not in skip])
+        if vals:
+            out[sid] = (float(np.median(vals)), len(vals), '같은 노래')
+            continue
+        pool_v = measure([e['path'] for e in entries if e.get('voice') == voice_of[sid] and e['path'] not in skip])
+        out[sid] = (float(np.median(pool_v)), len(pool_v), '같은 목소리 모든 노래') if pool_v else (TARGET_LUFS, 0, '기본값')
+    return out
+
+
+def run_per_foot(plan, assign, cfg, spec_path, jobs, backup_dir, out_root=None, part_path=None, credit_wait=0):
+    """--lines의 줄을 음보마다 따로 읽혀 그 줄의 조각만 바꾼다. 돌려주는 값: { written: [경로], skipped: [(노래, 줄, 까닭)], rows }"""
+    out_root = out_root or ROOT
+    part_path = part_path or PART
+    lines, context = per_foot_spec(spec_path)
+    items = per_foot_items(plan, lines, context, assign, cfg)
+    cost = per_foot_dry_run(items, len(lines), cfg)
+    if cost['usd'] > MAX_USD:
+        raise SystemExit(f'요금 추정 ${cost["usd"]:.4f}가 한도 ${MAX_USD:g}를 넘어 요청하지 않고 멈춘다.')
+    account = {'packageType': '자체 시험'} if FAKE else account_check()
+    credit0 = None if FAKE else ACCOUNT.get('apiCredit')
+    refs = {cid: design_voice(cid, cfg['candidates'][cid], cfg) for cid in sorted({it['cid'] for it in items})}
+    uniq = {}
+    for it in items:
+        uniq.setdefault((it['cid'], it['full']), it)
+    say(f'\n요청 {len(uniq)}개(캐시에 있으면 부르지 않음) · 동시 {jobs}')
+    got = {}
+    errors = []
+    with cf.ThreadPoolExecutor(max_workers=jobs) as pool:
+        futures = {pool.submit(tts, it['spoken'], refs[it['cid']], it['cand'], cfg): k for k, it in uniq.items()}
+        for i, fut in enumerate(cf.as_completed(futures), 1):
+            k = futures[fut]
+            try:
+                got[k] = fut.result()
+            except Exception as e:  # noqa: BLE001 — 하나의 실패를 모아 끝에 알린다
+                errors.append(f'{k[1]}: {redact(e)}')
+            if i % 25 == 0 or i == len(uniq):
+                say(f'  … {i}/{len(uniq)}')
+    if errors:
+        for e in errors[:20]:
+            say('  ✗ ' + e)
+        raise SystemExit(f'요청 {len(errors)}개 실패(받은 것은 캐시에 남아 다시 돌리면 이어서 만든다). 조각은 바꾸지 않았다.')
+    calls = sum(1 for _, _, cached in got.values() if not cached)
+
+    targets = song_lufs_targets(items, out_root, jobs=max(4, jobs))
+    tmp = tempfile.mkdtemp(prefix='voice-per-foot-')
+    rows = []
+    try:
+        for it in items:
+            audio, stamp, _ = got[(it['cid'], it['full'])]
+            raw = decode(audio)
+            target = targets[it['song']['id']][0]
+            slot = it['song']['slotSec']
+            fp = os.path.join(tmp, it['path'])
+            tail = TAIL_PAD
+            while True:
+                x = foot_piece(raw, tail)
+                measured = lufs(x)
+                peak = np.abs(x).max() + 1e-12
+                gain_db = (target - measured) if measured is not None else 0.0
+                gain_db = min(gain_db, PEAK_MAX_DB - 20 * np.log10(peak))
+                y = x * 10 ** (gain_db / 20)
+                encode_mp3(y, fp)
+                dur = probe_sec(fp)
+                shorter = tail - (dur - slot) - 0.003
+                if dur <= slot or tail <= FOOT_TAIL_MIN or shorter < FOOT_TAIL_MIN:
+                    break
+                tail = shorter      # 칸을 조금 넘으면 뒤 틈만 줄인다(말소리는 그대로, 늘이거나 줄이지 않음)
+            sp = speech_span(y)
+            speech = (sp[1] - sp[0]) / SR if sp else 0.0
+            n = max(1, syllables(it['clip']['text']))
+            notes = []
+            if dur > it['song']['slotSec']:
+                notes.append(f'칸 넘침 {dur:.3f}s > {it["song"]["slotSec"]:.3f}s')
+            if not (FOOT_SEC_PER_SYL[0] <= speech / n <= FOOT_SEC_PER_SYL[1]):
+                notes.append(f'음절당 {speech / n:.2f}s — 들어 볼 것')
+            if n <= 1:
+                notes.append('한 음절 — 들어 볼 것')
+            if tail < TAIL_PAD:
+                notes.append(f'칸에 넣으려고 뒤 틈 {TAIL_PAD * 1000:.0f}→{tail * 1000:.0f}ms')
+            rows.append({**it, 'tmp': fp, 'x': y, 'dur': dur, 'stamp': stamp, 'gainDb': gain_db, 'lufsBefore': measured,
+                         'lufs': lufs(y), 'target': target, 'speech': speech, 'notes': notes, 'tail': tail})
+        # 줄마다: 한 조각이라도 칸을 넘으면 그 줄은 바꾸지 않는다(이웃 조각과 경계가 맞물리므로 줄째로)
+        by_line = {}
+        for r in rows:
+            by_line.setdefault((r['song']['id'], r['line']['key']), []).append(r)
+        skipped = [(sid, key, '; '.join(n for r in rs for n in r['notes'] if n.startswith('칸 넘침')))
+                   for (sid, key), rs in by_line.items() if any(r['dur'] > r['song']['slotSec'] for r in rs)]
+        skip_keys = {(s, k) for s, k, _ in skipped}
+        write_rows = [r for r in rows if (r['song']['id'], r['line']['key']) not in skip_keys]
+
+        # 되돌리기용 백업: 처음 바꾸는 파일만(같은 백업 폴더로 다시 돌리면 맨 처음 것을 지킨다)
+        manifest_path = os.path.join(out_root, 'assets', 'audio', 'voice', 'manifest.json')
+        os.makedirs(backup_dir, exist_ok=True)
+        for src, rp in ((manifest_path, 'assets/audio/voice/manifest.json'), (part_path, 'assets/manifest.parts/voice.json')):
+            dst = os.path.join(backup_dir, rp)
+            if os.path.exists(src) and not os.path.exists(dst):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(src, dst)
+        for r in write_rows:
+            src = os.path.join(out_root, r['path'])
+            dst = os.path.join(backup_dir, r['path'])
+            if os.path.exists(src) and not os.path.exists(dst):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(src, dst)
+        for r in write_rows:
+            dst = os.path.join(out_root, r['path'])
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copyfile(r['tmp'], dst)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    with open(manifest_path, encoding='utf-8') as f:
+        man = json.load(f)
+    entries = {c['path']: c for c in man.get('clips', [])}
+    for r in write_rows:
+        song, clip = r['song'], r['clip']
+        entries[r['path']] = {
+            'path': r['path'], 'songId': song['id'], 'voice': r['cid'], 'unit': clip['unit'], 'line': clip['line'], 'foot': clip['foot'],
+            'text': clip['text'], 'duration': round(r['dur'], 4), 'slotSec': round(song['slotSec'], 4), 'tempo': song['tempo'],
+            'naturalSec': round(len(r['x']) / SR, 3), 'ttsSpeed': r['cand'].get('speed', 1), 'stretch': 1,
+            'lineText': r['line']['text'], 'spokenText': r['spoken'], 'cut': 'per-foot', 'gainDb': round(r['gainDb'], 2),
+            'lufs': round(r['lufs'], 2) if r['lufs'] is not None else None, 'sha256': sha256_file(os.path.join(out_root, r['path'])),
+            'generation': r['stamp'],
+        }
+        if r['tail'] < TAIL_PAD:
+            entries[r['path']]['tailPadSec'] = round(r['tail'], 3)
+    clips_sorted = sorted(entries.values(), key=lambda e: (e['songId'], e['path']))
+    g = man.get('generator') or {}
+    voices = dict(g.get('voices') or {})
+    for cid, ref in refs.items():
+        voices.setdefault(cid, voice_info(cid, cfg['candidates'][cid], ref, cfg))
+    g['voices'] = voices
+    g['method'] = METHOD
+    if PRON:
+        g['pronounce'] = [{'from': a_, 'to': b_} for a_, b_ in PRON]
+    g['perFoot'] = {'what': '경계가 어긋난 줄을 음보마다 따로 읽힘(cut: per-foot)', 'leadPadSec': LEAD_PAD, 'tailPadSec': TAIL_PAD,
+                    'tailPadMinSec': FOOT_TAIL_MIN,
+                    'loudness': '같은 노래의 다른 조각(같은 목소리)의 조각별 LUFS 가운데값에 맞춤(그 노래를 모두 다시 만들면 같은 목소리 다른 노래), 봉우리 peakMaxDb 아래',
+                    'clips': sum(1 for e in clips_sorted if e.get('cut') == 'per-foot')}
+    man['generator'] = g
+    man['clips'] = clips_sorted
+    write_json(manifest_path, man)
+    write_part(clips_sorted, voices, cfg, part_path)
+
+    say('\n조각                                   글              읽힌 글          칸(s)   길이(s)  LUFS(목표)   알림')
+    for r in rows:
+        mark = '  [줄 건너뜀]' if (r['song']['id'], r['line']['key']) in skip_keys else ''
+        lu = f'{r["lufs"]:.1f}' if r['lufs'] is not None else '?'
+        say(f'{r["path"].replace("assets/audio/voice/", ""):<36}{r["clip"]["text"]:<14}{r["spoken"]:<14}{r["song"]["slotSec"]:>7.2f}'
+            f'{r["dur"]:>9.3f}  {lu:>5}({r["target"]:.1f})  {"; ".join(r["notes"])}{mark}')
+    for sid, (t, n, src) in sorted(targets.items()):
+        say(f'  음량 목표 {sid}: {t:.1f} LUFS({src} 조각 {n}개의 가운데값)')
+    say(f'\n바꾼 조각 {len(write_rows)}개(줄 {len(by_line) - len(skipped)}개) · 새로 부른 TTS {calls}번 · 백업 {rel(backup_dir)}')
+    for sid, key, why in skipped:
+        say(f'  ✗ 줄 건너뜀(옛 조각 그대로): {sid} {key} — {why}')
+    if credit0 is not None and calls:
+        # 충전액 자체는 쓰지 않고 차이(실제 차감)만 알린다. 반영이 늦을 수 있어 credit_wait초까지 10초마다 다시 읽는다.
+        try:
+            waited = 0
+            while True:
+                delta = credit0 - float(get_json('/wallet/self/api-credit').get('credit') or 0)
+                if delta > 0 or waited >= credit_wait:
+                    break
+                time.sleep(10)
+                waited += 10
+            say(f'충전액 차이(실제 차감, {waited}초 기다림{", 반영이 늦으면 0일 수 있음" if delta <= 0 else ""}): {delta:.6f}')
+        except Exception as e:  # noqa: BLE001 — 알림일 뿐
+            say('충전액 차이를 읽지 못함: ' + redact(e))
+    return {'written': [r['path'] for r in write_rows], 'skipped': skipped, 'rows': rows, 'calls': calls}
 
 
 # ── 자체 시험(--self-test) ──
@@ -1322,6 +1702,7 @@ def self_test(cfg):
         bad.append(f'가짜 말소리인데 받아쓰기 점검이 문제를 알렸다: {qa["energy"][:3]} {qa["low"][:3]}')
     shutil.rmtree(tmp, ignore_errors=True)
     bad += self_test_assignment(cfg)
+    bad += self_test_per_foot(cfg)
     if bad:
         for b in bad[:30]:
             say('  ✗ ' + b)
@@ -1386,8 +1767,103 @@ def self_test_assignment(cfg):
     return bad
 
 
+def self_test_per_foot(cfg):
+    """--per-foot를 가짜 말소리로: 임시 사본(노래 하나의 조각·생성 기록·자산 목록 조각)에서 줄 하나를 바꾸고, 바뀐 조각·백업·
+    생성 기록(cut per-foot, spokenText, sha256)·칸·앞 무음·다른 줄은 그대로인지, 다시 돌려도 백업이 맨 처음 것인지,
+    요금 한도 미리 잡기(reserve)가 한도를 넘는 요청을 막는지 본다."""
+    global MAX_USD, PRON
+    bad = []
+    tmp = tempfile.mkdtemp(prefix='voice-self-test-pf-')
+    saved_max = MAX_USD
+    saved_pron = PRON
+    try:
+        # 낭송용 발음 표기: 바꾸기, 음절 수가 다른 규칙은 막기, 실제 표 읽기
+        if pronounce('님을 뫼셔 뫼히', [('뫼', '뭬')]) != '님을 뭬셔 뭬히':
+            bad.append('낭송용 발음 표기를 글에 적용하지 못했다')
+        write_json(os.path.join(tmp, 'pron-bad.json'), {'rules': [{'from': '뫼', 'to': '므웨'}]})
+        try:
+            load_pronounce(os.path.join(tmp, 'pron-bad.json'))
+            bad.append('음절 수가 바뀌는 낭송용 발음 표기 규칙을 막지 않았다')
+        except SystemExit:
+            pass
+        load_pronounce()
+        PRON = [('가시', '가씨')]   # 아래 음보마다 읽기에서 읽힌 글(spokenText)이 표를 따르는지 본다
+        sid = 'gasiri'
+        plan = load_plan([sid])
+        song = plan['songs'][0]
+        line = next(l for l in song['lines'] if len(l['clips']) >= 3)
+        root = os.path.join(tmp, 'root')
+        vdir = os.path.join(root, 'assets', 'audio', 'voice')
+        shutil.copytree(os.path.join(ROOT, 'assets', 'audio', 'voice', sid), os.path.join(vdir, sid))
+        shutil.copy2(os.path.join(ROOT, 'assets', 'audio', 'voice', 'manifest.json'), os.path.join(vdir, 'manifest.json'))
+        part = os.path.join(root, 'assets', 'manifest.parts', 'voice.json')
+        os.makedirs(os.path.dirname(part))
+        shutil.copy2(PART, part)
+        first = line['clips'][0]
+        spec = os.path.join(tmp, 'lines.json')
+        write_json(spec, {'lines': [[sid, line['key']]], 'context': {first: ','}})
+        before = {c['path']: sha256_file(os.path.join(root, c['path'])) for c in song['clips']}
+        assign = assignment(cfg, plan['allSongIds'])
+        backup = os.path.join(tmp, 'backup')
+        res = run_per_foot(plan, assign, cfg, spec, 2, backup, out_root=root, part_path=part)
+        with open(os.path.join(vdir, 'manifest.json'), encoding='utf-8') as f:
+            ent = {c['path']: c for c in json.load(f)['clips']}
+        if sorted(res['written']) != sorted(line['clips']):
+            bad.append(f'음보마다 읽기: 바꾼 조각 {res["written"]} ≠ 줄의 조각 {line["clips"]}')
+        cm = clip_map(song)
+        for p in line['clips']:
+            e = ent.get(p, {})
+            fp = os.path.join(root, p)
+            if e.get('cut') != 'per-foot' or e.get('text') != cm[p]['text'] or cm[p]['text'] not in (e.get('lineText') or ''):
+                bad.append(f'음보마다 읽기 {p}: 생성 기록(cut {e.get("cut")}, 글 {e.get("text")}, 줄 글 {e.get("lineText")})')
+            if e.get('spokenText') != pronounce(cm[p]['text']) + (',' if p == first else ''):
+                bad.append(f'음보마다 읽기 {p}: 읽힌 글(spokenText) {e.get("spokenText")}')
+            if e.get('sha256') != sha256_file(fp) or sha256_file(fp) == before[p]:
+                bad.append(f'음보마다 읽기 {p}: 파일이 바뀌지 않았거나 sha256이 기록과 다르다')
+            bk = os.path.join(backup, p)
+            if not os.path.exists(bk) or sha256_file(bk) != before[p]:
+                bad.append(f'음보마다 읽기 {p}: 백업이 없거나 바꾸기 전 파일이 아니다')
+            if e.get('duration', 99) > song['slotSec']:
+                bad.append(f'음보마다 읽기 {p}: 칸 넘침 {e.get("duration")}')
+            x = decode(open(fp, 'rb').read())
+            lead = np.flatnonzero(np.abs(x) > np.abs(x).max() * 10 ** (-30 / 20))[0] / SR
+            if lead > LEAD_MAX:
+                bad.append(f'음보마다 읽기 {p}: 앞 무음 {lead * 1000:.0f}ms')
+        for c in song['clips']:
+            if c['path'] not in line['clips'] and sha256_file(os.path.join(root, c['path'])) != before[c['path']]:
+                bad.append(f'음보마다 읽기: 목록 밖 조각이 바뀌었다 {c["path"]}')
+        with open(part, encoding='utf-8') as f:
+            listed = [x['path'] for x in json.load(f)['assets']]
+        if any(listed.count(p) != 1 for p in line['clips']):
+            bad.append('음보마다 읽기: 자산 목록 조각에 바꾼 조각이 한 번씩 있지 않다')
+        if not os.path.exists(os.path.join(backup, 'assets', 'audio', 'voice', 'manifest.json')):
+            bad.append('음보마다 읽기: 생성 기록 백업이 없다')
+        run_per_foot(plan, assign, cfg, spec, 2, backup, out_root=root, part_path=part)
+        if any(sha256_file(os.path.join(backup, p)) != before[p] for p in line['clips']):
+            bad.append('음보마다 읽기: 다시 돌렸더니 백업이 맨 처음 파일이 아니게 됐다')
+        # 요금 한도 미리 잡기
+        MAX_USD = 0.001
+        reserve(0.0006)
+        try:
+            reserve(0.0006)
+            bad.append('한도를 넘는 동시 요청을 미리 막지 않았다')
+        except SystemExit:
+            pass
+        release(0.0006)
+        reserve(0.0006)
+        release(0.0006)
+    except SystemExit as e:
+        bad.append(f'음보마다 읽기 자체 시험이 멈췄다: {e}')
+    finally:
+        MAX_USD = saved_max
+        PRON = saved_pron
+        RESERVED[0] = 0.0
+        shutil.rmtree(tmp, ignore_errors=True)
+    return bad
+
+
 def main():
-    global FFMPEG, FFPROBE, SAMPLES, MAX_USD
+    global FFMPEG, FFPROBE, SAMPLES, MAX_USD, PRON
     ap = argparse.ArgumentParser(description='낭송 조각 만들기(Fish Audio, 줄 단위로 읽히고 음보마다 자름)')
     ap.add_argument('--only', default='', help='노래 id(쉼표로 여럿)')
     ap.add_argument('--voice', default=None, help='voices.json의 후보 id(없으면 승인 배정). 견본·빠르기 재기에만 쓴다. --tempo-probe는 쉼표로 여럿')
@@ -1402,15 +1878,42 @@ def main():
     ap.add_argument('--max-usd', type=float, default=MAX_USD, help=f'이번 실행에서 쓸 돈의 한도(USD, 기본 {MAX_USD:g}). 넘을 요청은 보내지 않고 멈춘다')
     ap.add_argument('--jobs', type=int, default=4, help='동시에 보낼 요청 수(기본 4)')
     ap.add_argument('--self-test', action='store_true', help='API 없이 가짜 말소리로 나머지 과정을 시험(임시 폴더)')
+    ap.add_argument('--per-foot', action='store_true', help='--lines의 줄만 음보마다 따로 읽혀 그 줄의 조각을 바꾼다(cut: per-foot)')
+    ap.add_argument('--lines', default=None, help='--per-foot 줄 목록 JSON: {"lines": [[노래 id, 줄 key], …], "context": {조각 경로: 덧붙일 글}}')
+    ap.add_argument('--credit-wait', type=int, default=0, help='--per-foot: 끝에 충전액 차이(실제 차감)가 반영될 때까지 기다릴 초(10초마다 읽음)')
+    ap.add_argument('--backup', default=None, help='--per-foot: 바꾸기 전 조각·생성 기록을 같은 경로로 남길 폴더(git 밖, 예: design/voice-audit/backup-<시각>)')
     a = ap.parse_args()
 
     with open(CONFIG, encoding='utf-8') as f:
         cfg = json.load(f)
+    PRON = load_pronounce()
     if cfg['model'].endswith('-free'):
         raise SystemExit('무료 모델은 상업 이용이 안 됩니다. voices.json의 model을 유료 모델로 두세요.')
     if a.self_test:
         FFMPEG, FFPROBE = tool('ffmpeg'), tool('ffprobe')
         self_test(cfg)
+        return
+    if a.per_foot:
+        if not a.lines:
+            raise SystemExit('--per-foot에는 --lines <줄 목록 JSON>이 필요합니다.')
+        if a.voice or a.sample or a.write_tempo or a.tempo_probe or a.only:
+            raise SystemExit('--per-foot는 승인 배정대로 --lines의 줄만 만듭니다(--voice·--sample·--write-tempo·--tempo-probe·--only와 함께 쓰지 않음).')
+        MAX_USD = a.max_usd
+        lines, context = per_foot_spec(a.lines)
+        song_ids = sorted({sid for sid, _ in lines})
+        plan = load_plan(song_ids)
+        approved = assignment(cfg, plan['allSongIds'])
+        if not approved:
+            raise SystemExit('승인된 목소리가 없습니다(voices.json approved).')
+        items = per_foot_items(plan, lines, context, approved, cfg)
+        if a.dry_run:
+            per_foot_dry_run(items, len(lines), cfg)
+            return
+        if not a.backup:
+            raise SystemExit('--per-foot에는 --backup <폴더>가 필요합니다(바꾸기 전 조각을 남겨 되돌릴 수 있게).')
+        FFMPEG, FFPROBE = tool('ffmpeg'), tool('ffprobe')
+        run_per_foot(plan, approved, cfg, a.lines, a.jobs, os.path.abspath(a.backup), credit_wait=a.credit_wait)
+        say(f'\n이번에 쓴 돈(추정): ${spend_usd():.4f} (TTS {SPEND["ttsBytes"]} 바이트, 설계 {SPEND["design"]}번, 받아쓰기 {SPEND["asrSec"]:.0f}초)')
         return
     only = [s for s in a.only.split(',') if s.strip()]
     if a.tempo and not a.sample:

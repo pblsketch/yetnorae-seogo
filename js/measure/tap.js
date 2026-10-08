@@ -1,8 +1,11 @@
 // 두드리기와 빗금(spec 5.3, 20).
-//  - 두드리기: 낭송을 들으며 음보(향가는 구)마다 장구를 친다. 박자 엔진(js/core/rhythm.js)의 판정 창 안의 탭만 인정한다.
-//    남은 단위를 한 번에 이어 내고(같은 박자 칸, 단위 사이 쉼만), 단위가 끝날 때마다 판정한다. 한 단위(향가 구,
-//    고려가요 줄, 나머지 장·행)에서 박을 놓치면 그 단위에서 멈추고 그 단위부터 다시 듣는다. 놓친 박이 기준(3)에 닿으면 빗금을 권한다.
-//    새로 시작할 때마다(듣기, 놓쳐서 다시 듣기, 멈췄다 재개) 첫 박보다 min(박 길이, 1.5초) 앞에 장구 한 번(판정 없음)으로 박을 알린다.
+//  - 두드리기(쉼에 두드리기, 교사 결정 2026-10-07): 낭송이 음보(향가는 구) 하나를 읽고 정해진 쉼(약 1초,
+//    rhythm.js TAP_PAUSE_SEC)을 두면, 학생은 그 쉼에 장구를 친다. 쉼에 친 탭은 그 음보 뒤에 빗금을 긋는다(빗금 모드와 같은 모습).
+//    판정 창은 [조각 끝 − 150ms, 쉼 끝 + 150ms]이고 보정값을 뺀다(createPauseTapSession). 낭송하는 동안(창 밖) 친 탭은
+//    놓친 것으로 세지 않고 '쉬는 사이에 치세요' 안내만 한다. 쉼에 치지 않은 음보가 있으면 그 단위가 끝난 자리에서 멈추고
+//    그 단위부터 다시 듣는다(한 단위 = 향가 구, 고려가요 줄, 나머지 장·행). 놓친 음보가 기준(3)에 닿으면 빗금을 권한다.
+//    남은 단위를 한 번에 이어 낸다(단위 사이에는 마지막 쉼과 짧은 틈만). 새로 시작할 때마다(듣기, 놓쳐서 다시 듣기,
+//    멈췄다 재개) '준비' 딱 소리(판정 없음) 한 번 뒤 약 1초에 첫 음보가 나온다.
 //  - 지금 울리는 음보 표시(is-current)는 입구 튜토리얼·향가관(ctx.scaffold)과 놓쳐서 다시 듣는 단위에서만 보인다.
 //    그 밖에서는 귀로 듣고 친다. 맞은 음보는 어디서나 밝아진다.
 //  - 관(ctx.offerSkip): 박 수가 같은(2 이상) 단위 둘을 잇달아 마쳤고 남은 단위가 모두 그 박 수이면 '같은 걸음으로 넘기기'를 둔다.
@@ -11,8 +14,8 @@
 //    음보 경계가 아닌 곳은 흔들리기만 하고 기록이 남지 않는다.
 // 두 방식은 도중에 바뀔 수 있고(rhythm:no-beat), 마친 단위는 그대로 둔다. 결과는 같은 증거다(README 6절 tap).
 // 낭송 조각이 없어도 엔진이 딸깍 소리로 박자를 이어 가므로 막히지 않는다.
-// 고려가요의 여음·후렴·되풀이 머리(음보 kind)는 낭송은 하지만 박이 아니다. 두드리지 않고, 빗금도 긋지 않으며,
-// 놓친 박으로도 세지 않는다. 후렴만 있는 줄은 듣기만 한다(빗금 방식에서는 처음부터 마친 줄로 둔다).
+// 고려가요의 여음·후렴·되풀이 머리(음보 kind)는 낭송은 하지만 박이 아니다. 쉼 없이 이어 읽고, 판정 창이 없으며, 빗금도
+// 긋지 않고, 놓친 박으로도 세지 않는다. 후렴만 있는 줄은 듣기만 한다(빗금 방식에서는 처음부터 마친 줄로 둔다).
 import { emit as busEmit } from '../core/events.js';
 import * as R from '../core/rhythm.js';
 import { refrainFootCount } from '../core/song-shape.js';
@@ -22,8 +25,11 @@ import { L } from './labels.js';
 
 // 낭송이 나야 하는데 소리 판 시각이 이만큼 멈춰 있으면(조작 전 손가락 기기 등) '낭송 듣기'를 다시 보인다
 export const STUCK_MS = 3000;
+// 낭송하는 동안 친 탭에 '쉬는 사이에 치세요'를 보이는 시간(그 뒤 원래 안내로 돌아간다)
+export const TAP_WAIT_HINT_MS = 2500;
 
 // ctx: { song, view, root, controls, overlay, setHint, rhythm, beat, setSlashMode, signal, emit, neutral, scaffold, offerSkip }
+//  rhythm: { engine, buildPauseGrid?, createPauseTapSession?, offsetMs? } (없으면 rhythm.js의 것)
 //  neutral: 박 밖 음보에 이름표가 없는 방식(보스, 관·입구에서 드러나기 전의 노래). 안내에 여음·후렴이라는 말을 쓰지 않는다
 //  scaffold: 지금 울리는 음보를 늘 보인다(입구 튜토리얼·향가관)
 //  offerSkip: '같은 걸음으로 넘기기'를 둘 수 있다(관. 입구·보스는 아님)
@@ -32,8 +38,8 @@ export async function runTap(ctx) {
   const { song, view, root, controls, overlay, setHint, rhythm, beat, signal } = ctx;
   const emit = ctx.emit ?? busEmit;
   const engine = rhythm?.engine ?? null;
-  const buildGrid = rhythm?.buildGrid ?? R.buildGrid;
-  const createTapSession = rhythm?.createTapSession ?? R.createTapSession;
+  const buildPauseGrid = rhythm?.buildPauseGrid ?? R.buildPauseGrid;
+  const createPauseTapSession = rhythm?.createPauseTapSession ?? R.createPauseTapSession;
   const offsetMs = rhythm?.offsetMs ?? 0;
   const hyangga = song.genre === 'hyangga';
   const goryeo = song.genre === 'goryeo';
@@ -73,11 +79,12 @@ export async function runTap(ctx) {
   const throwIfAborted = () => { if (signal?.aborted) throw signal.reason ?? new DOMException('중단', 'AbortError'); };
 
   // ── 꾸밈 ──
+  // 쉼에 친 음보는 바로 빗금이 그어진다(빗금 모드와 같은 모습). 그 단위를 다시 들으면 지운다.
   function decorateWord(el, p) {
     if (p.kind !== 'word') return;
     const k = footKey(p.u, p.l, p.f);
     el.classList.toggle('is-lit', done.has(k) || lit.has(k));
-    el.classList.toggle('has-slash', p.footEnd && done.has(k));
+    el.classList.toggle('has-slash', p.footEnd && (done.has(k) || lit.has(k)));
     el.classList.toggle('is-current', sounding !== null && sounding === k);
   }
 
@@ -144,6 +151,15 @@ export async function runTap(ctx) {
   skipBtn.className = 'm-skip-same';
   skipBtn.textContent = L.skipSame;
 
+  // 지금 안내. 낭송하는 동안 친 탭의 안내(L.tapWait)는 잠깐 보인 뒤 이것으로 되돌린다
+  let hintNow = tapHint;
+  let waitTimer = null;
+  function showHint(text) {
+    hintNow = text;
+    clearTimeout(waitTimer);
+    waitTimer = null;
+    setHint(text);
+  }
   function onDrum(ev) {
     if (!session || !engine) return;
     const t = engine.tap(ev.timeStamp);
@@ -155,7 +171,13 @@ export async function runTap(ctx) {
       const f = r.foot ?? 0;
       lit.add(footKey(r.unit, r.line ?? null, f));
       light(r.unit, r.line ?? null, f);
+      if (waitTimer) showHint(hintNow);
       view.refresh();
+    } else if (r?.outside && typeof t === 'number') {
+      // 낭송하는 동안(쉼 밖)의 탭: 놓친 것으로 세지 않고 쉬는 사이에 치라고만 알린다
+      setHint(L.tapWait);
+      clearTimeout(waitTimer);
+      waitTimer = setTimeout(() => { waitTimer = null; setHint(hintNow); }, TAP_WAIT_HINT_MS);
     }
   }
   drum.addEventListener('pointerdown', onDrum);
@@ -198,10 +220,10 @@ export async function runTap(ctx) {
       if (engine.paused || t !== last) {
         last = t;
         since = Date.now();
-        if (shown && !engine.paused) { shown = false; listen.disabled = true; setHint(hintNow()); }
+        if (shown && !engine.paused) { shown = false; listen.disabled = true; showHint(hintNow()); }
         return;
       }
-      if (!shown && Date.now() - since >= STUCK_MS) { shown = true; listen.disabled = false; setHint(L.soundStuck); }
+      if (!shown && Date.now() - since >= STUCK_MS) { shown = true; listen.disabled = false; clearTimeout(waitTimer); waitTimer = null; setHint(L.soundStuck); }
     }, 250);
     return () => clearInterval(id);
   }
@@ -210,7 +232,7 @@ export async function runTap(ctx) {
     root.dataset.tapMode = 'beat';
     view.setMode({ flow: false, interactive: null, decorateWord });
     controls.replaceChildren(listen, drum);
-    setHint(tapHint);
+    showHint(tapHint);
     listen.disabled = false;
     const sw = switchWhen(false);
     let skipClick = null;
@@ -227,14 +249,14 @@ export async function runTap(ctx) {
       }
       listen.disabled = true;
       if (!grid) {
-        grid = buildGrid(song);
-        session = createTapSession(grid, { offsetMs });
+        grid = buildPauseGrid(song, { offsetMs });
+        session = createPauseTapSession(grid, { offsetMs });
         giOf = segs.map((s) => R.segmentIndexOf(grid, s.u, s.l));
         giOf.forEach((gi, i) => iOf.set(gi, i));
       }
       showSkipIfReady();
-      let hintNow = tapHint;
       stopWatch = watchStuck(() => hintNow);
+      let missedBefore = false;
       for (;;) {
         const rest = segs.map((_, i) => i).filter((i) => !passed.has(i));
         if (!rest.length) return 'done';
@@ -243,6 +265,8 @@ export async function runTap(ctx) {
         clearUnpassedLit();
         sounding = null;
         view.refresh();
+        // '준비' 소리 뒤 첫 음보가 나온다(놓쳐서 다시 들을 때는 그 안내를 남겨 둔다)
+        showHint(missedBefore ? L.replay : L.ready);
         let missed = false;
         let h = null;
         h = engine.play(grid, rest.map((i) => giOf[i]), {
@@ -253,8 +277,7 @@ export async function runTap(ctx) {
             const s = segs[i];
             if (!s) return;
             view.goTo((p) => p.u === s.u && (s.l === null || p.l === s.l));
-            hintNow = listenOnly(i) ? listenOnlyHint : tapHint;
-            setHint(hintNow);
+            showHint(listenOnly(i) ? listenOnlyHint : tapHint);
           },
           onBeat: ({ beat: bi, segment }) => {
             const b = grid.beats[bi];
@@ -280,15 +303,15 @@ export async function runTap(ctx) {
             missed = true;
             replayUnit = i;
             for (const k of feetOfSeg[i]) lit.delete(k);
-            hintNow = L.replay;
-            setHint(L.replay);
+            showHint(L.replay);
             view.refresh();
             h?.stop();
           },
           onRestart: () => {
-            // 멈췄다 재개: 진행 중이던 단위를 처음부터 다시 들으므로 그 단위의 친 박 표시를 지운다
+            // 멈췄다 재개: 진행 중이던 단위를 처음부터 다시 들으므로 그 단위의 친 박 표시를 지운다('준비' 소리부터)
             clearUnpassedLit();
             sounding = null;
+            showHint(L.ready);
             view.refresh();
           },
         });
@@ -296,11 +319,14 @@ export async function runTap(ctx) {
         throwIfAborted();
         if (r === 'switch') { h.stop(); return 'switch'; }
         if (r === 'skip') { h.stop(); sounding = null; skipRest(); return 'done'; }
+        missedBefore = missed;
         if (r.completed || missed) continue;
         return r.reason === 'locked' ? 'locked' : 'switch';
       }
     } finally {
       stopWatch?.();
+      clearTimeout(waitTimer);
+      waitTimer = null;
       skipBtn.removeEventListener('click', skipClick);
       skipBtn.remove();
       sw.off();
@@ -357,6 +383,7 @@ export async function runTap(ctx) {
       if (r === 'locked') noEngine = true;
     }
   } finally {
+    clearTimeout(waitTimer);
     suggest.remove();
     drum.removeEventListener('pointerdown', onDrum);
     delete root.dataset.tapMode;

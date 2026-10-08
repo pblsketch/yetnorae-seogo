@@ -1,14 +1,15 @@
 // 진행 엔진(spec 3.2, 4.3, 6, 7.2, 10, 11, 13, 20). 기록 하나의 progress를 받아 규칙대로만 바꾼다.
+// 관의 노래는 형식 분석 뒤 갈래 판별(decideGenre)이 맞아야 손에 들거나 바구니에 담긴다(교사 결정 2026-10-08).
 // 화면과 상관없다. 노래 자료, 시계, 저장, 사건 내기는 모두 바깥에서 넣는다.
 // 관 상태를 직접 바꾸는 길은 없다. 관은 튜토리얼과 판 마치기로만 순서대로 열린다(건너뛰기 없음).
 // 의미 있는 행동(꽂기, 빼기, 판정, 재기 완료, 방 완료, 보스 행동, 엔딩)이 기록을 바꾸면 그때마다 save()를 부른다.
 import { emit as busEmit } from './events.js';
 import {
   AREA_SIZES, judgeArea, routeStray, judgeUnseenPlacement, judgeSingerGroup, judgeRemixTap, judgeRemixLine,
-  judgeStage3Placement, REMIX_TAP_WINDOW_MS,
+  judgeStage3Placement, genreOfSong, REMIX_TAP_WINDOW_MS,
 } from './judge.js';
 import { SONG_TABLE } from '../data/song-table.js';
-import { PLAY_WING_IDS, wingById } from '../data/wings.js';
+import { GENRE_IDS, PLAY_WING_IDS, wingById, wingOfGenre } from '../data/wings.js';
 import { CONCEPT_IDS, CONCEPT_STATES, SINGER_GROUP_IDS, conceptById, conceptsOfGenre } from '../data/concepts.js';
 import { songs as registeredSongs } from '../data/songs/index.js';
 import { cleanText, graphemeCount } from './text.js';
@@ -84,7 +85,9 @@ export function createProgress({
     }
     return wingById(w)?.action ?? null;
   };
-  // 판정에서 틀린 자리의 대상: 탑은 그 층, 바구니는 고른 행선지 관의 갈래, 칸·덤은 그 관 갈래
+  // 노래의 갈래(노래 표의 목록, 없으면 노래 자료)
+  const genreOf = (id) => genreOfSong(table, id) ?? songMap.get(id)?.genre ?? null;
+  // 판정에서 틀린 자리의 대상: 탑은 그 층, 바구니는 행선지 관의 갈래, 칸·덤은 그 관 갈래
   const wrongTarget = (w, area, x) => {
     const floors = table.wings?.[w]?.shelfFloors;
     if (area === 'shelf' && Array.isArray(floors)) return { towerUnits: floors[x.index] };
@@ -196,45 +199,97 @@ export function createProgress({
     return commit(ok());
   }
 
-  // 재기를 마침. 판을 마친 관에서는 덤 노래도 잰다. 다시 재기(다시 듣기)도 된다.
+  // 미리 분석한 노래(바구니로 보내져 그 관 입구에서 기다리는 칸 노래)를 잡음. 보낸 관에서 이미 갈래를 판별했으므로
+  // 판별 없이 손에 든다. 그 밖의 노래는 형식 분석 뒤 갈래 판별(decideGenre)이 맞아야 손에 든다.
   function markMeasured(w, songId) {
     if (!wingOk(w)) return no('bad-wing');
     const ws = p.wings[w];
     if (ws.state === 'locked') return no('locked');
-    const allowed = [...areaSongs(w, 'shelf'), ...(ws.state === 'done' ? areaSongs(w, 'bonus') : [])];
-    if (!allowed.includes(songId)) return no('not-in-wing');
+    if (!areaSongs(w, 'shelf').includes(songId)) return no('not-in-wing');
+    if (!(p.prewaiting[w] ?? []).includes(songId)) return no('not-decided');
     if (!ws.measured.includes(songId)) ws.measured.push(songId);
     return commit(ok());
   }
 
-  // 미리 잰 노래(spec 4.3)는 그 관에서 다시 재지 않는다.
+  // 그 관에서 다시 분석하지 않는 노래(갈래 판별을 마쳤거나 미리 분석한 노래).
   const isMeasured = (w, songId) => wingOk(w) && (p.wings[w].measured.includes(songId) || (p.prewaiting[w] ?? []).includes(songId));
+  // 그 관에서 갈래 판별을 마치고 손에 든(든 적이 있는) 노래. 저장의 measured가 곧 판별 기록이다(다시 열어도 그대로).
+  const isDecided = (w, songId) => wingOk(w) && p.wings[w].measured.includes(songId);
+
+  // 갈래 판별(형식 분석의 ④). 학생이 고른 갈래가 노래 갈래와 같으면 맞다.
+  //  - 맞음: measured에 남기고(판별 기록) 그 노래가 드러난다. 그 관 갈래면 칸·탑·덤 후보로 손에 들고, 다른 갈래면
+  //    행선지(그 갈래의 관)를 정해 바구니에 담는다(학생이 행선지를 고르지 않는다). 바구니가 차면 부르는 쪽이 판정한다.
+  //  - 틀림: 관 오답 하나. 기준 이상이면 **고른 갈래** 쪽의 어긋나는 개념으로 수첩 도움을 낸다(노래 갈래 쪽이 아니다).
+  function decideGenre(w, songId, genre) {
+    if (!wingOk(w)) return no('bad-wing');
+    const ws = p.wings[w];
+    if (ws.state === 'locked') return no('locked');
+    const pool = ws.state === 'done' ? areaSongs(w, 'bonus') : areaSongs(w, 'shelf');
+    if (!pool.includes(songId)) return no('not-in-wing');
+    if (ws.state === 'done' && ws.bonusDone) return no('bound');
+    if (isMeasured(w, songId) || findPlaced(w, songId)?.slot.fixed) return no('decided');
+    if (!GENRE_IDS.includes(genre)) return no('invalid');
+    if (genre !== genreOf(songId)) {
+      ws.wrongCount += 1;
+      const target = { genre };
+      let help = false;
+      if (ws.wrongCount >= T.wingWrongHelp) {
+        emit('help:notebook-glow', { wing: w, genre, conceptIds: targetHelp(songId, target, measuredAction(w, songId)), songId });
+        help = true;
+      }
+      return commit(ok({ correct: false, target, help }));
+    }
+    ws.measured.push(songId);
+    const out = { correct: true, genre, own: genre === wingById(w).genre };
+    if (!out.own) {
+      const to = wingOfGenre(genre)?.id ?? null;
+      out.to = to;
+      const pl = ws.placements.basket;
+      let i = pl.findIndex((s) => s?.songId === songId);
+      if (i < 0) i = pl.findIndex((s) => !s);
+      if (i >= 0 && !ws.basketDone && to) {
+        pl[i] = { songId, to, fixed: false };
+        out.basket = { index: i, full: pl.every(Boolean) };
+      }
+    }
+    return commit(ok(out));
+  }
 
   // 그 관 입구에서 기다리는 미리 잰 노래(아직 칸에 고정되지 않은 것)
   const waitingAt = (w) => (p.prewaiting[w] ?? []).filter((id) => !p.wings[w]?.placements.shelf.some((s) => s?.songId === id && s.fixed));
   const returnedAt = (w) => [...(p.returned[w] ?? [])];
 
-  // 드러난 노래: 판정에서 맞아 고정되었거나(칸·탑·덤, 바구니에서 보낸 노래) 튜토리얼을 마친 튜토리얼 노래.
-  // 드러난 노래의 단위는 그 갈래 이름(구·연·줄·장·행)으로 부르고, 그 전에는 '덩이'라 부른다(재기 화면).
-  // 저장에 새 값을 두지 않고 기록의 고정·행선지에서 다시 계산한다.
+  // 드러난 노래: 갈래 판별에서 맞았거나(measured), 판정에서 맞아 고정되었거나(칸·탑·덤, 바구니에서 보낸 노래),
+  // 튜토리얼을 마친 튜토리얼 노래. 드러난 노래의 단위는 그 갈래 이름(구·연·줄·장·행)으로 부르고, 그 전에는 '부분'이라
+  // 부른다(형식 분석 화면). 저장에 새 값을 두지 않고 기록의 판별·고정·행선지에서 다시 계산한다.
   function isRevealed(songId) {
     if (songId === table.tutorial && p.tutorialDone) return true;
     for (const w of PLAY_WING_IDS) {
+      if (p.wings[w].measured.includes(songId)) return true;
       for (const area of Object.keys(AREA_SIZES)) if (p.wings[w].placements[area].some((s) => s?.fixed && s.songId === songId)) return true;
       if ((p.prewaiting[w] ?? []).includes(songId) || (p.returned[w] ?? []).includes(songId)) return true;
     }
     return false;
   }
-  // 두루마리의 여음·후렴·되풀이 이름표를 달 수 있는가: 드러난 노래이거나, 고려가요관에서 잰 노래(후렴 고리 걸기를 거침)
-  const marksKnown = (songId) => isRevealed(songId) || (p.wings.goryeo?.measured ?? []).includes(songId);
+  // 두루마리의 여음·후렴·되풀이 이름표를 달 수 있는가: 드러난(판별을 마친) 노래. 분석 도중에는 고려가요관의
+  // 후렴 고리 걸기가 되풀이 구절을 찾은 순간부터 그 화면에서 단다(js/measure).
+  const marksKnown = (songId) => isRevealed(songId);
 
-  // 자리에 꽂는다. 바구니는 갈 관(to)을 함께 고른다. 판정 전 노래는 다른 자리로 옮길 수 있다.
+  // 자리에 꽂는다. 갈래 판별을 마친 노래만 꽂는다: 칸·탑·덤은 그 관 갈래로 판별한 노래, 바구니는 다른 갈래로 판별한 노래.
+  // 바구니의 행선지(to)는 그 노래 갈래의 관으로 정해진다(넘긴 to가 다르면 막는다). 판정 전 노래는 다른 자리로 옮길 수 있다.
   // 이미 다른 노래가 있던 자리면 그 노래는 손으로 돌아온다(displaced).
   function place(w, area, index, songId, to) {
     const blocked = areaBlocked(w, area, index);
     if (blocked) return no(blocked);
     if (!areaSongs(w, area).includes(songId)) return no('not-in-wing');
-    if (area === 'basket' && !PLAY_WING_IDS.includes(to)) return no('bad-destination');
+    if (!isDecided(w, songId)) return no('not-decided');
+    const genre = genreOf(songId);
+    const own = genre === wingById(w).genre;
+    if (area === 'basket' && own) return no('own-genre');
+    if (area !== 'basket' && !own) return no('other-genre');
+    const autoTo = wingOfGenre(genre)?.id ?? null;
+    if (area === 'basket' && to !== undefined && to !== null && to !== autoTo) return no('bad-destination');
+    to = autoTo;
     const pl = p.wings[w].placements;
     const target = pl[area][index];
     if (target?.fixed) return no('fixed');
@@ -246,9 +301,11 @@ export function createProgress({
     return commit(ok({ displaced, movedFrom: existing ? { area: existing.area, index: existing.index } : null }));
   }
 
+  // 판정 전 자리에서 뺀다. 바구니는 판별이 담은 자리라 빼지 않는다(손으로 돌아와도 갈 곳이 바구니뿐이다).
   function unplace(w, area, index) {
     const blocked = areaBlocked(w, area, index);
     if (blocked) return no(blocked);
+    if (area === 'basket') return no('auto-basket');
     const pl = p.wings[w].placements;
     const slot = pl[area][index];
     if (!slot) return no('empty');
@@ -500,6 +557,7 @@ export function createProgress({
     isCompleted,
     isRoomOpen,
     isMeasured,
+    isDecided,
     isRevealed,
     marksKnown,
     waitingAt,
@@ -510,6 +568,7 @@ export function createProgress({
     completeTutorial,
     markUniqueActionIntroSeen,
     markMeasured,
+    decideGenre,
     place,
     unplace,
     judge,

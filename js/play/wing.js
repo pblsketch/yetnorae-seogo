@@ -1,7 +1,9 @@
 // 관 한 판(spec 2·3.2·4.3·5·6·8·12·20). 관 하나에서 학생이 하는 일을 처음부터 끝까지 잇는다.
-//   들어가기 → 떠도는 노래 잡기 → 재기(js/measure) → 칸·탑·바구니에 꽂기(바구니는 갈 관도 고른다)
-//   → 다 차면 판정(진행 엔진) → 제본·금박·먹안개(그 관의 단위 이름이 드러남) / 틀린 노래만 삐져나와 손으로
-//     → 돌아온 노래마다 맞대어 보기(감정서에서 그 자리와 어긋나는 줄을 짚는다, contrast-panel.js) → 가객과 기념품
+//   들어가기(전제 알림: 먹안개가 노래를 뒤섞었다) → 뒤섞인 노래 잡기 → 형식 분석(js/measure ①~③)
+//   → ④ 갈래 판별(진행 엔진 decideGenre. 틀리면 고른 갈래와 맞대어 보기, contrast-panel.js → 다시 판별)
+//     맞으면 그 관 갈래는 손에(칸·탑·덤 후보), 다른 갈래는 행선지가 정해져 바구니에 저절로 담긴다
+//   → 칸·탑에 꽂기 → 다 차면 판정(진행 엔진) → 제본·금박·먹안개 / 탑에서 층이 틀린 노래만 삐져나와 손으로
+//     → 돌아온 노래마다 맞대어 보기(분석표에서 그 층과 어긋나는 줄을 짚는다) → 가객과 기념품
 //   → 작품 방(js/registry.js의 rooms, 세계는 방 무대가 된다 — README '연결 결정(F3)') → 판의 끝: 단청, 판 카드, 다음 관 문틈 소리, 덤 칸
 // 마친 관에 다시 들어오면 덤 칸과 다시 듣기만 한다. 판정 기록은 바뀌지 않는다.
 //
@@ -15,13 +17,13 @@ import { buildGrid, createTapSession } from '../core/rhythm.js';
 import { deriveSheet } from '../core/song-shape.js';
 import { mismatches, targetGenre } from '../core/contrast.js';
 import { SONG_TABLE } from '../data/song-table.js';
-import { PLAY_WING_IDS, WINGS, wingById } from '../data/wings.js';
+import { PLAY_WING_IDS, genreById, wingById } from '../data/wings.js';
 import { openMeasure, actionForWing } from '../measure/measure.js';
 import { showCard } from '../result/card-view.js';
 import { el, button, openPanel, quoted } from './dom.js';
 import { playCeremony } from './ceremony.js';
 import { renderListen } from './screens.js';
-import { openContrast } from './contrast-panel.js';
+import { openContrast, openGenreContrast } from './contrast-panel.js';
 import { L } from './labels.js';
 
 // 조정할 수 있는 값
@@ -56,7 +58,7 @@ export function createWingPlay(session, wingId) {
   let dialog = null;
   let leakEl = null;
   let chain = Promise.resolve();
-  const sheets = new Map();   // 이번에 잰 노래의 감정서(맞대어 보기에 쓴다. 저장하지 않는다)
+  const sheets = new Map();   // 이번에 분석한 노래의 분석표(맞대어 보기에 쓴다. 저장하지 않는다)
 
   const later = (fn, ms) => {
     const id = setTimeout(() => { timers.delete(id); if (!disposed) fn(); }, ms);
@@ -73,19 +75,20 @@ export function createWingPlay(session, wingId) {
   const poolOf = () => (isDone() ? t.bonus : [...t.shelf, ...strayIds]);
   const prewaitHere = () => (isDone() ? [] : p.prewaiting[wingId] ?? []);
 
-  // 입구에서 미리 잰 채 기다리는 노래(아직 잡지 않은 것)
+  // 입구에서 미리 분석한 채 기다리는 노래(아직 잡지 않은 것)
   function waitingSongs() {
     const placed = placedSet();
     return prewaitHere().filter((id) => !ws().measured.includes(id) && !placed.has(id) && t.shelf.includes(id));
   }
-  // 떠도는 노래: 판 중이면 칸 노래와 길 잃은 노래, 마친 관이면 덤 노래. 잰 노래·꽂힌 노래·입구 노래는 빼고.
+  // 떠도는 노래(뒤섞인 노래, 갈래 판별 전): 판 중이면 칸 노래와 길 잃은 노래, 마친 관이면 덤 노래.
+  // 판별한 노래·꽂힌 노래·입구에서 기다리는 미리 분석한 노래는 빼고.
   function floatingSongs() {
     if (isDone() && ws().bonusDone) return [];
     const placed = placedSet();
     const pre = new Set(prewaitHere());
     return poolOf().filter((id) => !ws().measured.includes(id) && !placed.has(id) && !pre.has(id));
   }
-  // 손에 든 노래: 잰 노래 가운데 아직 꽂지 않은 것
+  // 손에 든 노래: 갈래 판별을 마친(measured) 노래 가운데 아직 꽂지 않은 것. 다른 갈래로 판별한 노래는 바구니에 담겨 있다
   function handSongs() {
     const placed = placedSet();
     const pool = poolOf();
@@ -194,19 +197,24 @@ export function createWingPlay(session, wingId) {
   function render() {
     if (disposed) return;
     session.root.dataset.wingState = ws().state;
-    // 손에 든 노래
+    // 손에 든 노래(판별한 노래, 판별한 갈래와 함께)와 아직 판별하지 않은 뒤섞인 노래 수
     const hand = handSongs();
     handBox.replaceChildren(el('h2', 'play-hand-title', L.hand));
     if (!hand.length) handBox.append(el('p', 'play-hand-empty', L.handEmpty));
     else {
       const ul = el('ul', 'play-hand-list');
       for (const id of hand) {
-        const li = el('li', 'play-hand-song', title(id));
+        const li = el('li', 'play-hand-song');
         li.dataset.song = id;
+        li.dataset.genre = song(id)?.genre ?? '';
+        li.append(el('span', 'play-hand-genre', genreById(song(id)?.genre)?.name ?? ''), el('span', 'play-hand-name', title(id)));
         ul.append(li);
       }
       handBox.append(ul);
     }
+    // 판을 마친 관의 덤 노래는 뒤섞인 노래가 아니므로(모두 그 관 갈래) 남은 수를 적지 않는다
+    const mixed = isDone() ? 0 : floatingSongs().length;
+    if (mixed) handBox.append(el('p', 'play-hand-left', L.mixedLeft(mixed)));
     // 서가 띠
     const groups = [group(t.shelfFloors ? '탑' : '칸', [0, 1, 2].map((i) => spine('shelf', i)))];
     if (!ws().basketDone) groups.push(group(L.basket, [0, 1].map((i) => spine('basket', i))));
@@ -225,7 +233,7 @@ export function createWingPlay(session, wingId) {
       ...waitingSongs().map((id, i) => ({ id, i, waiting: true })),
     ];
     floatBox.replaceChildren(...items.map(({ id, i, waiting }) => {
-      const b = button('play-song' + (waiting ? ' is-premeasured' : ''), null, waiting ? L.waitingLabel(title(id)) : L.floatingLabel(title(id)));
+      const b = button('play-song' + (waiting ? ' is-premeasured' : ''), null, waiting ? L.waitingLabel(title(id)) : isDone() ? L.bonusSongLabel(title(id)) : L.floatingLabel(title(id)));
       b.dataset.song = id;
       b.dataset.spot = String(i);
       if (waiting) b.append(el('span', 'play-pencil', '✎'));
@@ -314,7 +322,7 @@ export function createWingPlay(session, wingId) {
 
   function loop() {
     raf = requestAnimationFrame(loop);
-    // 재기 중, 세계가 꽉 덮는 겹에 가려졌을 때, 회전 안내가 떠 있을 때는 노래 자리를 다시 재지 않는다(보이지 않는 것을 위한 레이아웃 계산)
+    // 형식 분석 중, 세계가 꽉 덮는 겹에 가려졌을 때, 회전 안내가 떠 있을 때는 노래 자리를 다시 계산하지 않는다(보이지 않는 것을 위한 레이아웃 계산)
     if (session.root.classList.contains('is-measuring') || world.isCovered?.() || world.isPaused?.()) return;
     positionSongs();
   }
@@ -372,9 +380,10 @@ export function createWingPlay(session, wingId) {
     const area = AREA_OF_ANCHOR[key];
     if (area) {
       if (area === 'bonus' && !isDone()) return null;
+      // 바구니는 판별이 저절로 채우므로 꽂을 것도 뺄 것도 없다(살펴보기만)
       const slot = area === 'basket' ? null : ws().placements[area][index ?? 0];
-      const removable = area === 'basket' ? ws().placements.basket.some((s) => s && !s.fixed) : !!slot && !slot.fixed;
-      const actionable = !areaLocked(area) && (handSongs().length > 0 || removable);
+      const removable = area !== 'basket' && !!slot && !slot.fixed;
+      const actionable = area !== 'basket' && !areaLocked(area) && (handSongs().length > 0 || removable);
       return { label: actionable ? L.place : L.look, run: () => (area === 'basket' ? openBasketDialog() : openSlotDialog(area, index ?? 0)) };
     }
     if (key === 'roomDoor') return ws().shelfBound && !ws().roomDone ? { label: L.room, run: () => openRoom() } : null;
@@ -391,7 +400,35 @@ export function createWingPlay(session, wingId) {
     return PLAY_WING_IDS[PLAY_WING_IDS.indexOf(wingId) + 1] ?? null;
   }
 
-  // ───────── 잡기와 재기 ─────────
+  // ───────── 잡기와 형식 분석, 갈래 판별 ─────────
+  // ④ 갈래 판별에서 맞았을 때 분석 화면의 확인 글에 덧붙이는 한 줄(어디로 가는지)
+  function decidedNote(r) {
+    if (!r.own) return L.decidedStray(wingById(r.to)?.name ?? '');
+    if (isDone()) return L.decidedBonus(wing.name);
+    return t.shelfFloors ? L.decidedTower : L.decidedOwn(wing.name);
+  }
+
+  // 분석 화면의 ④가 부른다: 진행 엔진이 판별을 기록하고, 틀리면 고른 갈래와 맞대어 보기 창을 연 뒤(닫히면) 돌려준다
+  async function decide(s, genre, sheet) {
+    const r = P.decideGenre(wingId, s.id, genre);
+    if (!r.ok) return { correct: r.reason === 'decided' && genre === s.genre };
+    if (r.correct) return { correct: true, note: decidedNote(r) };
+    if (r.help) toast(L.helpGlow);
+    await openGenreContrast(session.root, { song: s, sheet, genre, notebook: session.notebook, neutral: !P.isRevealed?.(s.id), signal: ac.signal });
+    return { correct: false };
+  }
+
+  // 판별을 마친 노래가 바구니에 담겼으면 보이고, 바구니가 다 차면 판정한다(보내기)
+  function afterDecide(id) {
+    const pl = ws().placements.basket;
+    const i = pl.findIndex((x) => x?.songId === id && !x.fixed);
+    if (i < 0) return;
+    emitSet('basket', i, id, pl[i].to);
+    audio.sfx('basket');
+    toast(L.toBasket(title(id), wingById(pl[i].to)?.name ?? ''));
+    if (isFull('basket') && !ws().basketDone) enqueue(() => judge('basket'));
+  }
+
   async function catchSong(id) {
     if (busy || disposed) return;
     const s = song(id);
@@ -399,6 +436,7 @@ export function createWingPlay(session, wingId) {
     busy = true;
     closeDialog();
     const pre = waitingSongs().includes(id);
+    const wasDecided = P.isDecided?.(wingId, id) === true;
     session.root.classList.add('is-measuring');
     try {
       const sheet = await openMeasure({
@@ -408,7 +446,9 @@ export function createWingPlay(session, wingId) {
         rhythm: session.rhythm,
         setSlashMode: session.setSlashMode,
         preMeasured: pre ? true : undefined,
-        // 판정에서 맞기 전에는 단위를 '덩이'라 부르고 박 밖 음보 이름표를 달지 않는다
+        // ④ 갈래 판별(미리 분석한 노래는 보낸 관에서 이미 판별했으므로 없다)
+        decide: pre ? undefined : (genre, sh) => decide(s, genre, sh),
+        // 갈래 판별에서 맞기 전에는 단위를 '부분'이라 부르고 박 밖 음보 이름표를 달지 않는다
         revealed: P.isRevealed?.(id) === true,
         marksKnown: P.marksKnown?.(id) === true,
         notebook: session.notebook,
@@ -418,16 +458,19 @@ export function createWingPlay(session, wingId) {
         onIntroSeen: (kind) => { if (kind === 'unique') P.markUniqueActionIntroSeen(wingId); },
         reduceMotion: () => world.reduceMotion(),
         signal: ac.signal,
-        // '재기 그만두기': 마치지 않고 관으로 돌아온다(잰 것으로 기록하지 않음, 노래는 다시 떠다닌다)
+        // '분석 그만두기': 마치지 않고 관으로 돌아온다(판별 전이면 기록하지 않음, 노래는 다시 떠다닌다)
         canQuit: true,
       });
       if (sheet) sheets.set(id, sheet);
-      if (!disposed) P.markMeasured(wingId, id);
+      // 미리 분석한 노래는 판별 없이 손에 든다. 나머지는 ④에서 맞았을 때 진행 엔진이 이미 기록했다
+      if (pre && !disposed) P.markMeasured(wingId, id);
     } catch (e) {
-      if (e?.name !== 'AbortError') console.error('[play] 재기 실패', e);
+      if (e?.name !== 'AbortError') console.error('[play] 형식 분석 실패', e);
     } finally {
       session.root.classList.remove('is-measuring');
       busy = false;
+      // ④에서 맞힌 뒤 '확인' 전에 그만두었어도 판별은 기록되어 있다
+      if (!disposed && !wasDecided && P.isDecided?.(wingId, id)) afterDecide(id);
       render();
     }
   }
@@ -463,6 +506,7 @@ export function createWingPlay(session, wingId) {
     row.append(el('span', 'play-occupant-title', quoted(title(s.songId))));
     if (area === 'basket' && s.to) row.append(el('span', 'play-tag', '→ ' + (wingById(s.to)?.name ?? '')));
     if (s.fixed || areaLocked(area)) row.append(el('span', 'play-occupant-fixed', L.fixed));
+    else if (area === 'basket') row.append(el('span', 'play-occupant-fixed', L.basketReady));
     else {
       const rm = button('play-remove', L.remove, quoted(title(s.songId)) + ' ' + L.remove);
       rm.dataset.area = area;
@@ -473,8 +517,9 @@ export function createWingPlay(session, wingId) {
     return row;
   }
 
+  // 손에 든(판별한) 노래 가운데 그 자리에 꽂을 수 있는 것: 칸·탑·덤은 그 관 갈래로 판별한 노래(손에는 그것만 있다)
   function picks(onPick) {
-    const hand = handSongs();
+    const hand = handSongs().filter((id) => song(id)?.genre === wing.genre);
     if (!hand.length) return [el('p', 'play-empty', L.nothingInHand)];
     const wrap = el('div', 'play-picks');
     for (const id of hand) {
@@ -497,31 +542,15 @@ export function createWingPlay(session, wingId) {
     draw();
   }
 
+  // 바구니: 다른 갈래로 판별한 노래가 행선지와 함께 저절로 담긴다. 학생은 보기만 한다(행선지를 고르지 않는다)
   function openBasketDialog() {
     const d = openDialog('basket', L.basket);
-    let chosen = null;
     const draw = () => {
       const pl = ws().placements.basket;
       d.body.replaceChildren(...pl.map((s, i) => occupantRow('basket', i, s)));
-      if (areaLocked('basket')) return;
-      const free = pl.findIndex((s) => !s);
-      if (free < 0) { d.body.append(el('p', 'play-empty', L.basketFull)); return; }
-      if (!chosen) {
-        const parts = picks((id) => { chosen = id; draw(); });
-        if (parts[0]?.classList?.contains('play-dialog-sub')) parts[0].textContent = L.pickBasket;
-        d.body.append(...parts);
-        return;
-      }
-      const dests = el('div', 'play-dests');
-      for (const w of WINGS.filter((x) => PLAY_WING_IDS.includes(x.id))) {
-        const b = button('play-dest', w.name);
-        b.dataset.wing = w.id;
-        b.addEventListener('click', () => { const id = chosen; closeDialog(); placeSong('basket', free, id, w.id); });
-        dests.append(b);
-      }
-      d.body.append(el('h3', 'play-dialog-sub', L.destTitle(title(chosen))), dests);
+      if (!areaLocked('basket')) d.body.append(el('p', 'play-empty', L.basketAuto));
     };
-    dialog.redraw = () => { chosen = null; draw(); };
+    dialog.redraw = draw;
     draw();
   }
 
@@ -612,7 +641,7 @@ export function createWingPlay(session, wingId) {
   }
 
   // ───────── 맞대어 보기(오답 뒤) ─────────
-  // 그 노래의 감정서: 이번에 잰 것, 없으면(다시 연 기록) 노래 데이터에서 계산한다. 미리 잰 노래는 보낸 관의 동작으로 잰 것이다.
+  // 그 노래의 분석표: 이번에 분석한 것, 없으면(다시 연 기록) 노래 데이터에서 계산한다. 미리 분석한 노래는 보낸 관의 동작으로 분석한 것이다.
   function sheetFor(id) {
     if (sheets.has(id)) return sheets.get(id);
     const s = song(id);
@@ -631,7 +660,7 @@ export function createWingPlay(session, wingId) {
     ac.signal.addEventListener('abort', () => resolve(), { once: true });
   });
 
-  // 돌아온 노래마다 하나씩: 감정서에서 그 자리와 어긋나는 줄을 짚는다. 어긋나는 줄이 없으면 열지 않는다(손으로 돌아온 그대로).
+  // 돌아온 노래마다 하나씩: 분석표에서 그 자리와 어긋나는 줄을 짚는다. 어긋나는 줄이 없으면 열지 않는다(손으로 돌아온 그대로).
   // 기록도 오답 수도 바꾸지 않는다.
   async function contrastReturned(area, returned) {
     let waited = false;
@@ -800,7 +829,9 @@ export function createWingPlay(session, wingId) {
   hud.glow(ws().wrongCount >= TUNABLES.wingWrongHelp && !isDone());
   replayVisuals();
   render();
+  // 판을 마치기 전에는 들어올 때마다 전제를 알린다: 노래가 뒤섞여 이 관에도 다른 관의 노래가 있다
   if (isDone()) toast(L.doneWing);
+  else toast(L.premise(wing.name));
   raf = requestAnimationFrame(loop);
   const offGlow = bus.on('help:notebook-glow', () => hud.glow(true));
 

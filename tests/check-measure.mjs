@@ -3,8 +3,8 @@
 // 실제 노래 데이터로 다음을 확인한다.
 //  - 갈래마다 노래 한 편: 접기 경계, 두드리기 음보 수, 그 관 고유 동작의 증거가 js/core/song-shape.js의 deriveSheet와 같다
 //  - 엉뚱한 곳은 접히지 않고 흔들리기만 한다(기록 없음)
-//  - 빗금 모드와 소리 끔에서도 두드리기와 같은 감정서가 나온다(박은 박자 칸에 맞춰 자동으로 친다)
-//  - 박을 세 번 놓치면 빗금 모드를 권하고, 놓친 단위를 다시 듣는다
+//  - 빗금 모드와 소리 끔에서도 두드리기와 같은 감정서가 나온다(두드리기는 음보 조각 뒤의 쉼에 자동으로 친다)
+//  - 박을 세 번 놓치면 빗금 모드를 권하고, 놓친 단위를 다시 듣는다. 쉼에 친 음보 뒤에 바로 빗금, 읽는 동안의 탭은 안내만
 //  - 고유 동작 다섯을 다른 갈래 노래에 쓰면 '해당 없음'을 포함한 증거가 나온다
 //  - 보스 방식: 도구 고르기, 수첩 닫힘·일지 열림
 //  - 미리 잰 노래는 감정서가 채워진 채 열린다
@@ -18,7 +18,7 @@ import { openGame, VIEWPORTS } from './lib/browser.mjs';
 import { songs } from '../js/data/songs/index.js';
 import { deriveSheet, deriveActionEvidence, deriveFoldEvidence, deriveTapEvidence } from '../js/core/song-shape.js';
 import { sheetLines, walkWords } from '../js/measure/sheet.js';
-import { L } from '../js/measure/labels.js';
+import { L, UNIT_TERMS, ACTION_TEXT } from '../js/measure/labels.js';
 import { buildGrid } from '../js/core/rhythm.js';
 
 const PAGE = 'tests/pages/measure.html';
@@ -164,7 +164,9 @@ function layoutProblems() {
   if (text && visible(text) && (text.scrollHeight > text.clientHeight + 1 || text.scrollWidth > text.clientWidth + 1)) out.push('두루마리 넘침 ' + text.scrollWidth + 'x' + text.scrollHeight + ' > ' + text.clientWidth + 'x' + text.clientHeight);
   const rr = root.getBoundingClientRect();
   for (const e of root.querySelectorAll('*')) {
-    if (!visible(e) || e.closest('.m-book-body, .m-journal-body')) continue;
+    // 스크롤되는 자리(서랍 몸통, ④의 분석표 자리) 안의 것은 스크롤해서 보므로 자리 자체만 본다
+    const sc = e.closest('.m-side.is-scroll');
+    if (!visible(e) || e.closest('.m-book-body, .m-journal-body') || (sc && sc !== e)) continue;
     const r = e.getBoundingClientRect();
     if (r.left < rr.left - 1 || r.right > rr.right + 1 || r.top < rr.top - 1 || r.bottom > rr.bottom + 1) out.push('재기 화면 밖: ' + e.className + ' ' + [r.left, r.top, r.right, r.bottom].map(Math.round).join(','));
   }
@@ -294,15 +296,15 @@ console.log('— 감정서 글(화면 없이 sheetLines로)');
   // 향가 두드리기 줄: 구 수를 세는 두드리기임을 밝히고 '박'이 아니라 '번'으로 센다(C3)
   const guNeutral = lineTexts(deriveSheet(song('chan-giparangga'), 'aa-door'), song('chan-giparangga'), { neutral: true }).find((t) => t.includes('두드려')) ?? '';
   const guRevealed = lineTexts(deriveSheet(song('seodongyo'), 'aa-door'), song('seodongyo'), { neutral: false }).find((t) => t.includes('두드려')) ?? '';
-  ok(guNeutral === '[덩이 하나에 한 번씩 두드려 셈, 모두 열 번]' && guRevealed === '[구 하나에 한 번씩 두드려 셈, 모두 네 번]', '향가 두드리기 줄은 구 수를 세는 두드리기로 적는다 ' + JSON.stringify([guNeutral, guRevealed]));
-  ok(!lineTexts(deriveSheet(song('chan-giparangga'), 'aa-door'), song('chan-giparangga'), { neutral: true }).some((t) => /박/.test(t)), "(음성) 향가 감정서에 '박'이라는 말이 없다(예전 '[덩이마다 한 박, 모두 열 박]'은 걸린다)");
+  ok(guNeutral === '[부분 하나에 한 번씩 두드려 셈, 모두 열 번]' && guRevealed === '[구 하나에 한 번씩 두드려 셈, 모두 네 번]', '향가 두드리기 줄은 구 수를 세는 두드리기로 적는다 ' + JSON.stringify([guNeutral, guRevealed]));
+  ok(!lineTexts(deriveSheet(song('chan-giparangga'), 'aa-door'), song('chan-giparangga'), { neutral: true }).some((t) => /박/.test(t)), "(음성) 향가 감정서에 '박'이라는 말이 없다(예전 '[부분마다 한 박, 모두 열 박]'은 걸린다)");
 
-  // 보스(neutral): 「사모곡」 감정서에 '줄'이 없고 단위는 '덩이'. 후렴 고리 걸기를 쓰기 전에는 여음·후렴 줄이 없다
+  // 보스(neutral): 「사모곡」 감정서에 '줄'이 없고 단위는 '부분'. 후렴 고리 걸기를 쓰기 전에는 여음·후렴 줄이 없다
   const sm = song('samogok');
   const full = deriveSheet(sm, 'refrain-link');
   const beforeTool = { fold: full.fold, tap: full.tap, action: null, actions: [] };
   const bossBefore = lineTexts(beforeTool, sm, { neutral: true });
-  ok(bossBefore.length === 2 && bossBefore.every((t) => !t.includes('줄')) && bossBefore[1].includes('덩이'), '보스 「사모곡」: 두드리기 줄이 \'줄\' 대신 \'덩이\'를 쓴다 ' + JSON.stringify(bossBefore));
+  ok(bossBefore.length === 2 && bossBefore.every((t) => !t.includes('줄')) && bossBefore[1].includes('부분'), '보스 「사모곡」: 두드리기 줄이 \'줄\' 대신 \'부분\'을 쓴다 ' + JSON.stringify(bossBefore));
   ok(!bossBefore.includes(L.sheetRefrains) && bossBefore.every((t) => !/여음|후렴|되풀이/.test(t)), '보스 「사모곡」: 도구를 쓰기 전에는 여음·후렴 줄이 없다 ' + JSON.stringify(bossBefore));
   const bossOther = lineTexts({ ...beforeTool, actions: [deriveActionEvidence('stairs', sm)] }, sm, { neutral: true });
   ok(!bossOther.includes(L.sheetRefrains), '보스 「사모곡」: 다른 도구(계단 오르기)를 써도 여음·후렴 줄은 없다 ' + JSON.stringify(bossOther));
@@ -316,6 +318,32 @@ console.log('— 감정서 글(화면 없이 sheetLines로)');
   ok(!lineTexts(deriveSheet(gs, 'stairs'), gs).includes(L.sheetRefrains), '관: 계단 오르기로 잰 「가시리」 감정서에는 여음·후렴 줄이 없다(두드리기만으로는 적지 않음)');
 }
 
+console.log('— 화면 글의 용어(교사 결정 2026-10-08): 옛 말이 없고, ③ 설명·안내에 갈래 단위 이름이 없다');
+{
+  // 학생이 보는 글 파일의 내보낸 글(노래 원문·해독·풀이는 노래 파일에 있어 빠진다)을 모두 훑는다
+  const OLD_TERMS = /(^|[^가-힣])(재기|재어|재도|재요|재는|재면|잰|쟀)|감정서|(?<!한)마디|접기|덩이|네 박|박마다|박을 놓/;
+  const TEXT_FILES = ['js/measure/labels.js', 'js/play/labels.js', 'js/data/story.js', 'js/data/boss-text.js', 'js/data/remix.js', 'js/data/concepts.js', 'js/data/wings.js', 'js/data/credits.js',
+    ...['hyangga', 'goryeo', 'sijo', 'gasa', 'saseol'].flatMap((g) => ['js/data/notebook-' + g + '.js', 'js/data/rooms-' + g + '.js'])];
+  const texts = [];
+  const walk = (v, at) => {
+    if (typeof v === 'string' || typeof v === 'function') texts.push([at, String(v)]);
+    else if (Array.isArray(v)) v.forEach((x, i) => walk(x, at + '[' + i + ']'));
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, at + '.' + k);
+  };
+  for (const f of TEXT_FILES) for (const [k, v] of Object.entries(await import('../' + f))) walk(v, f + ' ' + k);
+  const old = texts.filter(([, t]) => OLD_TERMS.test(t));
+  ok(texts.length > 300 && old.length === 0, '화면 글 ' + texts.length + '개에 옛 말(재기·감정서·접기·마디·덩이·네 박)이 없다 ' + JSON.stringify(old.map(([at, t]) => at + ': ' + t.slice(0, 60))));
+  ok(['재기 그만두기', '다 쟀어요.', '빗금으로 재도 같은 증거가 모여요.', '빗금 모드(박자 없이 마디 끝을 눌러 재기)', '덤 노래도 재어 볼 수 있어요.', '한 걸음에 한 행(네 박)을 읊어요.', '박을 놓쳐도 길은 이어집니다.', '감정서'].every((t) => OLD_TERMS.test(t))
+    && !['한마디(쓰지 않아도 돼요)', '재물이나 벼슬', '박자 맞추기', '음보를 다 나누었어요.'].some((t) => OLD_TERMS.test(t)), '(음성) 옛 말 검사는 예전 화면 글을 잡고, 한마디·재물·박자 맞추기는 잡지 않는다');
+  // ③ 설명(sub)과 안내(hint)는 판별 전의 노래에도 보인다: 갈래 단위 이름(9구·종장·가운데 장·행) 대신 '부분'
+  const UNIT_WORD = /[0-9]+구|아홉째 구|[초중종]장|가운데 장|장의 |행 세기|한 행/;
+  const shown = Object.entries(ACTION_TEXT).flatMap(([id, t]) => [[id + '.sub', t.sub], [id + '.hint', t.hint], [id + ' 단계 이름', L.steps.action(id)]]);
+  const leaks = shown.filter(([, t]) => UNIT_WORD.test(t));
+  ok(shown.length === 15 && leaks.length === 0, '③ 설명·안내·단계 이름에 갈래 단위 이름이 없다 ' + JSON.stringify(leaks));
+  ok(ACTION_TEXT['aa-door'].sub === '아홉째 부분 첫머리의 감탄사 찾기', "향가관 ③ 설명은 '아홉째 부분 첫머리의 감탄사 찾기' " + ACTION_TEXT['aa-door'].sub);
+  ok(['9구 첫머리 감탄사 찾기', '종장 첫 음보 글자 수 세기', '네 음보씩 이어지는 행 세기', '늘어난 장의 음보 세기', '종장 첫 음보를 글자마다 눌러 계단을 오르세요.'].every((t) => UNIT_WORD.test(t)), '(음성) 예전 ③ 설명은 단위 이름 검사에 걸린다');
+}
+
 const server = await startServer();
 const sessions = [];
 try {
@@ -327,7 +355,7 @@ try {
   const { page } = game;
   await setup(page);
 
-  console.log('— 갈래마다 한 편: 두드리기(박자 칸에 맞춘 자동 탭)');
+  console.log('— 갈래마다 한 편: 두드리기(음보 뒤 쉼에 자동 탭)');
   const beatSheets = {};
   for (const [genre, id] of Object.entries(GENRE_SONGS)) {
     const s = song(id);
@@ -465,7 +493,7 @@ try {
     await ev(page, (i) => window.__solveAction(i), actionInfo('refrain-link', gs));
     await waitStep(page, 'sheet');
     const sheetText = await ev(page, () => document.querySelector('.measure .m-sheet')?.textContent ?? '');
-    ok(sheetText.includes('[네 덩이]') && sheetText.includes('[덩이마다 세 음보]') && sheetText.includes('[여음·후렴이 있다]') && !/연\]|줄마다/.test(sheetText), '드러나기 전 감정서: [네 덩이] [덩이마다 세 음보] [여음·후렴이 있다](연·줄이라는 말 없음) — ' + sheetText);
+    ok(sheetText.includes('[네 부분]') && sheetText.includes('[부분마다 세 음보]') && sheetText.includes('[여음·후렴이 있다]') && !/연\]|줄마다/.test(sheetText), '드러나기 전 감정서: [네 부분] [부분마다 세 음보] [여음·후렴이 있다](연·줄이라는 말 없음) — ' + sheetText);
     const labelsAfter = await ev(page, () => [...document.querySelectorAll('.measure .m-text .m-mark')].map((e) => e.textContent));
     ok(labelsAfter.includes('여음') && labelsAfter.includes('후렴'), '고려가요관의 후렴 고리 걸기가 되풀이 구절을 찾으면 두루마리에 이름표가 붙는다 ' + JSON.stringify([...new Set(labelsAfter)]));
     await page.click('.measure .m-finish');
@@ -489,12 +517,12 @@ try {
     ok(known > 0, '고려가요관에서 이미 잰 노래는 이름표를 단다(' + known + ')');
     await ev(page, () => window.__m.state.controller.abort());
     await waitResult(page);
-    // 감정서 단위 이름: 드러나기 전에는 '덩이', 드러난 뒤에는 갈래 단위 이름(음성 사례: 드러나면 '장'이 나온다)
+    // 감정서 단위 이름: 드러나기 전에는 '부분', 드러난 뒤에는 갈래 단위 이름(음성 사례: 드러나면 '장'이 나온다)
     const ds = song('dongjitdal');
     await openM(page, { songId: 'dongjitdal', wing: 'sijo', preMeasured: deriveSheet(ds, 'stairs') });
     await waitStep(page, 'sheet');
     const plain = await ev(page, () => [...document.querySelectorAll('.measure .m-sheet-line')].map((e) => e.textContent));
-    ok(plain[0] === '[세 덩이]' && plain[1] === '[덩이마다 네 음보]', '드러나기 전 감정서: [세 덩이] [덩이마다 네 음보] ' + JSON.stringify(plain));
+    ok(plain[0] === '[세 부분]' && plain[1] === '[부분마다 네 음보]', '드러나기 전 감정서: [세 부분] [부분마다 네 음보] ' + JSON.stringify(plain));
     ok(!plain.slice(0, 2).some((t) => /[구연장행줄]마다|[구연장행]\]/.test(t)), '드러나기 전 접기·두드리기 줄에 갈래 단위 이름이 없다');
     await page.click('.measure .m-finish');
     await waitResult(page);
@@ -574,6 +602,44 @@ try {
     const { result } = await waitResult(page);
     ok(deepEqual(result, deriveSheet(song('chang-naegoja'), 'rapid-unroll')), '두드리다 빗금으로 바꿔도 같은 감정서');
     await ev(page, () => window.__m.engine.setSlashMode(false));
+  }
+
+  console.log('— 쉼에 두드리기(교사 결정 2026-10-07): 낭송하는 동안의 탭은 안내만, 쉼에 친 음보 뒤에 바로 빗금');
+  {
+    // 「이 몸이 죽고 죽어」만 0.6초 낭송 조각이 있다(점검 페이지). 첫 음보를 읽는 동안 한 번, 그리고 쉼마다 친다
+    const s = song('imomi-jukgo');
+    await openM(page, { songId: 'imomi-jukgo', wing: 'sijo', earlyTap: true });
+    await ev(page, () => window.__solveFold());
+    await waitStep(page, 'tap');
+    await watchTapOn(page);
+    await page.click('.measure .m-listen');
+    const readyHint = await ev(page, () => document.querySelector('.measure .m-hint')?.textContent ?? '');
+    ok(readyHint === L.ready, "듣기를 누르면 '준비' 안내(첫 음보 앞 딱 소리) " + readyHint);
+    await page.waitForFunction(() => document.querySelector('.measure')?.dataset.step !== 'tap', null, { timeout: 60000 });
+    const a = await ev(page, () => ({ earlyHint: window.__m.auto.earlyHint, slashCounts: window.__m.auto.slashCounts.slice(), plays: window.__m.auto.plays.length, suggest: !!document.querySelector('.measure .m-suggest:not([hidden])') }));
+    const feetTotal = s.units.reduce((n, u) => n + u.feet.length, 0);
+    ok(a.earlyHint === L.tapWait, "음보를 읽는 동안 친 탭에는 '" + L.tapWait + "' 안내가 나온다 (" + a.earlyHint + ')');
+    ok(a.plays === 1 && !a.suggest, '읽는 동안 친 탭은 놓친 것으로 세지 않는다(다시 듣는 단위도 빗금 권유도 없다) ' + JSON.stringify({ plays: a.plays, suggest: a.suggest }));
+    ok(a.slashCounts.length === feetTotal && a.slashCounts.every((n, i) => n === i + 1), '쉼에 칠 때마다 그 음보 뒤에 빗금이 바로 그어진다(빗금 모드와 같은 모습) ' + JSON.stringify(a.slashCounts));
+    await ev(page, (i) => window.__solveAction(i), actionInfo('stairs', s));
+    await waitStep(page, 'sheet');
+    await page.click('.measure .m-finish');
+    const { result } = await waitResult(page);
+    ok(deepEqual(result, deriveSheet(s, 'stairs')), '쉼에 두드려 잰 감정서 = 노래 데이터');
+  }
+  {
+    // 음성 사례: 예전처럼 음보가 울리기 시작할 때 치면 그 장을 마칠 수 없어 다시 듣고, 끝내 빗금을 권한다
+    // (첫 음보는 읽는 동안이라 창 밖이고, 다음 음보 시작의 탭은 앞 쉼 끝 +150ms 안이라 앞 음보에 들 수 있다. 마지막 음보는 늘 놓친다)
+    await openM(page, { songId: 'imomi-jukgo', wing: 'sijo', tapAt: 'onset' });
+    await ev(page, () => window.__solveFold());
+    await waitStep(page, 'tap');
+    await page.click('.measure .m-listen');
+    await page.waitForFunction(() => !!document.querySelector('.measure .m-suggest:not([hidden])'), null, { timeout: 30000 });
+    const neg = await ev(page, () => ({ plays: window.__m.auto.plays.slice(), lit: document.querySelectorAll('.measure .m-text .m-word.is-lit').length, hint: document.querySelector('.measure .m-hint')?.textContent ?? '' }));
+    ok(neg.plays.length >= 2 && same(neg.plays[1], neg.plays[0]) && neg.lit === 0, '음성 사례: 음보가 시작할 때 친 탭(예전 방식)으로는 장을 마치지 못하고 그 장부터 다시 듣는다 ' + JSON.stringify(neg));
+    ok(neg.hint === L.replay, '음성 사례: 쉼에 치지 못한 마디가 있다는 다시 듣기 안내 ' + neg.hint);
+    await ev(page, () => window.__m.state.controller.abort());
+    await waitResult(page).catch(() => {});
   }
 
   console.log("— '같은 걸음으로 넘기기': 누르면 남은 단위를 마치고 감정서는 그대로");
@@ -850,6 +916,76 @@ try {
     ok(deepEqual(r2.result, pre), 'preMeasured: true면 보낸 관(고려가요관)의 고유 동작으로 잰 감정서다');
   }
 
+  console.log('— ④ 갈래 판별: ①~③ 뒤에만, 틀리면 다시, 맞으면 단위 이름이 드러난다(교사 결정 2026-10-08)');
+  {
+    const ds = song('dongjitdal');
+    await openM(page, { songId: 'dongjitdal', wing: 'sijo', slash: true, decide: true, decideNote: '점검: 덧붙이는 한 줄' });
+    const stepNames = [];
+    const look = () => ev(page, () => ({ step: document.querySelector('.measure')?.dataset.step, name: document.querySelector('.measure .m-stepname')?.textContent ?? '', genres: document.querySelectorAll('.measure .m-genre').length }));
+    let s = await look();
+    stepNames.push(s);
+    await ev(page, () => window.__solveFold());
+    await waitStep(page, 'tap');
+    stepNames.push(await look());
+    await ev(page, () => window.__solveSlash());
+    await waitStep(page, 'action');
+    stepNames.push(await look());
+    await ev(page, (i) => window.__solveAction(i), actionInfo('stairs', ds));
+    await waitStep(page, 'decide');
+    s = await look();
+    stepNames.push(s);
+    ok(same(stepNames.map((x) => x.step), ['fold', 'tap', 'action', 'decide']) && stepNames.slice(0, 3).every((x) => x.genres === 0) && s.genres === 5, '④ 갈래 판별은 ①~③을 마친 뒤에만 다섯 갈래 단추로 나온다 ' + JSON.stringify(stepNames.map((x) => x.step + ':' + x.genres)));
+    ok(stepNames[0].name.includes(L.steps.fold) && stepNames[1].name.includes(L.steps.tap) && stepNames[2].name.includes(L.steps.action('stairs')) && stepNames[2].name.includes('마지막 부분 첫 음보의 글자 수 세기') && !stepNames[2].name.includes('종장') && s.name.includes(L.steps.decide), '단계 이름: ① 연·장·행·구 나누기 → ② 음보 나누기 → ③ 계단 오르기 — 마지막 부분 첫 음보의 글자 수 세기(판별 전이라 종장이라 하지 않음) → ④ 갈래 판별 ' + JSON.stringify(stepNames.map((x) => x.name)));
+    const d0 = await ev(page, () => ({
+      sheet: [...document.querySelectorAll('.measure .m-decide-sheet .m-sheet-line')].map((e) => e.textContent),
+      title: document.querySelector('.measure .m-decide-sheet .m-sheet-title')?.textContent,
+      genres: [...document.querySelectorAll('.measure .m-genre')].map((b) => b.dataset.genre + ':' + b.textContent),
+      finish: !!document.querySelector('.measure .m-finish'),
+      book: !!document.querySelector('.measure .m-book-btn'),
+    }));
+    ok(d0.title === L.sheetTitle && d0.sheet[0] === '[세 부분]' && d0.sheet[1] === '[부분마다 네 음보]' && !d0.finish && d0.book, '판별 전: 분석표는 \'부분\'으로 적히고, 『분류 수첩』 단추가 있으며, 판별하지 않고 끝낼 단추가 없다 ' + JSON.stringify(d0));
+    ok(same(d0.genres, ['hyangga:향가', 'goryeo:고려가요', 'sijo:시조', 'gasa:가사', 'saseol:사설시조']), '다섯 갈래를 고를 수 있다 ' + JSON.stringify(d0.genres));
+    // 틀린 갈래: 부르는 쪽에 알리고 다시 고른다(끝나지 않는다)
+    await page.click('.measure .m-genre[data-genre="saseol"]');
+    await page.waitForFunction(() => !!document.querySelector('.measure .m-decide-status')?.textContent, null, { timeout: 5000 });
+    const w1 = await ev(page, () => ({ step: document.querySelector('.measure').dataset.step, calls: window.__m.state.decideCalls, tried: document.querySelector('.measure .m-genre[data-genre="saseol"]').classList.contains('is-tried'), status: document.querySelector('.measure .m-decide-status').textContent, result: window.__m.state.result, sheet: document.querySelector('.measure .m-decide-sheet .m-sheet-line')?.textContent }));
+    ok(w1.step === 'decide' && same(w1.calls, ['saseol']) && w1.tried && w1.status === L.decideAgain && w1.result === null && w1.sheet === '[세 부분]', '(음성) 틀린 갈래를 고르면 끝나지 않고 다시 고른다(단위 이름도 드러나지 않는다) ' + JSON.stringify(w1));
+    // 맞는 갈래: 단위 이름이 드러나고 '확인'을 눌러야 끝난다
+    await page.click('.measure .m-genre[data-genre="sijo"]');
+    await waitStep(page, 'decided');
+    const d1 = await ev(page, () => ({
+      sheet: [...document.querySelectorAll('.measure .m-decide-sheet .m-sheet-line')].map((e) => e.textContent),
+      right: document.querySelector('.measure .m-decide-right')?.textContent,
+      term: document.querySelector('.measure .m-decide-term')?.textContent,
+      note: document.querySelector('.measure .m-decide-note')?.textContent,
+      genres: document.querySelectorAll('.measure .m-genre').length,
+      result: window.__m.state.result,
+    }));
+    ok(d1.sheet[0] === '[세 장]' && d1.sheet[1] === '[장마다 네 음보]' && d1.right === L.decideRight('시조') && d1.term === UNIT_TERMS.sijo && d1.note === '점검: 덧붙이는 한 줄' && d1.genres === 0 && d1.result === null, '맞게 판별하면 분석표가 갈래 단위 이름(장)으로 바뀌고 드러난 단위 이름과 덧붙인 한 줄이 보인다 ' + JSON.stringify(d1));
+    await page.click('.measure .m-finish');
+    const r = await waitResult(page);
+    ok(r.result?.decided === 'sijo' && deepEqual({ ...r.result, decided: undefined }, { ...deriveSheet(ds, 'stairs'), decided: undefined }) && same(await ev(page, () => window.__m.state.decideCalls), ['saseol', 'sijo']), "'확인'을 누르면 판별한 갈래(decided)가 붙은 분석표를 돌려준다(분석표는 노래 모양 그대로)");
+    // 음성 사례: 판별을 넘기지 않으면(단독 화면) ④가 없다
+    await openM(page, { songId: 'dongjitdal', wing: 'sijo', preMeasured: true });
+    await waitStep(page, 'sheet');
+    ok(!(await ev(page, () => !!document.querySelector('.measure .m-genre'))), '(음성) 판별을 넘기지 않은 화면(미리 분석한 노래 등)에는 갈래 단추가 없다');
+    await page.click('.measure .m-finish');
+    await waitResult(page);
+    // 입구 튜토리얼처럼 안내하는 판별: 그 갈래 단추를 손가락으로 가리킨다
+    await openM(page, { songId: 'taesan', wing: 'entrance', slash: true, decide: true, decideGuide: 'sijo' });
+    await ev(page, () => window.__solveFold());
+    await ev(page, () => window.__solveSlash());
+    await ev(page, (i) => window.__solveAction(i), actionInfo('stairs', song('taesan')));
+    await page.waitForSelector('.measure .m-intro[data-intro="decide"] .m-finger', { timeout: 5000 });
+    const guide = await ev(page, () => ({ target: document.querySelector('.measure .m-genre.is-intro-target')?.dataset.genre, text: document.querySelector('.measure .m-intro-text')?.textContent, hint: document.querySelector('.measure .m-hint')?.textContent }));
+    ok(guide.target === 'sijo' && guide.text === L.intro.decide && guide.hint === L.decideGuide('시조'), '안내하는 판별: 손가락이 시조 단추를 가리키고 안내 글이 나온다 ' + JSON.stringify(guide));
+    await page.click('.measure .m-intro-ok');
+    await page.click('.measure .m-genre[data-genre="sijo"]');
+    await waitStep(page, 'decided');
+    await page.click('.measure .m-finish');
+    ok((await waitResult(page)).result?.decided === 'sijo', '안내하는 판별도 학생이 직접 골라 끝낸다');
+  }
+
   console.log('— 첫 사용 안내는 깃발마다 한 번');
   {
     await openM(page, { songId: 'taesan', wing: 'entrance', slash: true, introSeen: { common: false, unique: false } });
@@ -912,11 +1048,11 @@ try {
     ok(await ev(page, () => !document.querySelector('.world.is-split') && !document.querySelector('.measure')), '중단되면 반반 틀을 닫는다');
   }
 
-  console.log("— '재기 그만두기'(관, B5): 낭송 도중 그만두면 감정서 없이 끝나고 소리·사건이 남지 않는다");
+  console.log("— '분석 그만두기'(관, B5): 낭송 도중 그만두면 분석표 없이 끝나고 소리·사건이 남지 않는다");
   {
     await openM(page, { songId: 'dongjitdal', wing: 'sijo', canQuit: true });
     const qb = await ev(page, () => { const b = document.querySelector('.measure .m-head .m-quit'); return b ? { tag: b.tagName, text: b.textContent, w: b.getBoundingClientRect().width, h: b.getBoundingClientRect().height } : null; });
-    ok(qb?.tag === 'BUTTON' && qb.text === '재기 그만두기' && qb.h >= 48, "관 재기 머리에 '재기 그만두기' 단추(48px 이상)가 있다 " + JSON.stringify(qb));
+    ok(qb?.tag === 'BUTTON' && qb.text === '분석 그만두기' && qb.h >= 48, "관의 분석 화면 머리에 '분석 그만두기' 단추(48px 이상)가 있다 " + JSON.stringify(qb));
     ok((await ev(page, () => window.__layoutProblems())).length === 0, '그만두기 단추가 있어도 배치 문제가 없다 ' + JSON.stringify(await ev(page, () => window.__layoutProblems())));
     await ev(page, () => window.__solveFold());
     await waitStep(page, 'tap');
@@ -925,7 +1061,7 @@ try {
     await page.focus('.measure .m-quit');
     await page.keyboard.press('Enter');
     const r = await waitResult(page);
-    ok(/AbortError/.test(r.error ?? '') && !r.result, "낭송 도중 '재기 그만두기'(키보드 Enter)를 누르면 감정서 없이 AbortError로 끝난다 " + r.error);
+    ok(/AbortError/.test(r.error ?? '') && !r.result, "낭송 도중 '분석 그만두기'(키보드 Enter)를 누르면 분석표 없이 AbortError로 끝난다 " + r.error);
     ok(await ev(page, () => !document.querySelector('.world.is-split') && !document.querySelector('.measure')), '그만두면 반반 틀을 닫는다');
     await page.waitForFunction(() => window.__m.auto.ends.length >= window.__m.auto.plays.length, null, { timeout: 5000 });
     const before = await ev(page, () => ({ beats: window.__m.auto.beats, log: window.__m.log.length, ends: window.__m.auto.ends.slice(), plays: window.__m.auto.plays.length }));
@@ -943,7 +1079,7 @@ try {
     const noQuitBoss = await ev(page, () => !document.querySelector('.measure .m-quit'));
     await ev(page, () => window.__m.state.controller.abort());
     await waitResult(page);
-    ok(noQuit && noQuitBoss, "(음성) 그만두기를 허락하지 않은 재기와 보스 재기에는 '재기 그만두기'가 없다");
+    ok(noQuit && noQuitBoss, "(음성) 그만두기를 허락하지 않은 분석과 보스 분석에는 '분석 그만두기'가 없다");
   }
 
   console.log('— 움직임 줄이기');
@@ -994,7 +1130,7 @@ try {
     await ev(pp, (v) => { document.documentElement.style.setProperty('--text-scale', String(v)); window.__m.events.emit('settings:text-scale', { value: v }); }, scale);
     const list = scale === 1.3 ? long : long.slice(0, 2);
     for (const [wing, id] of list) {
-      await openM(pp, { songId: id, wing, slash: true, canQuit: true });   // 관 재기처럼 '재기 그만두기'가 머리에 있다
+      await openM(pp, { songId: id, wing, slash: true, canQuit: true });   // 관의 분석처럼 '분석 그만두기'가 머리에 있다
       const a = await ev(pp, () => window.__scanAllPages());
       ok(a.problems.length === 0, scale + ' ' + id + ' 접기 전(이어진 글줄): ' + a.pages + '쪽 넘침 없음 ' + JSON.stringify(a.problems));
       await ev(pp, () => window.__solveFold());
@@ -1018,6 +1154,21 @@ try {
     ok(s1.length === 0, '1.3 감정서 화면 넘침 없음 ' + JSON.stringify(s1));
     await pp.click('.measure .m-finish');
     await waitResult(pp);
+    // ④ 갈래 판별 화면(긴 분석표): 다섯 갈래 단추는 늘 보이는 조작 줄에, 분석표는 스크롤되는 자리에
+    await openM(pp, { songId: 'nimi-oma', wing: 'saseol', slash: true, canQuit: true, decide: true });
+    await ev(pp, () => window.__solveFold());
+    await ev(pp, () => window.__solveSlash());
+    await ev(pp, (i) => window.__solveAction(i), actionInfo('rapid-unroll', song('nimi-oma')));
+    await waitStep(pp, 'decide');
+    const sd = await ev(pp, () => window.__layoutProblems());
+    const genresInView = await ev(pp, () => [...document.querySelectorAll('.measure .m-genre')].every((b) => { const r = b.getBoundingClientRect(); const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return r.top >= 0 && r.bottom <= innerHeight && r.right <= innerWidth && (top === b || b.contains(top)); }));
+    ok(sd.length === 0 && genresInView, '1.3 갈래 판별 화면 넘침 없음, 다섯 갈래 단추가 모두 화면 안에서 눌린다 ' + JSON.stringify(sd));
+    await pp.click('.measure .m-genre[data-genre="saseol"]');
+    await waitStep(pp, 'decided');
+    const sd2 = await ev(pp, () => window.__layoutProblems());
+    ok(sd2.length === 0, '1.3 판별 확인 화면 넘침 없음 ' + JSON.stringify(sd2));
+    await pp.click('.measure .m-finish');
+    await waitResult(pp);
     await openM(pp, { songId: 'gapminga', wing: null, mode: 'boss', slash: true, journal: { concepts: {} } });
     await ev(pp, () => window.__solveFold());
     await ev(pp, () => window.__solveSlash());
@@ -1027,6 +1178,38 @@ try {
     await pp.click('.measure .m-journal-btn');
     const s3 = await ev(pp, () => window.__layoutProblems());
     ok(s3.length === 0, '1.3 일지 화면 넘침 없음 ' + JSON.stringify(s3));
+    // 일지 서랍의 닫기(교사 의견 2026-10-07): 오른쪽 위 ✕, 이름 '닫기', 44px 이상, 화면 안. 누르면 닫히고 초점은 일지 단추로. Esc로도
+    const jc = await ev(pp, () => {
+      const d = document.querySelector('.measure .m-journal:not([hidden])');
+      const b = d?.querySelector('.m-drawer-close');
+      if (!d || !b) return null;
+      const r = b.getBoundingClientRect();
+      const dr = d.getBoundingClientRect();
+      const s = getComputedStyle(b);
+      return { name: b.getAttribute('aria-label'), w: r.width, h: r.height, inView: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, corner: dr.right - r.right <= 40 && r.top - dr.top <= 40, bg: s.backgroundColor, top: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === b };
+    });
+    ok(jc && jc.name === '닫기' && jc.w >= 44 && jc.h >= 44 && jc.inView && jc.corner && jc.top && jc.bg === 'rgb(43, 43, 43)', '1.3 일지 서랍: 오른쪽 위에 먹색 ✕ 닫기 단추가 보인다 ' + JSON.stringify(jc));
+    await pp.click('.measure .m-journal .m-drawer-close');
+    ok(await ev(pp, () => document.querySelector('.measure .m-journal')?.hidden === true && document.activeElement?.classList.contains('m-journal-btn')), '1.3 일지 서랍: ✕로 닫히고 초점은 일지 단추로 돌아온다');
+    await pp.click('.measure .m-journal-btn');
+    await pp.keyboard.press('Escape');
+    ok(await ev(pp, () => document.querySelector('.measure .m-journal')?.hidden === true && !!document.querySelector('.measure')), '1.3 일지 서랍: Esc로 서랍만 닫힌다');
+    // 음성 사례: 서랍이 열린 동안 다른 창(설정 등)에 초점이 있으면 Esc는 그 창의 것이라 서랍을 닫지 않는다
+    await pp.click('.measure .m-journal-btn');
+    const other = await ev(pp, () => {
+      const box = document.createElement('div');
+      box.setAttribute('role', 'dialog');
+      const b = document.createElement('button');
+      b.textContent = '다른 창';
+      box.append(b);
+      document.body.append(box);
+      b.focus();
+      document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      const open = document.querySelector('.measure .m-journal')?.hidden === false;
+      box.remove();
+      return open;
+    });
+    ok(other === true, '음성 사례: 다른 창에 초점이 있을 때의 Esc는 일지 서랍을 닫지 않는다');
     await ev(pp, () => window.__m.state.controller.abort());
     await waitResult(pp);
   }

@@ -1,6 +1,7 @@
 // 한 판 화면에 보이는 짧은 글(버튼 이름, 알림 한 줄, 자리 이름).
 // 교사 확인을 받을 글(수첩 설명, 개념 문장, 기념품 글, 가객 이름)은 js/data/의 데이터에서 그대로 가져온다.
-// 갈래를 미리 알려 주는 말은 쓰지 않는다. 판단은 학생이 꽂는 자리로 한다(spec 5.5).
+// 갈래를 미리 알려 주는 말은 쓰지 않는다. 판단은 학생이 형식 분석의 ④ 갈래 판별에서 한다(교사 결정 2026-10-08).
+import { UNIT_TERMS } from '../measure/labels.js';
 
 export const L = {
   // 위 띠
@@ -10,8 +11,12 @@ export const L = {
   listen: '다시 듣기',
   leave: '회랑으로',
   close: '닫기',
-  hand: '손에 든 노래',
-  handEmpty: '손이 비어 있어요',
+  // 손에 든 노래 = 갈래 판별을 마친 노래(판별 전의 노래는 관 안을 떠도는 '뒤섞인 노래')
+  hand: '판별한 노래',
+  handEmpty: '아직 판별한 노래가 없어요.',
+  mixedLeft: (n) => '뒤섞인 노래 ' + n + '편이 남았어요. 잡아서 형식을 분석하고 갈래를 판별하세요.',
+  // 관에 들어올 때마다(판을 마치기 전) 알리는 전제(교사 결정 2026-10-08)
+  premise: (wing) => '먹안개가 다섯 관을 휘저어 노래들이 뒤섞였어요. ' + wing + '에도 다른 관의 노래가 섞여 있어요. 노래마다 형식을 분석하고 갈래를 판별한 뒤 제자리로 보내세요.',
 
   // 상황 버튼
   catch: '잡기',
@@ -35,44 +40,54 @@ export const L = {
   fixed: '고정됨',
   remove: '빼기',
   pickTitle: '어느 노래를 꽂을까요?',
-  pickBasket: '바구니에 넣을 노래',
-  destTitle: (title) => '「' + title + '」을(를) 어느 관으로 보낼까요?',
-  basketFull: '바구니가 찼어요. 먼저 하나를 빼세요.',
-  nothingInHand: '손에 든 노래가 없어요. 떠도는 노래를 먼저 잡아 재 보세요.',
+  // 바구니: 다른 관의 노래로 판별한 노래가 저절로 담기고 행선지도 정해진다(학생이 고르지 않는다)
+  basketAuto: '다른 관의 노래로 판별한 노래가 여기에 담기고, 그 갈래의 관이 행선지가 돼요. 두 자리가 차면 보내요.',
+  basketReady: '보낼 준비',
+  nothingInHand: '판별한 노래가 없어요. 뒤섞인 노래를 잡아 형식을 분석하고 갈래를 판별하세요.',
   waitingTitle: '입구에서 기다리는 노래',
-  premeasured: '미리 잰 노래',
-  floatingLabel: (title) => '떠도는 노래 「' + title + '」',
-  waitingLabel: (title) => '미리 잰 노래 「' + title + '」(연필 표시)',
+  premeasured: '미리 분석한 노래',
+  floatingLabel: (title) => '뒤섞인 노래 「' + title + '」',
+  // 판을 마친 관에서 떠다니는 덤 노래(모두 그 관 갈래라 '뒤섞인 노래'가 아니다)
+  bonusSongLabel: (title) => '덤 노래 「' + title + '」',
+  waitingLabel: (title) => '미리 분석한 노래 「' + title + '」(연필 표시)',
+
+  // 갈래 판별(형식 분석의 ④)이 맞았을 때 분석 화면의 확인 글에 덧붙이는 한 줄과 알림
+  decidedOwn: (wing) => wing + '의 노래예요. 손에 들고 칸에 꽂으세요.',
+  decidedTower: '향가관의 노래예요. 손에 들고 탑의 알맞은 층에 꽂으세요.',
+  decidedBonus: (wing) => wing + '의 노래예요. 손에 들고 덤 칸에 꽂으세요.',
+  decidedStray: (wing) => '다른 관의 노래예요. 바구니에 담아 ' + wing + '으로 보내요.',
+  toBasket: (title, wing) => '「' + title + '」을(를) ' + wing + '으로 보낼 바구니에 담았어요.',
 
   // 판정
   popOut: (title) => '「' + title + '」이(가) 모양이 맞지 않아 삐져나왔어요. 손으로 돌아왔어요.',
-  popOutBasket: (title) => '「' + title + '」은(는) 그 관으로 갈 노래가 아니었어요. 행선지 표시가 지워졌어요.',
+  popOutBasket: (title) => '「' + title + '」은(는) 그 관으로 갈 노래가 아니었어요. 손으로 돌아왔어요.',
   bound: '세 권이 실로 묶이고 책등에 금박이 찍혔어요. 먹안개가 물러나요.',
   bonusBound: '덤 칸이 묶였어요.',
   roomOpen: '작품 방 문이 열렸어요.',
-  sentPrewait: (title, wing) => '「' + title + '」은(는) ' + wing + ' 입구에서 미리 잰 채로 기다려요.',
+  sentPrewait: (title, wing) => '「' + title + '」은(는) ' + wing + ' 입구에서 미리 분석한 채로 기다려요.',
   sentReturned: (title, wing) => '「' + title + '」은(는) ' + wing + " '돌아온 노래' 선반에 꽂혔어요.",
   helpGlow: '『분류 수첩』의 관련 줄이 반짝여요. 펼쳐 보세요.',
 
-  // 맞대어 보기(판정에서 돌아온 노래를 그 자리와 견주어 본다). 틀렸다는 말이나 기록은 없다
+  // 맞대어 보기(틀린 갈래 판별 뒤, 그리고 탑의 층이 틀린 노래). 틀렸다는 말이나 기록은 없다
   contrastTitle: (title) => '「' + title + '」 맞대어 보기',
-  contrastPrompt: '이 노래의 감정서에서 이 자리와 맞지 않는 줄을 짚어 보자.',
-  contrastSheet: '이 노래의 감정서',
+  contrastPrompt: '이 노래의 분석표에서 이 자리와 맞지 않는 줄을 짚어 보자.',
+  // 갈래 판별에서 고른 갈래와 견줄 때(name: 고른 갈래 이름)
+  contrastPromptGenre: (name) => '이 노래의 분석표에서 『분류 수첩』 ' + name + ' 쪽과 맞지 않는 줄을 짚어 보자.',
+  // 짚을 줄이 없을 때: 분석표와 고른 갈래 쪽을 나란히 보인다(짝짓기 없음)
+  contrastNoPair: (name) => '분석표를 『분류 수첩』 ' + name + ' 쪽과 나란히 견주어 보고 다시 판별해 보자.',
+  contrastSheet: '이 노래의 분석표',
   contrastPage: (name) => '『분류 수첩』 ' + name + ' 쪽',
   contrastFloor: (gu) => gu + '구 층',
-  floorLine: (gu) => '이 층은 ' + ({ 4: '네', 8: '여덟', 10: '열' }[gu] ?? gu) + ' 덩이로 된 노래의 자리다.',
+  // unit: 판별 전이면 '부분', 판별을 마친 향가면 '구'
+  floorLine: (gu, unit = '구') => '이 층은 ' + ({ 4: '네', 8: '여덟', 10: '열' }[gu] ?? gu) + ' ' + unit + (unit === '구' ? '로' : '으로') + ' 된 노래의 자리다.',
   contrastFound: '이 줄이 이 자리와 어긋나요. 수첩의 줄과 견주어 보세요.',
+  contrastFoundGenre: '이 줄이 고른 갈래와 어긋나요. 수첩의 줄과 견주어 보세요.',
   contrastNudge: '살짝 빛나는 줄을 다시 읽어 보세요.',
   contrastBack: '손에 다시 들기',
+  contrastRetry: '다시 판별하기',
 
-  // 칸이 묶일 때 그 관의 단위 이름이 드러난다(그 전에는 '덩이'라 부른다)
-  unitReveal: {
-    hyangga: '이 관의 덩이는 ‘구’라 부른다.',
-    goryeo: '이 관의 큰 덩이는 ‘연’, 연 안의 작은 덩이는 ‘줄’이라 부른다.',
-    sijo: '이 관의 덩이는 ‘장’이라 부른다.',
-    gasa: '이 관의 덩이는 ‘행’이라 부른다.',
-    saseol: '이 관의 덩이도 ‘장’이라 부른다.',
-  },
+  // 칸이 묶일 때 첫 가객 카드 위에 그 관의 단위 이름을 한 번 더 보인다(갈래 판별에서 맞힐 때 처음 드러난다)
+  unitReveal: UNIT_TERMS,
 
   // 가객과 기념품
   singersTitle: '가객이 나타났어요',
@@ -96,7 +111,7 @@ export const L = {
 
   // 판의 끝
   leak: (wing) => '문틈으로 ' + wing + '의 소리가 새어 나와요.',
-  bonusOpen: '덤 칸이 열렸어요. 다시 와서 덤 노래도 재어 볼 수 있어요.',
+  bonusOpen: '덤 칸이 열렸어요. 다시 와서 덤 노래도 분석해 볼 수 있어요.',
   doneWing: '판을 마쳤어요. 덤과 다시 듣기만 할 수 있어요.',
 
   // 저장 실패(spec 13·20, 이 문장 그대로)

@@ -30,7 +30,7 @@
 | `js/registry.js` | 관 모형 다섯(`normalizeWing`으로 감쌈), 작품 방 다섯, 화면(`start`·`play`·`notebook`·`journal`·`collection`·`boss`·`credits`)을 모으는 단일 등록 지점 | world/wings, rooms, play, boss, story, ui |
 | `js/story/` | 앱 흐름: 시작 화면(이름 기록) → 처음 켜는 기기의 이어폰 안내·박자 맞추기 → 입구 튜토리얼 → 회랑과 관 → 보스 문 → 보스 → 엔딩 → 서고 완성. 설정 화면 | play/session, core(save·audio·cards), result, registry, data/story |
 | `js/play/` | 앱 하나에 하나뿐인 **세션**(저장 엔진·진행 엔진·소리 엔진·세계 바탕 하나씩)과 관 한 판 흐름, 수첩·일지·도감 화면, 가객·기념품 연출 | core, world, measure, result, registry(방), data |
-| `js/measure/` | 재기 화면: 접기 → 두드리기(또는 빗금) → 고유 동작 → 감정서 | core(rhythm·song-shape·events), data. 세계 바탕은 인자로 받음 |
+| `js/measure/` | 형식 분석 화면(코드 이름 재기): ① 연·장·행·구 나누기(접기) → ② 음보 나누기(두드리기 또는 빗금) → ③ 고유 동작 → 분석표(감정서) → ④ 갈래 판별(관·입구, 맞고 틀림은 부르는 쪽이 정함) | core(rhythm·song-shape·events), data. 세계 바탕은 인자로 받음 |
 | `js/rooms/` | 작품 방 다섯. `start(ctx)` → `{ completed, record }` | core(events), world/assets, data(rooms-*). 소리 엔진은 인자로 받음 |
 | `js/boss/` | 보스전 세 단계 | measure, core(rhythm), data(remix·boss-text). 진행 엔진·소리 엔진은 세션으로 받음 |
 | `js/result/` | 결과 카드 PNG 그리기와 내려받기 | core/cards의 자료, world(palette·sprites·assets) |
@@ -52,17 +52,19 @@
 
 ## 대표 흐름 1: 학생이 시조관 칸의 셋째 자리에 노래를 꽂는다
 
+0. **갈래 판별**(교사 결정 2026-10-08): 그 노래는 먼저 형식 분석의 ④에서 시조로 판별되어 손에 있다(`progress.decideGenre('sijo', songId, 'sijo')` → `measured`). 다른 갈래로 판별한 노래는 행선지와 함께 바구니에 저절로 담기므로 칸에 꽂을 수 없다(엔진이 `other-genre`·`not-decided`로 막는다).
 1. **조작**: `world/controls.js`가 탭을 받아 학생을 걷게 하고, 멈추면 `onArrive({ anchor: { key: 'slots', index: 2 } })`를 부른다. `play/wing.js`가 오른쪽 아래 상황 버튼을 '꽂기'로 바꾼다.
 2. **꽂기**: '꽂기'를 누르면 `wing.js`가 진행 엔진 `progress.place('sijo', 'shelf', 2, songId)`를 부른다. 엔진은 자리를 바꾸고 `save()`를 부르며, 이것은 저장 엔진 `touchRecord` → `localStorage.setItem('yetnorae-seogo-v1', 문서 전체 JSON)`으로 이어진다. 화면은 `diorama:slot-set`을 내고, 세계가 시조관 모형의 `react`로 넘겨 빈 책등 자리에 책을 세운다.
-3. **판정**: 세 자리가 다 찼으므로 `wing.js`가 `progress.judge('sijo', 'shelf')`를 부른다. 엔진은 `judge.js`의 `judgeArea`로 자리마다 맞는지 보고, 맞은 자리를 고정하고 틀린 자리를 비우며 관 오답 수를 늘린다(3 이상이면 `help:notebook-glow`). 모두 맞으면 `shelfBound`, 세 노래의 개념 확인(`concept:changed`), 기념품 지급을 하고 저장한다.
+3. **판정**: 세 자리가 다 찼으므로 `wing.js`가 `progress.judge('sijo', 'shelf')`를 부른다. 엔진은 `judge.js`의 `judgeArea`로 자리마다 맞는지 보고, 맞은 자리를 고정하고 틀린 자리를 비우며 관 오답 수를 늘린다(3 이상이면 `help:notebook-glow`). 판별한 노래만 꽂히므로 시조관 칸은 언제나 맞고, 틀린 자리는 향가관 탑의 층에서만 생긴다. 모두 맞으면 `shelfBound`, 세 노래의 개념 확인(`concept:changed`), 기념품 지급을 하고 저장한다.
 4. **연출**: 돌아온 노래마다 화면이 `diorama:pop-out { genre }`을 내 갈래 모양대로 삐져나오게 하고, 묶였으면 `diorama:shelf-bound`·`diorama:fog-recede` 뒤에 가객 연출(`play/ceremony.js`, 낭송 한 소절)과 기념품 카드를 띄운다. 작품 방 문이 열린다.
 5. **판의 끝**: 방을 마치면 `progress.completeRoom` → 칸·바구니·방 표시가 다 있으므로 관이 `done`, 다음 관이 `open`(`wing:state`), 다섯 관을 다 마쳤으면 보스가 `stage1`. 화면은 `diorama:dancheong-restore` → 판 카드(`core/cards.buildWingCard` → `result/card.js`가 1600×900 캔버스에 그림) → 다음 관 배경음을 잠깐 틀어 문틈 소리를 낸 뒤 덤 노래를 띄운다.
 
-## 대표 흐름 2: 낭송에 맞춰 두드리기
+## 대표 흐름 2: 낭송의 쉼에 두드리기
 
-1. 재기 화면이 `rhythm.buildGrid(song)`으로 박자 칸을 만든다. 박 하나의 길이는 `60 / tempo`초이고, 박마다 낭송 조각 경로(`assets/audio/voice/<노래>/<단위>-<음보>.mp3`)가 붙는다.
-2. 소리 엔진(`core/audio.js`, Web Audio)이 단위 하나의 조각들을 그 칸 시각에 예약하고, 낭송 동안 배경음을 0.3배로 줄인다. 조각 파일이 없으면 `audio:missing`을 한 번 내고 그 박 자리에 딸깍 소리를 낸다. 박자 칸은 그대로 간다.
-3. 탭은 `createTapSession`이 판정한다. 기기의 박자 보정값을 뺀 탭 시각이 박에서 ±150ms 안이면 인정하고, 인정한 박마다 화면이 `diorama:pillar-light`를 낸다. 단위가 끝나면 놓친 박이 있는 단위만 다시 듣게 한다.
+1. 재기 화면이 `rhythm.buildPauseGrid(song)`으로 쉼 칸을 만든다. 음보(향가는 구)마다 낭송 조각 경로(`assets/audio/voice/<노래>/<단위>-<음보>.mp3`)와 그 뒤의 쉼(1초, 고려가요 여음·후렴은 0)이 붙는다. 노래 빠르기(`tempo`)는 쓰지 않는다.
+2. 소리 엔진(`core/audio.js`, Web Audio)이 '준비' 딱 소리 1초 뒤부터 조각을 제 길이대로 이어 예약하고(조각 끝 → 쉼 → 다음 조각), 단위의 시각은 그 단위 조각을 불러왔을 때 정한다(`pauseSegmentTiming`). 낭송 동안 배경음을 0.3배로 줄인다. 조각 파일이 없으면 `audio:missing`을 한 번 내고 그 자리에 딸깍 소리를 낸 뒤 쉼을 둔다.
+3. 탭은 `createPauseTapSession`이 판정한다. 기기의 박자 보정값을 뺀 탭 시각이 그 음보의 [조각 끝 −150ms, 쉼 끝 +150ms] 안이면 인정하고, 인정한 음보 뒤에 빗금을 긋고 `diorama:pillar-light`를 낸다. 낭송 중(창 밖)의 탭은 안내만 한다. 단위가 끝나면 쉼을 놓친 단위만 다시 듣게 한다.
+   (다시 듣기·작품 방·보스는 `rhythm.buildGrid`의 일정한 박자 칸(박 하나 `60 / tempo`초)으로 이어 읽는다. 보스 2단계 갈래 바뀜 탭은 `createRemixSession`이 판정한다.)
 4. 세로로 돌리면 `screen.js`가 `orientation:pause`·`audio:pause`를 내고, 소리 엔진이 모든 재생과 판정을 멈춘다. 가로로 돌아오면 진행 중이던 단위를 처음부터 다시 낸다.
 5. 소리를 끄거나 빗금 모드면 소리 엔진이 `rhythm:no-beat`를 내고, 재기·방·보스가 박자 없는 방식(빗금, 누를 때마다 한 걸음 등)으로 바뀐다.
 

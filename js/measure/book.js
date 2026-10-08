@@ -25,11 +25,42 @@ function drawer(kind, title) {
   box.setAttribute('aria-label', title);
   const head = el('div', 'm-drawer-head');
   const h = el('h3', 'm-drawer-title', title);
-  const close = button('m-' + kind + '-close m-drawer-close', L.close);
+  // 오른쪽 위 X 단추(교사 의견 2026-10-07: 글자 '닫기' 단추가 쪽 단추와 같아 보여 닫는 곳을 찾지 못했다)
+  const close = button('m-' + kind + '-close m-drawer-close x-close');
+  close.setAttribute('aria-label', L.close);
+  close.title = L.close;
   const body = el('div', 'm-drawer-body m-' + kind + '-body');
   head.append(h, close);
   box.append(head, body);
   return { box, head, body, close };
+}
+
+// 서랍 열고 닫기: 오른쪽 위 닫기 단추와 Esc(초점이 서랍 밖이어도)로 닫고, 초점을 연 단추로 돌려준다
+function wireDrawer(d, btn, onOpen) {
+  const onKey = (e) => {
+    if (!d.box.isConnected || d.box.hidden) { document.removeEventListener('keydown', onKey); return; }
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    // 다른 창에 초점이 있으면 그 창의 Esc다(서랍 안, 또는 초점이 문서에 있을 때만 닫는다)
+    const a = document.activeElement;
+    if (a && a !== document.body && !d.box.contains(a)) return;
+    e.preventDefault();
+    hide();
+  };
+  const hide = () => {
+    document.removeEventListener('keydown', onKey);
+    if (d.box.hidden) return;
+    d.box.hidden = true;
+    if (btn.isConnected) btn.focus({ preventScroll: true });
+  };
+  btn.addEventListener('click', () => {
+    d.box.hidden = false;
+    onOpen();
+    document.removeEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey);
+    d.close.focus({ preventScroll: true });
+  });
+  d.close.addEventListener('click', hide);
+  return hide;
 }
 
 // 수첩. notebook: 갈래 id → 쪽(js/data/notebook-<갈래>.js). glow: [{ genre, conceptIds }]
@@ -91,8 +122,7 @@ export function createNotebook(host, { notebook = {}, glow = [], genre = null } 
   if (firstGlow) current = firstGlow.genre;
   render();
 
-  btn.addEventListener('click', () => { d.box.hidden = false; render(); d.close.focus(); });
-  d.close.addEventListener('click', () => { d.box.hidden = true; btn.focus(); });
+  wireDrawer(d, btn, render);
   host.append(d.box);
   return { button: btn, drawer: d.box, addGlow, close: () => { d.box.hidden = true; } };
 }
@@ -140,8 +170,7 @@ export function createJournal(host, { concepts = {}, glow = [] } = {}) {
   }
 
   render();
-  btn.addEventListener('click', () => { d.box.hidden = false; render(); d.close.focus(); });
-  d.close.addEventListener('click', () => { d.box.hidden = true; btn.focus(); });
+  wireDrawer(d, btn, render);
   host.append(d.box);
   return { button: btn, drawer: d.box, addGlow, setState, close: () => { d.box.hidden = true; } };
 }

@@ -116,12 +116,21 @@ function bareEngine(opts = {}) {
   return { engine, emit, saves: () => saves };
 }
 
-// 한 관을 바르게 끝낸다(칸 → 바구니 → 방).
+const genreOfId = (id) => SONG_TABLE.catalog[id]?.genre;
+// 노래를 분석한 뒤 갈래를 바르게 판별한다. 미리 분석한 노래(보낸 관에서 판별을 마침)는 판별 없이 잡아 손에 든다.
+function decide(engine, wingId, id, genre = genreOfId(id)) {
+  const r = engine.decideGenre(wingId, id, genre);
+  if (!r.ok && r.reason === 'decided' && (engine.progress.prewaiting[wingId] ?? []).includes(id)) return engine.markMeasured(wingId, id);
+  return r;
+}
+
+// 한 관을 바르게 끝낸다(칸 노래 판별 → 칸 → 길 잃은 노래 판별(바구니에 저절로) → 바구니 → 방).
 function playWing(engine, wingId, { room = true } = {}) {
   const w = WING_TABLE[wingId];
+  w.shelf.forEach((id) => decide(engine, wingId, id));
   w.shelf.forEach((id, i) => engine.place(wingId, 'shelf', i, id));
   const r1 = engine.judge(wingId, 'shelf');
-  w.stray.forEach((s, i) => engine.place(wingId, 'basket', i, s.songId, s.to));
+  w.stray.forEach((s) => decide(engine, wingId, s.songId));
   const r2 = engine.judge(wingId, 'basket');
   const r3 = room ? engine.completeRoom(wingId, { room: wingId }) : null;
   return { r1, r2, r3 };
@@ -201,7 +210,7 @@ section('2. 저장 형식(js/data/README.md 9절)과 의미 있는 행동마다 
   const raw = storage.map.get(SAVE_KEY);
   check(typeof raw === 'string' && storage.map.size === 1, '열쇠 하나(' + SAVE_KEY + ')에만 저장한다');
   const d = JSON.parse(raw);
-  check(d.version === 1 && SAVE_VERSION === 1, '버전 1');
+  check(d.version === 2 && SAVE_VERSION === 2, '버전 2(갈래 판별 기록)');
   check(same(sorted(Object.keys(d)), sorted(['version', 'device', 'slots', 'lastSlotId'])), '맨 위 열쇠가 약속과 같다');
   check(same(sorted(Object.keys(d.device)), sorted(['volume', 'muted', 'slashMode', 'textScale', 'reduceMotion', 'calibrationOffsetMs', 'calibrated'])), '기기 설정 열쇠가 약속과 같다');
   const s = d.slots[record.id];
@@ -224,14 +233,20 @@ section('2. 저장 형식(js/data/README.md 9절)과 의미 있는 행동마다 
   game.completeTutorial();
   check(storage.writes > before, '튜토리얼을 마치면 저장한다');
   before = storage.writes;
+  game.decideGenre('hyangga', 'seodongyo', 'goryeo');
+  check(storage.writes === before + 1 && game.progress.wings.hyangga.wrongCount === 1, '틀린 갈래 판별도 오답 수를 저장한다');
+  before = storage.writes;
+  game.decideGenre('hyangga', 'seodongyo', 'hyangga');
+  check(storage.writes === before + 1, '갈래 판별을 마치면 저장한다');
+  before = storage.writes;
   game.place('hyangga', 'shelf', 0, 'seodongyo');
   check(storage.writes === before + 1, '꽂으면 저장한다');
   before = storage.writes;
   game.unplace('hyangga', 'shelf', 0);
   check(storage.writes === before + 1, '빼면 저장한다');
   before = storage.writes;
-  game.markMeasured('hyangga', 'seodongyo');
-  check(storage.writes === before + 1, '재기를 마치면 저장한다');
+  game.markMeasured('hyangga', 'cheoyongga');
+  check(storage.writes === before, '판별하지 않은 노래를 손에 드는 길(markMeasured)은 막혀 저장하지 않는다');
   before = storage.writes;
   game.judge('hyangga', 'shelf');
   check(storage.writes === before, '판정이 일어나지 않으면(덜 참) 저장할 것도 없다');
@@ -268,9 +283,11 @@ section('3. 저장 실패, 버전이 다를 때, 여러 창(다른 기록은 남
   check(failed.length >= 1 && failed[0].detail.reason === 'quota', '저장소가 가득 차면 save:failed { reason: quota }를 낸다');
   check(game.wingState('hyangga') === 'open' && store.getRecord(record.id).progress.tutorialDone, '저장에 실패해도 이번 창 메모리에서 계속된다');
   check(store.failure === 'quota', '저장 실패 상태를 물어볼 수 있다');
+  game.decideGenre('hyangga', 'seodongyo', 'hyangga');
   const r = game.place('hyangga', 'shelf', 0, 'seodongyo');
   check(r.ok && game.progress.wings.hyangga.placements.shelf[0]?.songId === 'seodongyo', '실패 뒤에도 행동은 계속 된다');
   storage.failSet = null;
+  game.decideGenre('hyangga', 'cheoyongga', 'hyangga');
   game.place('hyangga', 'shelf', 1, 'cheoyongga');
   check(store.failure === null && JSON.parse(storage.map.get(SAVE_KEY)).slots[record.id].progress.tutorialDone === true, '저장소가 돌아오면 다시 저장한다');
   storage.failSet = 'other';
@@ -308,15 +325,15 @@ section('3. 저장 실패, 버전이 다를 때, 여러 창(다른 기록은 남
   const i6 = s6.load();
   check(i6.status === 'reset' && i6.reason === 'version' && i6.foundVersion === 0, '옮길 수 없는 옛 버전은 새로 시작한다');
   s6.createRecord('새');
-  check(JSON.parse(st6.map.get(SAVE_KEY)).version === 1, '새로 시작한 뒤 저장하면 현재 버전으로 덮어쓴다');
+  check(JSON.parse(st6.map.get(SAVE_KEY)).version === SAVE_VERSION, '새로 시작한 뒤 저장하면 현재 버전으로 덮어쓴다');
   // 새 버전(이 게임보다 나중 것)
   const st7 = memoryStorage();
-  const future = JSON.stringify({ version: 2, slots: { y: { id: 'y', name: '미래' } } });
+  const future = JSON.stringify({ version: SAVE_VERSION + 1, slots: { y: { id: 'y', name: '미래' } } });
   st7.map.set(SAVE_KEY, future);
   const emit7 = recorder();
   const s7 = createStore({ storage: st7, emit: emit7, now: clock() });
   const i7 = s7.load();
-  check(i7.status === 'newer' && i7.foundVersion === 2, '더 새 버전의 저장은 newer로 알린다');
+  check(i7.status === 'newer' && i7.foundVersion === SAVE_VERSION + 1, '더 새 버전의 저장은 newer로 알린다');
   s7.createRecord('지금');
   check(st7.map.get(SAVE_KEY) === future, '더 새 버전의 저장은 덮어쓰지 않는다(이번 창 메모리로만 진행)');
   check(emit7.of('save:failed').length >= 1, '더 새 버전이면 저장되지 않는다고 알린다');
@@ -425,12 +442,44 @@ section('3. 저장 실패, 버전이 다를 때, 여러 창(다른 기록은 남
   const st15 = memoryStorage();
   const n1 = createStore({ storage: st15, emit: recorder(), now: clock() });
   n1.load(); n1.createRecord('지금 버전');
-  const newer = JSON.stringify({ version: 2, slots: {} });
+  const newer = JSON.stringify({ version: SAVE_VERSION + 1, slots: {} });
   st15.map.set(SAVE_KEY, newer);
   const emit15 = recorder();
   const n2 = createStore({ storage: st15, emit: emit15, now: clock() });
   n1.updateDevice({ muted: true });
   check(st15.map.get(SAVE_KEY) === newer && n1.failure === 'unknown', '다른 창이 더 새 버전으로 저장했으면 덮어쓰지 않는다');
+
+  // 버전 1 → 2 옮기기(갈래 판별, 2026-10-08): 판별 단계가 없던 버전의 손에 든 노래·판정 전 자리는 판별하지 않은 것으로
+  // 되돌린다(다시 분석·판별). 판정에서 맞아 고정된 노래와 미리 분석한 노래, 마친 관은 그대로다.
+  const pv = defaultProgress();
+  pv.tutorialDone = true;
+  pv.wings.hyangga = {
+    ...pv.wings.hyangga, state: 'done', shelfBound: true, basketDone: true, roomDone: true, doneAt: '2026-10-05T09:00:00.000Z',
+    placements: { shelf: WING_TABLE.hyangga.shelf.map((songId) => ({ songId, fixed: true })), basket: [{ songId: 'gasiri', to: 'goryeo', fixed: true }, { songId: 'cheongsanri-byeokgyesu', to: 'sijo', fixed: true }], bonus: [null, null, null] },
+    measured: [...WING_TABLE.hyangga.shelf, 'gasiri', 'cheongsanri-byeokgyesu'],
+  };
+  pv.wings.goryeo = {
+    ...pv.wings.goryeo, state: 'open',
+    placements: { shelf: [{ songId: 'cheongsan-byeolgok', fixed: false }, null, null], basket: [{ songId: 'dongjitdal', to: 'sijo', fixed: false }, null], bonus: [null, null, null] },
+    measured: ['gasiri', 'cheongsan-byeolgok', 'seogyeong-byeolgok', 'dongjitdal'],
+  };
+  pv.prewaiting.goryeo = ['gasiri'];
+  pv.returned.sijo = ['cheongsanri-byeokgyesu'];
+  const v1doc = (progress, version) => JSON.stringify({ version, device: {}, slots: { m: { id: 'm', name: '옛 기록', appearance: 'a', createdAt: 'x', updatedAt: 'x', progress } }, lastSlotId: 'm' });
+  const st16 = memoryStorage();
+  st16.map.set(SAVE_KEY, v1doc(pv, 1));
+  const s16 = createStore({ storage: st16, emit: recorder(), now: clock() });
+  const i16 = s16.load();
+  const mp = s16.getRecord('m')?.progress;
+  check(i16.status === 'migrated' && i16.foundVersion === 1, '버전 1 저장은 옮겨 읽는다(migrated)');
+  check(same(mp.wings.goryeo.measured, ['gasiri']) && same(mp.wings.goryeo.placements.shelf, [null, null, null]) && same(mp.wings.goryeo.placements.basket, [null, null]), '판별 단계가 없던 버전의 손에 든 노래와 판정 전 자리는 판별하지 않은 것으로 되돌린다(잡아 둔 미리 분석한 「가시리」만 남는다) ' + JSON.stringify(mp.wings.goryeo.measured));
+  check(mp.wings.hyangga.state === 'done' && same(mp.wings.hyangga.measured, [...WING_TABLE.hyangga.shelf, 'gasiri', 'cheongsanri-byeokgyesu']) && mp.wings.hyangga.placements.shelf.every((x) => x.fixed) && mp.wings.goryeo.state === 'open', '판정에서 맞아 고정된 노래와 마친 관은 그대로다');
+  const { engine: me } = bareEngine({ progress: mp });
+  check(!me.isDecided('goryeo', 'cheongsan-byeolgok') && me.place('goryeo', 'shelf', 0, 'cheongsan-byeolgok').reason === 'not-decided' && me.place('goryeo', 'shelf', 0, 'gasiri').ok, '옮긴 뒤 판별하지 않은 노래는 꽂을 수 없고(다시 분석·판별), 잡아 둔 미리 분석한 노래는 그대로 꽂는다');
+  s16.createRecord('새 이름');
+  check(JSON.parse(st16.map.get(SAVE_KEY)).version === SAVE_VERSION, '옮겨 읽은 문서는 다음 저장에서 현재 버전으로 쓴다');
+  const n16 = normalizeData(JSON.parse(v1doc(pv, SAVE_VERSION)));
+  check(same(n16.slots.m.progress.wings.goryeo.measured, pv.wings.goryeo.measured) && n16.slots.m.progress.wings.goryeo.placements.shelf[0]?.songId === 'cheongsan-byeolgok', '(음성) 현재 버전 저장의 판별 기록과 자리는 옮기지 않고 그대로 읽는다');
 }
 
 // ── 4. 관 열림과 건너뛰기 ──
@@ -451,13 +500,14 @@ section('4. 관 열림 순서(spec 3.2)와 건너뛰기 불가');
   check(!engine.place('saseol', 'shelf', 0, 'namodo-bahi').ok, '먼 관도 건너뛸 수 없다');
 
   // 칸만 묶음 → 아직
+  WING_TABLE.hyangga.shelf.forEach((id) => decide(engine, 'hyangga', id));
   WING_TABLE.hyangga.shelf.forEach((id, i) => engine.place('hyangga', 'shelf', i, id));
   engine.judge('hyangga', 'shelf');
   check(engine.progress.wings.hyangga.shelfBound && engine.wingState('goryeo') === 'locked', '칸만 묶어서는 다음 관이 열리지 않는다');
   // 방을 먼저 마쳐도 바구니 없이는 아직
   check(engine.completeRoom('hyangga', { room: 'hyangga' }).ok, '칸이 묶이면 방을 마칠 수 있다');
   check(engine.wingState('hyangga') === 'open' && engine.wingState('goryeo') === 'locked', '바구니 판정 없이는 판이 끝나지 않는다');
-  WING_TABLE.hyangga.stray.forEach((s, i) => engine.place('hyangga', 'basket', i, s.songId, s.to));
+  WING_TABLE.hyangga.stray.forEach((s) => decide(engine, 'hyangga', s.songId));
   engine.judge('hyangga', 'basket');
   check(engine.wingState('hyangga') === 'done' && engine.wingState('goryeo') === 'open', '칸·바구니·방을 다 마치면 판이 끝나고 다음 관이 열린다');
   check(engine.progress.wings.hyangga.doneAt && !engine.progress.wings.hyangga.bonusDone, '덤 없이도 판이 끝난다(덤은 조건 아님)');
@@ -543,57 +593,68 @@ section('5. 판정(spec 6): 다 찼을 때만, 틀린 것만 돌려보냄, 맞�
   }
   check(tableOk, '실제 노래 표 전체에서 칸·바구니 판정이 표와 맞다');
 
-  // 엔진에서
-  const { engine, emit } = bareEngine();
+  // 엔진에서: 갈래 판별을 마친 노래만 꽂는다(칸·탑·덤은 그 관 갈래, 바구니는 다른 갈래, 행선지는 저절로)
+  const { engine } = bareEngine();
   engine.completeTutorial();
-  engine.place('hyangga', 'shelf', 0, 'seodongyo');
-  engine.place('hyangga', 'shelf', 1, 'gasiri');
+  const nd = engine.place('hyangga', 'shelf', 0, 'seodongyo');
+  check(!nd.ok && nd.reason === 'not-decided', '(음성) 갈래 판별 전의 노래는 칸(탑)에 꽂을 수 없다');
+  check(!engine.markMeasured('hyangga', 'seodongyo').ok, '판별 없이 손에 드는 길(markMeasured)은 미리 분석한 노래뿐이다');
+  for (const id of WING_TABLE.hyangga.shelf) decide(engine, 'hyangga', id);
+  const dg = engine.decideGenre('hyangga', 'gasiri', 'goryeo');
+  check(dg.ok && dg.correct && !dg.own && dg.to === 'goryeo' && same(engine.progress.wings.hyangga.placements.basket[0], { songId: 'gasiri', to: 'goryeo', fixed: false }), '다른 갈래로 판별하면 행선지(그 갈래의 관)가 정해져 바구니에 저절로 담긴다');
+  const og = engine.place('hyangga', 'shelf', 1, 'gasiri');
+  check(!og.ok && og.reason === 'other-genre', '(음성) 다른 갈래로 판별한 노래는 칸(탑)에 꽂을 수 없다');
+  const ob = engine.place('hyangga', 'basket', 1, 'seodongyo');
+  check(!ob.ok && ob.reason === 'own-genre', '(음성) 그 관 갈래로 판별한 노래는 바구니에 넣을 수 없다');
+  check(engine.place('hyangga', 'basket', 0, 'gasiri', 'sijo').reason === 'bad-destination' && engine.place('hyangga', 'basket', 0, 'gasiri', 'goryeo').ok, '바구니의 행선지는 판별한 갈래의 관으로만 정해진다(다른 행선지는 막는다)');
+  check(engine.unplace('hyangga', 'basket', 0).reason === 'auto-basket', '바구니에 담긴 노래는 빼지 않는다');
+  check(engine.decideGenre('hyangga', 'gasiri', 'goryeo').reason === 'decided', '이미 판별한 노래는 다시 판별하지 않는다');
+  // 탑은 판별 뒤에도 층을 판정한다
+  engine.place('hyangga', 'shelf', 0, 'cheoyongga');
+  engine.place('hyangga', 'shelf', 1, 'seodongyo');
   const pre = JSON.stringify(engine.progress);
   const nf = engine.judge('hyangga', 'shelf');
   check(!nf.ok && nf.reason === 'not-full' && JSON.stringify(engine.progress) === pre, '엔진: 덜 찬 칸은 판정하지 않고 아무것도 바꾸지 않는다');
   engine.place('hyangga', 'shelf', 2, 'chan-giparangga');
   const r = engine.judge('hyangga', 'shelf');
   const pl = engine.progress.wings.hyangga.placements.shelf;
-  check(r.ok && r.judged && same(r.returned.map((x) => x.songId), ['gasiri']), '엔진: 틀린 노래만 돌려보낸다');
-  check(pl[1] === null && pl[0].fixed && pl[2].fixed, '틀린 자리는 비고, 맞은 노래는 고정된다');
-  check(engine.progress.wings.hyangga.wrongCount === 1, '돌아온 노래 하나 = 오답 하나');
+  check(r.ok && r.judged && same(r.returned.map((x) => x.songId), ['cheoyongga', 'seodongyo']) && same(r.returned.map((x) => x.target), [{ towerUnits: 4 }, { towerUnits: 8 }]), '탑은 판별 뒤에도 판정한다: 층이 틀린 노래만 그 층을 대상으로 돌려보낸다');
+  check(pl[0] === null && pl[1] === null && pl[2].fixed, '틀린 자리는 비고, 맞은 노래는 고정된다');
+  check(engine.progress.wings.hyangga.wrongCount === 2, '돌아온 노래 하나 = 오답 하나');
   check(!engine.progress.wings.hyangga.shelfBound, '틀린 것이 있으면 묶이지 않는다');
-  check(!engine.unplace('hyangga', 'shelf', 0).ok, '고정된 노래는 뺄 수 없다');
-  check(!engine.place('hyangga', 'shelf', 0, 'cheoyongga').ok, '고정된 자리에는 꽂을 수 없다');
-  check(!engine.place('hyangga', 'basket', 0, 'seodongyo', 'goryeo').ok, '고정된 노래를 다른 자리로 옮길 수 없다');
+  check(engine.isDecided('hyangga', 'cheoyongga') && engine.place('hyangga', 'shelf', 1, 'cheoyongga').ok, '돌아온 노래는 판별을 다시 하지 않고 손에서 다시 꽂는다');
+  check(!engine.unplace('hyangga', 'shelf', 2).ok, '고정된 노래는 뺄 수 없다');
+  check(!engine.place('hyangga', 'shelf', 2, 'seodongyo').ok, '고정된 자리에는 꽂을 수 없다');
+  check(!engine.place('hyangga', 'shelf', 0, 'chan-giparangga').ok, '고정된 노래를 다른 자리로 옮길 수 없다');
   // 판정 전에는 빼고 꽂기 자유, 같은 노래는 옮겨진다
-  engine.place('hyangga', 'basket', 0, 'cheoyongga', 'goryeo');
-  check(engine.place('hyangga', 'shelf', 1, 'cheoyongga').ok && engine.progress.wings.hyangga.placements.basket[0] === null, '판정 전 노래를 다른 자리에 꽂으면 옮겨진다');
+  check(engine.place('hyangga', 'shelf', 0, 'cheoyongga').ok && engine.progress.wings.hyangga.placements.shelf[1] === null, '판정 전 노래를 다른 자리에 꽂으면 옮겨진다');
   check(!engine.place('hyangga', 'shelf', 1, 'jemangmaega').ok, '그 관 판에 없는 노래(작품 방 작품)는 칸에 꽂을 수 없다');
   check(!engine.place('hyangga', 'shelf', 3, 'cheoyongga').ok, '없는 자리 번호는 막는다');
-  check(!engine.place('hyangga', 'basket', 0, 'gasiri').ok, '바구니에는 갈 관을 함께 골라야 한다');
-  check(!engine.place('hyangga', 'basket', 0, 'gasiri', 'entrance').ok, '갈 관은 판을 하는 관 다섯 가운데 하나다');
+  engine.place('hyangga', 'shelf', 0, 'seodongyo');
+  engine.place('hyangga', 'shelf', 1, 'cheoyongga');
   const r2 = engine.judge('hyangga', 'shelf');
   check(r2.ok && r2.bound && engine.progress.wings.hyangga.shelfBound, '모두 맞으면 칸(탑)이 묶인다');
-  check(!engine.place('hyangga', 'shelf', 1, 'gasiri').ok, '묶인 칸에는 더 꽂을 수 없다');
+  check(!engine.place('hyangga', 'shelf', 1, 'seodongyo').ok, '묶인 칸에는 더 꽂을 수 없다');
   check(same(engine.progress.keepsakes, WING_TABLE.hyangga.shelf), '칸이 묶이면 세 노래의 기념품을 받는다');
   check(engine.isRoomOpen('hyangga'), '칸이 묶이는 순간 작품 방 문이 열린다');
-  // 바구니: 하나만 틀림
-  engine.place('hyangga', 'basket', 0, 'gasiri', 'goryeo');
-  engine.place('hyangga', 'basket', 1, 'cheongsanri-byeokgyesu', 'gasa');
-  const rb = engine.judge('hyangga', 'basket');
-  const bp = engine.progress.wings.hyangga.placements.basket;
-  check(same(rb.returned.map((x) => x.songId), ['cheongsanri-byeokgyesu']) && bp[1] === null && bp[0].fixed && bp[0].to === 'goryeo', '바구니: 행선지가 틀린 노래만 행선지가 지워진 채 돌아오고 맞은 노래는 고정된다');
-  check(same(engine.progress.prewaiting.goryeo, ['gasiri']), '맞은 쪽은 이미 보내진 것으로 처리된다(spec 20)');
-  check(!engine.progress.wings.hyangga.basketDone && engine.progress.wings.hyangga.wrongCount === 2, '바구니가 다 통과하기 전에는 basketDone이 아니다');
+  // 바구니: 판별한 다른 갈래 노래만 담기므로 판정은 언제나 맞다(보내기)
   const nf2 = engine.judge('hyangga', 'basket');
-  check(nf2.reason === 'not-full', '돌아온 자리가 비면 다시 채울 때까지 판정하지 않는다');
-  engine.place('hyangga', 'basket', 1, 'cheongsanri-byeokgyesu', 'sijo');
+  check(nf2.reason === 'not-full', '바구니가 다 차기 전에는 판정하지 않는다');
+  engine.decideGenre('hyangga', 'cheongsanri-byeokgyesu', 'sijo');
   const rb2 = engine.judge('hyangga', 'basket');
-  check(rb2.ok && rb2.passed && engine.progress.wings.hyangga.basketDone, '바르게 다시 보내면 바구니 판정을 통과한다');
+  check(rb2.ok && rb2.passed && rb2.returned.length === 0 && engine.progress.wings.hyangga.basketDone && engine.progress.wings.hyangga.wrongCount === 2, '판별한 두 노래가 담기면 바구니 판정을 통과한다(오답 없음)');
+  check(same(engine.progress.prewaiting.goryeo, ['gasiri']) && same(engine.progress.returned.sijo, ['cheongsanri-byeokgyesu']), '행선지대로 미리 분석한 대기·돌아온 노래 선반으로 보내진다');
   check(!engine.judge('hyangga', 'basket').ok, '통과한 바구니는 다시 판정하지 않는다');
 
   // 덤은 판이 끝난 관에서만
-  check(!engine.place('hyangga', 'bonus', 0, 'heonhwaga').ok, '판이 끝나기 전에는 덤 칸이 열리지 않는다');
+  check(!engine.place('hyangga', 'bonus', 0, 'heonhwaga').ok && engine.decideGenre('hyangga', 'heonhwaga', 'hyangga').reason === 'not-in-wing', '판이 끝나기 전에는 덤 칸이 열리지 않고 덤 노래도 판별하지 않는다');
   engine.completeRoom('hyangga', { room: 'hyangga' });
-  check(engine.place('hyangga', 'bonus', 0, 'heonhwaga').ok, '판이 끝난 관에서는 덤 칸에 꽂을 수 있다');
+  check(engine.place('hyangga', 'bonus', 0, 'heonhwaga').reason === 'not-decided', '판이 끝난 관에서도 덤 노래는 판별한 뒤에 꽂는다');
+  decide(engine, 'hyangga', 'heonhwaga');
+  check(engine.place('hyangga', 'bonus', 0, 'heonhwaga').ok, '판이 끝난 관에서는 판별한 덤 노래를 덤 칸에 꽂을 수 있다');
   check(!engine.place('hyangga', 'bonus', 1, 'seodongyo').ok, '덤 칸에는 덤 노래만 꽂는다');
   check(engine.judge('hyangga', 'bonus').reason === 'not-full', '덤 칸도 다 찼을 때만 판정한다');
+  for (const id of ['mojukjirangga', 'anminga']) decide(engine, 'hyangga', id);
   engine.place('hyangga', 'bonus', 1, 'mojukjirangga');
   engine.place('hyangga', 'bonus', 2, 'anminga');
   const rbo = engine.judge('hyangga', 'bonus');
@@ -602,55 +663,46 @@ section('5. 판정(spec 6): 다 찼을 때만, 틀린 것만 돌려보냄, 맞�
 }
 
 // ── 6. 오답 도움 ──
-section('6. 오답 도움(spec 6.4): 관에서 오답 3번부터 틀릴 때마다 수첩 반짝임');
+section('6. 오답 도움(spec 6.4): 관에서 오답(틀린 갈래 판별, 탑의 틀린 층) 3번부터 틀릴 때마다 수첩 반짝임');
 {
-  // 어긋나는 개념은 감정서(노래 글)에서 계산하므로 실제 노래 데이터로 본다
+  // 어긋나는 개념은 분석표(노래 글)에서 계산하므로 실제 노래 데이터로 본다
   const { engine, emit } = bareEngine({ songs: REAL_SONGS });
   engine.completeTutorial();
-  const wrongOnce = () => {
-    engine.place('hyangga', 'shelf', 0, 'seodongyo');
-    engine.place('hyangga', 'shelf', 1, 'cheoyongga');
-    engine.place('hyangga', 'shelf', 2, 'gasiri');
-    return engine.judge('hyangga', 'shelf');
-  };
-  wrongOnce();
-  check(emit.of('help:notebook-glow').length === 0, '오답 1번: 반짝이지 않는다');
-  engine.place('hyangga', 'shelf', 2, 'cheongsanri-byeokgyesu');
-  engine.judge('hyangga', 'shelf');
+  const w1 = engine.decideGenre('hyangga', 'cheongsanri-byeokgyesu', 'hyangga');
+  check(w1.ok && w1.correct === false && same(w1.target, { genre: 'hyangga' }) && engine.progress.wings.hyangga.wrongCount === 1 && emit.of('help:notebook-glow').length === 0, '틀린 판별 1번: 오답 하나, 대상은 고른 갈래, 반짝이지 않는다');
+  check(!engine.isDecided('hyangga', 'cheongsanri-byeokgyesu') && !engine.isRevealed('cheongsanri-byeokgyesu') && engine.place('hyangga', 'shelf', 0, 'cheongsanri-byeokgyesu').reason === 'not-decided' && engine.progress.wings.hyangga.placements.basket.every((x) => !x), '(음성) 틀린 판별은 손에 들지도, 바구니에 담기지도, 드러나지도 않는다');
+  engine.decideGenre('hyangga', 'cheongsanri-byeokgyesu', 'goryeo');
   check(emit.of('help:notebook-glow').length === 0, '오답 2번: 반짝이지 않는다');
-  engine.place('hyangga', 'shelf', 2, 'gasiri');
-  engine.judge('hyangga', 'shelf');
+  engine.decideGenre('hyangga', 'cheongsanri-byeokgyesu', 'hyangga');
   const g = emit.of('help:notebook-glow');
-  // 「가시리」(고려가요, 네 연)를 탑의 10구 층에: 대상은 향가(그 층), 실리는 개념은 감정서와 어긋나는 향가 개념
-  const gasiri = REAL_SONGS.find((x) => x.id === 'gasiri');
-  const expect3 = [...new Set(mismatches(gasiri, { towerUnits: 10 }, 'aa-door').map((m) => m.conceptId))];
-  check(g.length === 1 && g[0].detail.wing === 'hyangga' && g[0].detail.genre === 'hyangga' && same(g[0].detail.conceptIds, expect3) && same(expect3, ['hyangga-lines', 'hyangga-exclaim']), '오답 3번: 그 자리(탑 10구 층)의 갈래 쪽에서 감정서와 어긋나는 개념으로 반짝인다 ' + JSON.stringify(g[0]?.detail));
-  check(g[0].detail.genre !== 'goryeo' && !g[0].detail.conceptIds.some((c) => c.startsWith('goryeo')), '(음성) 틀린 노래 자기 갈래(고려가요) 쪽이나 그 개념으로 반짝이지 않는다');
-  engine.place('hyangga', 'shelf', 2, 'cheongsanri-byeokgyesu');
-  engine.judge('hyangga', 'shelf');
-  check(emit.of('help:notebook-glow').length === 2 && emit.of('help:notebook-glow')[1].detail.genre === 'hyangga', '오답 4번: 또 반짝인다(시조 노래여도 대상인 향가 쪽)');
+  // 「청산리 벽계수야」(시조, 세 장)를 향가로 판별: 대상은 고른 갈래(향가), 실리는 개념은 분석표와 어긋나는 향가 개념
+  const cheong = REAL_SONGS.find((x) => x.id === 'cheongsanri-byeokgyesu');
+  const expect3 = [...new Set(mismatches(cheong, { genre: 'hyangga' }, 'aa-door').map((m) => m.conceptId))];
+  check(g.length === 1 && g[0].detail.wing === 'hyangga' && g[0].detail.genre === 'hyangga' && same(g[0].detail.conceptIds, expect3) && same(expect3, ['hyangga-lines']), '오답 3번: 고른 갈래(향가) 쪽에서 분석표와 어긋나는 개념으로 반짝인다 ' + JSON.stringify(g[0]?.detail));
+  check(g[0].detail.genre !== 'sijo' && !g[0].detail.conceptIds.some((c) => c.startsWith('sijo')), '(음성) 노래 자기 갈래(시조) 쪽이나 그 개념으로 반짝이지 않는다');
+  engine.decideGenre('hyangga', 'gasiri', 'sijo');
+  const g4 = emit.of('help:notebook-glow');
+  check(g4.length === 2 && g4[1].detail.genre === 'sijo' && g4[1].detail.songId === 'gasiri', '오답 4번: 또 반짝인다(고려가요 노래여도 고른 갈래인 시조 쪽)');
   check(engine.progress.wings.hyangga.wrongCount === 4, '관별 오답 수가 쌓인다');
-  // 다른 관의 오답 수는 따로 센다
+  const ok5 = engine.decideGenre('hyangga', 'gasiri', 'goryeo');
+  check(ok5.correct && emit.of('help:notebook-glow').length === 2 && engine.progress.wings.hyangga.wrongCount === 4, '맞게 판별하면 오답도 반짝임도 없다');
+  // 탑: 판별을 마친 향가를 틀린 층에 꽂으면 그 층이 대상이다
   const { engine: e2, emit: em2 } = bareEngine({ tunables: { wingWrongHelp: 1 } });
   e2.completeTutorial();
-  e2.place('hyangga', 'shelf', 0, 'gasiri');
-  e2.place('hyangga', 'shelf', 1, 'cheongsanri-byeokgyesu');
+  for (const id of WING_TABLE.hyangga.shelf) decide(e2, 'hyangga', id);
+  e2.place('hyangga', 'shelf', 0, 'cheoyongga');
+  e2.place('hyangga', 'shelf', 1, 'seodongyo');
   e2.place('hyangga', 'shelf', 2, 'chan-giparangga');
   e2.judge('hyangga', 'shelf');
-  check(em2.of('help:notebook-glow').length === 2, '한 판정에 돌아온 노래가 둘이면 오답 둘(기준을 넘은 만큼 반짝임). 기준값은 조정할 수 있다');
+  check(em2.of('help:notebook-glow').length === 2 && em2.of('help:notebook-glow').every((x) => x.detail.genre === 'hyangga'), '한 판정에 탑에서 돌아온 노래가 둘이면 오답 둘(기준을 넘은 만큼 반짝임, 대상은 향가 층). 기준값은 조정할 수 있다');
   check(TUNABLES.wingWrongHelp === 3 && TUNABLES.bossWrongHelp === 3, '기본 기준값은 3');
-  // 바구니: 대상은 고른 행선지 관의 갈래. 칸 노래를 자기 갈래 행선지로 넣으면 어긋나는 줄이 없어 그 갈래 개념 모두
+  // 짚을 줄이 없으면 고른 갈래 개념 모두: 4구 향가(구 세기)를 고려가요로 판별하면 분석표에 고려가요와 어긋나는 줄이 없다
   const { engine: e3, emit: em3 } = bareEngine({ songs: REAL_SONGS, tunables: { wingWrongHelp: 1 } });
   e3.completeTutorial();
-  e3.place('hyangga', 'basket', 0, 'cheongsanri-byeokgyesu', 'gasa');
-  e3.place('hyangga', 'basket', 1, 'seodongyo', 'hyangga');
-  const rb3 = e3.judge('hyangga', 'basket');
+  const rw = e3.decideGenre('hyangga', 'seodongyo', 'goryeo');
   const bg = em3.of('help:notebook-glow').map((x) => x.detail);
-  const cheong = REAL_SONGS.find((x) => x.id === 'cheongsanri-byeokgyesu');
-  const expGasa = [...new Set(mismatches(cheong, { genre: 'gasa' }, 'aa-door').map((m) => m.conceptId))];
-  check(rb3.returned.length === 2 && same(rb3.returned.map((x) => x.target), [{ genre: 'gasa' }, { genre: 'hyangga' }]), '판정 결과의 돌아온 노래마다 대상(행선지 갈래)이 실린다');
-  check(bg.length === 2 && bg[0].genre === 'gasa' && expGasa.length > 0 && same(bg[0].conceptIds, expGasa), '바구니: 고른 행선지(가사관) 갈래 쪽의 어긋나는 개념 ' + JSON.stringify(bg[0]));
-  check(bg[1].genre === 'hyangga' && same(bg[1].conceptIds, conceptsOfGenre('hyangga').map((c) => c.id)), '어긋나는 줄이 없으면 대상 갈래 개념 모두(칸 노래를 자기 갈래 행선지로 바구니에)');
+  const seodong = REAL_SONGS.find((x) => x.id === 'seodongyo');
+  check(rw.help && mismatches(seodong, { genre: 'goryeo' }, 'aa-door').length === 0 && bg.length === 1 && bg[0].genre === 'goryeo' && same(bg[0].conceptIds, conceptsOfGenre('goryeo').map((c) => c.id)), '어긋나는 줄이 없으면 고른 갈래 개념 모두 ' + JSON.stringify(bg[0]));
   check(bg.every((d) => d.songId), '도움 신호에 그 노래 id가 실린다');
 }
 
@@ -669,10 +721,10 @@ section('6-2. 맞대어 보기: 감정서에서 그 자리와 어긋나는 줄 �
   const gap = S('gapminga');
   check(!mismatches(gap, { genre: 'sijo' }, []).some((m) => m.lineKind === 'action') && mismatches(gap, { genre: 'sijo' }, ['stairs']).some((m) => m.conceptId === 'sijo-final3'), '쓰지 않은 도구의 줄은 어긋남에 들지 않는다');
   check(targetGenre({ towerUnits: 4 }) === 'hyangga' && targetGenre({ genre: 'gasa' }) === 'gasa', '대상 갈래: 탑은 향가');
-  check(same(tapCounts({ mode: 'gu', gu: 3 }), [1, 1, 1]) && same(tapCounts({ mode: 'lines', feet: [[3, 0], [2]] }), [3, 2]), '두드린 수: 향가는 덩이 하나에 한 번(구 세기), 고려가요는 후렴만 있는 줄을 뺀다');
+  check(same(tapCounts({ mode: 'gu', gu: 3 }), [1, 1, 1]) && same(tapCounts({ mode: 'lines', feet: [[3, 0], [2]] }), [3, 2]), '두드린 수: 향가는 부분 하나에 한 번(구 세기), 고려가요는 후렴만 있는 줄을 뺀다');
   // 향가의 두드리기 방식(구 세기)은 프로그램이 고른 것이라 증거가 아니다(C3): 두드리기 줄로 향가·탑과 어긋난다고 하지 않는다
   check(!mismatches(S('gasiri'), { genre: 'hyangga' }, 'aa-door').some((m) => m.lineKind === 'tap') && !mismatches(S('dongjitdal'), { towerUnits: 4 }, 'aa-door').some((m) => m.lineKind === 'tap'), '두드리기 방식(구마다 한 번이 아님)을 향가·탑과 어긋나는 근거로 쓰지 않는다');
-  check(same(kinds(mismatches(S('dongjitdal'), { towerUnits: 4 }, 'aa-door')), ['fold/hyangga-lines']), '시조를 4구 층에: 접기 줄(세 덩이)만 어긋난다');
+  check(same(kinds(mismatches(S('dongjitdal'), { towerUnits: 4 }, 'aa-door')), ['fold/hyangga-lines']), '시조를 4구 층에: 접기 줄(세 부분)만 어긋난다');
   // 고려가요 세 음보(C2): 음보로 센 줄에 세 음보가 하나도 없을 때만. 향가의 구 세기는 증거가 아니다
   check(!mismatches(S('seodongyo'), { genre: 'goryeo' }, 'aa-door').some((m) => m.conceptId === 'goryeo-3beat'), '향가(구 세기)를 고려가요 바구니에: 세 음보 줄로 어긋난다고 하지 않는다');
   check(mismatches(S('gwandong-byeolgok'), { genre: 'goryeo' }, 'walk').some((m) => m.conceptId === 'goryeo-3beat') === !tapCounts(deriveTapEvidence(S('gwandong-byeolgok'))).includes(3), '가사를 고려가요 바구니에: 세 음보 행이 하나도 없을 때만 세 음보 줄과 어긋난다');
@@ -680,11 +732,11 @@ section('6-2. 맞대어 보기: 감정서에서 그 자리와 어긋나는 줄 �
   // 맞대어 보기의 짝(B2): 어긋남의 개념을 가장 좁게 설명하는 수첩 줄만 밝힌다
   const nuhang = mismatches(S('nuhangsa'), { genre: 'saseol' }, 'rapid-unroll');
   const foldMis = nuhang.find((m) => m.lineKind === 'fold');
-  check(foldMis?.conceptId === 'saseol-frame' && deriveFoldEvidence(S('nuhangsa')).units === 15, '「누항사」(15덩이)를 사설시조 칸에: 접기 줄이 세 장 개념(saseol-frame)과 어긋난다');
+  check(foldMis?.conceptId === 'saseol-frame' && deriveFoldEvidence(S('nuhangsa')).units === 15, '「누항사」(15부분)를 사설시조 칸에: 접기 줄이 세 장 개념(saseol-frame)과 어긋난다');
   const foldPair = pairedLineIds([foldMis?.conceptId], SASEOL_PAGE.lines);
   const lineText = (id) => SASEOL_PAGE.lines.find((l) => l.id === id)?.text ?? '';
-  check(same(foldPair, ['saseol-frame']) && /세 장/.test(lineText('saseol-frame')), '[15 덩이]는 세 장을 말하는 수첩 줄과만 짝이 된다 ' + JSON.stringify(foldPair.map(lineText)));
-  check(!foldPair.includes('saseol-stretch') && !foldPair.includes('saseol-vs-gasa'), '덩이 수 어긋남이 늘어나는 장 줄이나 가사와 견주는 줄을 함께 밝히지 않는다');
+  check(same(foldPair, ['saseol-frame']) && /세 장/.test(lineText('saseol-frame')), '[15부분]은 세 장을 말하는 수첩 줄과만 짝이 된다 ' + JSON.stringify(foldPair.map(lineText)));
+  check(!foldPair.includes('saseol-stretch') && !foldPair.includes('saseol-vs-gasa'), '부분 수 어긋남이 늘어나는 장 줄이나 가사와 견주는 줄을 함께 밝히지 않는다');
   const stairsMis = mismatches(S('gwandong-byeolgok'), { genre: 'saseol' }, 'stairs').find((m) => m.lineKind === 'action');
   const stairsPair = pairedLineIds([stairsMis?.conceptId], SASEOL_PAGE.lines);
   check(stairsMis?.action === 'stairs' && same(stairsPair, ['saseol-frame']) && /종장/.test(lineText('saseol-frame')), '계단(종장 첫 음보) 어긋남은 종장을 말하는 수첩 줄과 짝이 된다');
@@ -699,28 +751,20 @@ section('6-2. 맞대어 보기: 감정서에서 그 자리와 어긋나는 줄 �
   check(mismatches(S('dongdong'), { genre: 'goryeo' }, null, [...CONTRAST_RULES, ratioRule]).length > 0, '(음성) 비율 규칙을 넣으면 「동동」이 자기 갈래 칸과 어긋난다고 나온다');
 }
 
-// ── 6-3. 드러남(판정에서 맞은 노래는 갈래 단위 이름으로 부른다) ──
-section('6-3. 드러남: 판정에서 맞아 고정된 노래, 바구니로 보낸 노래, 튜토리얼 노래');
+// ── 6-3. 드러남(갈래 판별에서 맞은 노래는 갈래 단위 이름으로 부른다) ──
+section('6-3. 드러남: 갈래 판별에서 맞은 노래, 바구니로 보낸 노래, 튜토리얼 노래');
 {
   const { engine } = bareEngine();
   check(!engine.isRevealed('taesan'), '튜토리얼 전에는 튜토리얼 노래도 드러나지 않았다');
   engine.completeTutorial();
   check(engine.isRevealed('taesan'), '튜토리얼을 마치면 튜토리얼 노래가 드러난다');
-  engine.place('hyangga', 'shelf', 0, 'seodongyo');
-  engine.place('hyangga', 'shelf', 1, 'gasiri');
-  check(!engine.isRevealed('seodongyo'), '(음성) 꽂기만 하고 판정 전이면 드러나지 않는다');
-  engine.place('hyangga', 'shelf', 2, 'chan-giparangga');
-  engine.judge('hyangga', 'shelf');
-  check(engine.isRevealed('seodongyo') && engine.isRevealed('chan-giparangga') && !engine.isRevealed('gasiri'), '판정에서 맞아 고정된 노래만 드러난다(틀린 노래는 아니다)');
-  engine.place('hyangga', 'basket', 0, 'gasiri', 'goryeo');
-  engine.place('hyangga', 'basket', 1, 'cheongsanri-byeokgyesu', 'gasa');
-  engine.judge('hyangga', 'basket');
-  check(engine.isRevealed('gasiri') && !engine.isRevealed('cheongsanri-byeokgyesu'), '바구니에서 맞게 보낸 노래는 드러나고, 틀린 노래는 아니다');
-  check(engine.marksKnown('gasiri') && !engine.marksKnown('cheongsan-byeolgok'), '박 밖 음보 이름표: 드러난 노래는 단다, 고려가요관에서 재지 않은 노래는 달지 않는다');
-  const p2 = JSON.parse(JSON.stringify(engine.progress));
-  p2.wings.goryeo.measured = ['cheongsan-byeolgok'];
-  const { engine: e2 } = bareEngine({ progress: p2 });
-  check(e2.marksKnown('cheongsan-byeolgok') && !e2.isRevealed('cheongsan-byeolgok'), '고려가요관에서 잰 노래(후렴 고리 걸기를 거침)는 드러나기 전에도 이름표를 단다');
+  engine.decideGenre('hyangga', 'gasiri', 'hyangga');
+  check(!engine.isRevealed('gasiri') && !engine.marksKnown('gasiri'), '(음성) 틀리게 판별한 노래는 드러나지 않는다');
+  engine.decideGenre('hyangga', 'seodongyo', 'hyangga');
+  check(engine.isRevealed('seodongyo') && !engine.isRevealed('cheoyongga'), '갈래 판별에서 맞으면 꽂기 전에도 드러난다(판별하지 않은 노래는 아니다)');
+  engine.decideGenre('hyangga', 'gasiri', 'goryeo');
+  check(engine.isRevealed('gasiri') && engine.marksKnown('gasiri'), '다른 갈래로 맞게 판별해 바구니에 담긴 노래도 드러나고, 박 밖 음보 이름표를 단다');
+  check(!engine.marksKnown('cheongsan-byeolgok'), '(음성) 판별하지 않은 노래에는 박 밖 음보 이름표를 달지 않는다');
 }
 
 // ── 7. 길 잃은 노래의 행선지 ──
@@ -749,7 +793,7 @@ section('7. 길 잃은 노래 행선지(spec 4.3): 실제 노래 표 전체');
   const pw = engine.progress.prewaiting;
   const rt = engine.progress.returned;
   const norm = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v.length).map(([k, v]) => [k, sorted(v)]));
-  check(same(norm(pw), norm(ROUTING.prewait)), '엔진의 미리 잰 대기 목록이 표와 같다');
+  check(same(norm(pw), norm(ROUTING.prewait)), '엔진의 미리 분석한 대기 목록이 표와 같다');
   check(same(norm(rt), norm(ROUTING.returned)), '엔진의 돌아온 노래 선반 목록이 표와 같다');
   check(same(engine.returnedAt('sijo').sort(), sorted(ROUTING.returned.sijo)), '시조관 돌아온 노래 선반: 청산리 벽계수야, 오백 년 도읍지를, 어져 내 일이여');
 
@@ -757,14 +801,16 @@ section('7. 길 잃은 노래 행선지(spec 4.3): 실제 노래 표 전체');
   const { engine: e3 } = bareEngine();
   e3.completeTutorial();
   playWing(e3, 'hyangga');
-  check(e3.isMeasured('goryeo', 'gasiri') && !e3.isMeasured('goryeo', 'cheongsan-byeolgok'), '미리 잰 노래(가시리)는 고려가요관에서 다시 재지 않아도 된다');
+  check(e3.isMeasured('goryeo', 'gasiri') && !e3.isMeasured('goryeo', 'cheongsan-byeolgok'), '미리 분석한 노래(가시리)는 고려가요관에서 다시 분석하지 않아도 된다');
   check(same(e3.waitingAt('goryeo'), ['gasiri']), '고려가요관 입구에 가시리가 기다린다');
-  e3.place('goryeo', 'shelf', 0, 'gasiri');
+  check(e3.decideGenre('goryeo', 'gasiri', 'goryeo').reason === 'decided' && e3.markMeasured('goryeo', 'gasiri').ok && e3.isDecided('goryeo', 'gasiri'), '미리 분석한 노래는 이미 판별했으므로 다시 판별하지 않고 잡아 손에 든다');
+  check(e3.place('goryeo', 'shelf', 0, 'gasiri').ok, '미리 분석한 노래는 곧장 칸에 꽂는다');
+  for (const id of ['cheongsan-byeolgok', 'seogyeong-byeolgok']) decide(e3, 'goryeo', id);
   e3.place('goryeo', 'shelf', 1, 'cheongsan-byeolgok');
   e3.place('goryeo', 'shelf', 2, 'seogyeong-byeolgok');
   e3.judge('goryeo', 'shelf');
   check(e3.waitingAt('goryeo').length === 0, '칸에 묶이면 더는 입구에서 기다리지 않는다');
-  check(e3.progress.wings.goryeo.shelfBound, '미리 잰 노래도 칸 판정은 똑같이 받는다');
+  check(e3.progress.wings.goryeo.shelfBound && e3.progress.wings.goryeo.wrongCount === 0, '그 관 갈래로 판별한 노래만 꽂으므로 칸 판정은 언제나 맞다(제본은 그대로)');
 }
 
 // ── 8. 개념: 연필과 먹 ──
@@ -777,6 +823,8 @@ section('8. 개념(spec 7.2): 확인한 서로 다른 노래 1편 = 연필, 2편
   check(emit.of('concept:changed').some((e) => e.detail.conceptId === 'sijo-final3' && e.detail.state === 'pencil' && same(e.detail.songs, ['taesan'])), 'concept:changed { conceptId, state, songs }를 낸다');
   check(engine.conceptState('hyangga-lines') === 'none', '다른 갈래 개념은 그대로 none');
   emit.clear();
+  WING_TABLE.hyangga.shelf.forEach((id) => decide(engine, 'hyangga', id));
+  check(engine.conceptState('hyangga-lines') === 'none', '갈래 판별만으로는 개념을 확인하지 않는다(묶을 때 확인)');
   WING_TABLE.hyangga.shelf.forEach((id, i) => engine.place('hyangga', 'shelf', i, id));
   engine.judge('hyangga', 'shelf');
   check(engine.conceptState('hyangga-lines') === 'ink', '칸이 묶이면 세 편이 한꺼번에 확인되어 공통 개념은 바로 먹');
@@ -785,15 +833,16 @@ section('8. 개념(spec 7.2): 확인한 서로 다른 노래 1편 = 연필, 2편
   engine.completeRoom('hyangga', { room: 'hyangga' });
   check(engine.conceptState('hyangga-442') === 'ink' && engine.conceptState('hyangga-exclaim') === 'ink', '작품 방을 마치면 작품이 확인되어 먹이 된다');
   // 길 잃은 노래: 바구니 통과 때 자기 갈래 개념
-  engine.place('hyangga', 'basket', 0, 'gasiri', 'goryeo');
-  engine.place('hyangga', 'basket', 1, 'cheongsanri-byeokgyesu', 'goryeo');
+  engine.decideGenre('hyangga', 'gasiri', 'goryeo');
+  engine.decideGenre('hyangga', 'cheongsanri-byeokgyesu', 'gasa');
+  check(engine.conceptState('goryeo-refrain') === 'none' && engine.conceptState('sijo-3jang') === 'pencil', '판별만으로는, 그리고 틀리게 판별한 노래는 개념을 확인하지 않는다');
+  engine.decideGenre('hyangga', 'cheongsanri-byeokgyesu', 'sijo');
   engine.judge('hyangga', 'basket');
-  check(engine.conceptState('goryeo-refrain') === 'pencil', '바구니를 통과한 길 잃은 노래는 자기 갈래 개념을 확인한다');
-  check(engine.conceptState('sijo-3jang') === 'pencil', '행선지가 틀려 돌아온 노래는 확인하지 않는다');
-  engine.place('hyangga', 'basket', 1, 'cheongsanri-byeokgyesu', 'sijo');
-  engine.judge('hyangga', 'basket');
+  check(engine.conceptState('goryeo-refrain') === 'pencil', '바구니를 보낸 길 잃은 노래는 자기 갈래 개념을 확인한다');
   check(engine.conceptState('sijo-3jang') === 'ink', '두 번째 서로 다른 노래가 확인하면 먹');
   // 같은 노래가 두 번 확인해도 한 편
+  decide(engine, 'goryeo', 'gasiri');
+  for (const id of ['cheongsan-byeolgok', 'seogyeong-byeolgok']) decide(engine, 'goryeo', id);
   engine.place('goryeo', 'shelf', 0, 'gasiri');
   engine.place('goryeo', 'shelf', 1, 'cheongsan-byeolgok');
   engine.place('goryeo', 'shelf', 2, 'seogyeong-byeolgok');
@@ -978,8 +1027,9 @@ let finishedProgress = null;
   check(!engine.enterBoss().ok && !engine.bossPlaceStage3('sijo').ok && !engine.bossPlaceUnseen('gapminga', 'gasa').ok, '완성 뒤 보스는 다시 할 수 없다');
   check(!engine.completeRoom('sijo', { room: 'sijo', changed: true }).ok, '완성 뒤 작품 방 기록은 바뀌지 않는다');
   check(!engine.place('sijo', 'shelf', 0, 'dongjitdal').ok && !engine.unplace('sijo', 'shelf', 0).ok && !engine.judge('sijo', 'shelf').ok, '완성 뒤 칸 판정 기록은 바뀌지 않는다');
-  check(engine.canEnter('sijo') && engine.markMeasured('sijo', 'ihwa-wolbaek').ok, '완성 뒤에도 관에 다시 들어가 노래를 다시 들을(잴) 수 있다');
+  check(engine.canEnter('sijo') && decide(engine, 'sijo', 'ihwa-wolbaek').correct, '완성 뒤에도 관에 다시 들어가 덤 노래를 분석·판별할 수 있다');
   check(engine.place('sijo', 'bonus', 0, 'ihwa-wolbaek').ok, '완성 뒤에도 덤을 할 수 있다');
+  for (const id of ['hanson-makdae', 'sakpung']) decide(engine, 'sijo', id);
   engine.place('sijo', 'bonus', 1, 'hanson-makdae');
   engine.place('sijo', 'bonus', 2, 'sakpung');
   check(engine.judge('sijo', 'bonus').bound && engine.progress.wings.sijo.bonusDone, '완성 뒤 덤을 묶는다');
@@ -999,9 +1049,11 @@ section('11. 이어 하기(spec 20): 저장한 곳부터, 작품 방은 처음�
   const g = openRecord(store, record.id, { songs: SONGS, emit: recorder(), now: clock() });
   check(g.resumeInfo().scene === 'entrance', '새 기록은 입구부터');
   g.completeTutorial();
+  WING_TABLE.hyangga.shelf.forEach((id) => decide(g, 'hyangga', id));
   WING_TABLE.hyangga.shelf.forEach((id, i) => g.place('hyangga', 'shelf', i, id));
   g.judge('hyangga', 'shelf');
-  g.place('hyangga', 'basket', 0, 'gasiri', 'goryeo');
+  g.decideGenre('hyangga', 'cheongsanri-byeokgyesu', 'gasa');
+  g.decideGenre('hyangga', 'gasiri', 'goryeo');
   // 창을 닫았다가 다시 연다(방에 들어갔다가 도중에 나감 = 방 기록 없음)
   const store2 = createStore({ storage, emit: recorder(), now: clock() });
   store2.load();
@@ -1009,17 +1061,22 @@ section('11. 이어 하기(spec 20): 저장한 곳부터, 작품 방은 처음�
   const info = g2.resumeInfo();
   check(info.scene === 'wing' && info.wing === 'hyangga', '판 도중에 닫으면 그 관부터 이어 한다');
   check(g2.progress.wings.hyangga.shelfBound && g2.progress.wings.hyangga.placements.basket[0]?.songId === 'gasiri' && !g2.progress.wings.hyangga.placements.basket[0].fixed, '마지막으로 저장한 꽂기 상태가 남는다');
+  check(g2.isDecided('hyangga', 'gasiri') && g2.isRevealed('gasiri') && g2.progress.wings.hyangga.placements.basket[0].to === 'goryeo', '갈래 판별 결과(바구니와 행선지)는 다시 열어도 그대로다');
+  check(!g2.isDecided('hyangga', 'cheongsanri-byeokgyesu') && g2.progress.wings.hyangga.wrongCount === 1, '(음성) 틀린 판별은 판별 기록으로 남지 않고 오답 수만 남는다');
   check(info.room === 'restart' && g2.progress.rooms.hyangga === null && !g2.progress.wings.hyangga.roomDone, '작품 방은 처음부터 다시 하고 칸 묶음은 유지된다');
   check(g2.isRoomOpen('hyangga'), '다시 와도 방 문은 열려 있다');
   // 덤 도중에 나가도 덤 칸 상태가 남는다
-  g2.place('hyangga', 'basket', 1, 'cheongsanri-byeokgyesu', 'sijo');
+  g2.decideGenre('hyangga', 'cheongsanri-byeokgyesu', 'sijo');
   g2.judge('hyangga', 'basket');
   g2.completeRoom('hyangga', { room: 'hyangga', interpretationId: 'x' });
+  decide(g2, 'hyangga', 'heonhwaga');
   g2.place('hyangga', 'bonus', 0, 'heonhwaga');
+  decide(g2, 'goryeo', 'cheongsan-byeolgok');
   const store3 = createStore({ storage, emit: recorder(), now: clock() });
   store3.load();
   const g3 = openRecord(store3, record.id, { songs: SONGS, emit: recorder(), now: clock() });
   check(g3.progress.wings.hyangga.placements.bonus[0]?.songId === 'heonhwaga', '덤 칸 중간에 나가도 꽂아 둔 상태가 남는다');
+  check(g3.isDecided('goryeo', 'cheongsan-byeolgok') && g3.isRevealed('cheongsan-byeolgok') && !g3.progress.wings.goryeo.placements.shelf.some(Boolean) && g3.place('goryeo', 'shelf', 0, 'cheongsan-byeolgok').ok, '판별하고 아직 꽂지 않은 노래도 다시 열면 판별한 채 손에 있어 그대로 꽂는다');
   check(same(g3.progress.rooms.hyangga, { room: 'hyangga', interpretationId: 'x' }), '마친 방의 기록이 남는다');
   check(g3.resumeInfo().scene === 'wing' && g3.resumeInfo().wing === 'goryeo', '마친 관 다음 관부터 이어 한다');
   // 마친 방은 다시 마칠 수 없다(기록 고정)

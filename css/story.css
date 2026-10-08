@@ -257,6 +257,35 @@ textarea.story-input { resize: none; line-height: 1.4; }
 .story-cal-bell.is-on { background: var(--gold); border-color: var(--meok); }
 .story-cal-status { min-height: 1.3em; margin: 0; font-weight: 700; font-size: calc(14px * var(--text-scale)); }
 .story-cal-tap { min-width: 6em; border-width: 3px; }
+/* 종 앞에 세는 말(셋 · 둘 · 하나). 움직임 줄이기면 글자만 바뀐다 */
+/* 카드 가운데 위에 띄운다(작은 화면에서 안내 글이 스크롤되어도 늘 보이게) */
+.story-firstrun[data-step='calibrate'] .story-firstrun-card { position: relative; }
+.story-cal-count {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  z-index: 2;
+  min-width: 3.2em;
+  margin: 0;
+  padding: 6px 18px;
+  transform: translate(-50%, -50%);
+  border: 3px solid var(--meok);
+  border-radius: 12px;
+  background: var(--hanji);
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--meok) 35%, transparent);
+  text-align: center;
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: calc(44px * var(--text-scale));
+  line-height: 1.1;
+  color: var(--meok);
+  pointer-events: none;
+}
+.story-cal-count[hidden] { display: none; }
+.story-cal-count.is-pop { animation: story-cal-pop 0.35s ease-out; }
+@keyframes story-cal-pop { from { scale: 1.35; opacity: 0.4; } to { scale: 1; opacity: 1; } }
+.reduce-motion .story-cal-count.is-pop { animation: none; }
+@media (prefers-reduced-motion: reduce) { .story-cal-count.is-pop { animation: none; } }
 
 /* ── 게임 위의 이야기 겹 ── */
 .story-layer { position: absolute; inset: 0; z-index: 20; pointer-events: none; --story-top: calc(max(10px, env(safe-area-inset-top, 0px)) + 58px); }
@@ -317,7 +346,10 @@ textarea.story-input { resize: none; line-height: 1.4; }
   color: var(--meok);
   z-index: 3;
 }
+.story-wing-intro-words { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .story-wing-intro-text { flex: 1 1 auto; min-width: 0; margin: 0; font-family: var(--font-body); font-size: calc(15px * var(--text-scale)); line-height: 1.5; }
+/* 전제: 노래가 뒤섞였다(교사 결정 2026-10-08) */
+.story-wing-intro-premise { margin: 0; font-size: calc(14px * var(--text-scale)); font-weight: 700; line-height: 1.45; }
 
 /* 먹안개 속 좀(누르는 것이 아니다) */
 .story-jom {

@@ -107,10 +107,11 @@ export function piecesOf(song, layer) {
 export const footKey = (u, l, f) => u + '|' + (l ?? '-') + '|' + f;
 export const lineKey = (u, l) => u + '|' + (l ?? '-');
 
-// 단위 이름. 보스에서는 갈래가 드러나지 않게 '덩이'라고 부른다.
+// 단위 이름. 갈래 판별 전(관·입구)과 보스에서는 갈래가 드러나지 않게 '부분'이라고 부른다(교사 결정 2026-10-08).
+export const NEUTRAL_UNIT = '부분';
 export function unitName(song, neutral = false) {
-  if (neutral) return '덩이';
-  return genreById(song?.genre)?.unitName ?? '덩이';
+  if (neutral) return NEUTRAL_UNIT;
+  return genreById(song?.genre)?.unitName ?? NEUTRAL_UNIT;
 }
 
 // 종장 첫 음보의 글자들. 글자 수를 셀 때(song-shape.js syllableCount)와 같은 글자를 하나로 치고,

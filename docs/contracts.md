@@ -38,7 +38,7 @@
 
 ```js
 {
-  version: 1,                         // 정수. 모양이 바뀌면 올린다
+  version: 2,                         // 정수. 모양이나 값의 뜻이 바뀌면 올린다(2: 갈래 판별, 2026-10-08)
   device: {                           // 기기 공통 설정(모든 이름 기록이 함께 씀)
     volume: { bgm: 0.6, voice: 1, sfx: 0.8 },   // 0~1
     muted: false, slashMode: false,
@@ -54,6 +54,8 @@
 
 `progress`의 열쇠: `tutorialDone`, `wings[관 id]`(`state`, `shelfBound`, `basketDone`, `roomDone`, `bonusDone`, `uniqueActionIntroSeen`, `doneAt`, `placements.{shelf[3], basket[2], bonus[3]}`, `wrongCount`, `measured`), `prewaiting[관 id]`, `returned[관 id]`, `concepts[개념 id]`(`state`, `songs`), `keepsakes`, `rooms[관 id]`(방 기록 또는 `null`), `boss`(`state`, `stageWrong`, `unseen[노래 id]`의 `done`·`firstTryCorrect`·`journalHelp`·`singerGroupCorrect`), `ending`(`line`, `wing`, `conceptId`, `note`, `completed`, `completedAt`). 열쇠 하나하나의 값 집합은 `js/data/README.md`의 '저장 형식' 절에 있다.
 
+- **`measured`의 뜻(버전 2)**: 그 관에서 형식을 분석하고 ④ 갈래 판별에서 **맞힌** 노래, 그리고 잡아 든 미리 분석한 노래다(판별 기록). 틀린 판별은 `measured`에 남지 않고 `wrongCount`만 하나 는다. 다른 갈래로 판별한 노래는 그 판별과 함께 `placements.basket`에 `{ songId, to: 그 갈래의 관, fixed: false }`로 담긴다(`to`는 학생이 고르지 않는다). 판별 결과는 이 두 값에서 다시 계산하며 따로 저장하지 않는다. 칸·탑·덤·바구니에는 `measured`에 든 노래만 꽂힌다(진행 엔진이 막는다).
+
 읽는 쪽이 지켜야 할 것:
 - **상태는 다시 계산된다.** 불러올 때 관 상태는 순서와 세 표시(`shelfBound`·`basketDone`·`roomDone`)에서, 보스 상태는 다섯 관 완료와 낯선 노래 다섯의 `done`에서, 개념 상태는 저장된 상태와 `songs` 수 가운데 높은 쪽에서, `ending.completed`는 보스 완료에서 다시 나온다. 상태를 넣는 쪽은 이 표시들을 서로 맞게 넣어야 넣은 상태가 그대로 보인다.
 - 약속 밖의 열쇠와 값은 버려진다. 모자란 열쇠는 기본값으로 채워진다.
@@ -65,8 +67,8 @@
 | 저장소를 쓸 수 없음(읽기부터 보안 오류) | `save:failed { reason: 'unavailable' }`, 알림 한 번, 이번 창 메모리로만 |
 | 저장소 가득 참 | `save:failed { reason: 'quota' }`, 알림 한 번, 메모리의 진행은 그대로 |
 | JSON이 깨졌거나 `version`을 옮길 수 없음 | 새 문서로 시작하고 다음 저장에서 덮어쓴다 |
-| 옛 버전이고 옮기는 함수가 있음 | `MIGRATIONS`로 옮겨 읽는다(지금은 버전 1뿐이라 옮기는 함수가 없다) |
-| **더 새 버전**(`version` > 1) | 덮어쓰지 않는다. 이번 창 메모리로만 진행하고 `save:failed { reason: 'unknown' }` |
+| 옛 버전이고 옮기는 함수가 있음 | `MIGRATIONS`로 옮겨 읽고(`status: 'migrated'`) 다음 저장에서 현재 버전으로 쓴다. 1 → 2(갈래 판별): 관마다 고정되지 않은 자리(손에 든 노래·판정 전 칸·바구니·덤 자리)를 비우고, `measured`에서 고정된 노래와 그 관 `prewaiting`의 노래만 남긴다. 판별 단계가 없던 버전의 노래는 판별하지 않은 것이므로 다시 떠다니며 다시 분석·판별한다. 마친 관·고정된 자리·행선지 결과·개념·보스·엔딩은 그대로다 |
+| **더 새 버전**(`version` > 2) | 덮어쓰지 않는다. 이번 창 메모리로만 진행하고 `save:failed { reason: 'unknown' }` |
 | 두 창이 서로 다른 기록을 씀 | 둘 다 남는다(쓸 때마다 다시 읽어 그 창의 기록 자리만 바꾼다). 다른 창이 만든·지운 기록은 쓸 때, 기록 목록을 볼 때, 기록을 고를 때 이 창에도 들어온다 |
 | 두 창이 같은 기록을 씀 | 막지 않는다. 그 기록은 나중에 저장한 창의 것이 남는다(기록 하나 단위로 나중 쓴 쪽이 이긴다). 같은 기기 설정 값도 나중에 바꾼 창의 값이 남는다 |
 | 쓰기 직전에 다시 읽었더니 더 새 버전 | 덮어쓰지 않는다. 그 뒤로 이번 창 메모리로만 진행하고 `save:failed { reason: 'unknown' }` |
@@ -130,7 +132,7 @@
 | 쓰는 쪽 | 게임의 소리 엔진 |
 | 자리 | 향가 `assets/audio/voice/<노래 id>/<구>.mp3`, 고려가요 `…/<연>-<줄>-<음보>.mp3`, 나머지 `…/<단위>-<음보>.mp3`(번호는 0부터) |
 | 내용 | 그 음보(향가는 구)의 '오늘 소리'를 읽은 MP3. 길이는 그 노래 박자 칸(60 / `tempo`초)에 여유 0.005초를 더한 것 이하(`check-voice`가 지킴). 노래의 빠르기는 가장 긴 조각이 칸의 92%에 들도록 정한 값이라 실제 조각은 대개 그보다 짧다 |
-| 생성 기록 | `assets/audio/voice/manifest.json`(게임은 읽지 않음. 점검과 글 확인 문서가 읽음) |
+| 생성 기록 | `assets/audio/voice/manifest.json`(게임은 읽지 않음. 점검과 글 확인 문서가 읽음). 조각마다 만든 방법 `cut`: 줄을 읽혀 받아쓰기 시각으로 자름 `asr`, 음절 비율로 자름 `energy`, 자르지 않음 `whole`, 경계가 어긋난 줄을 음보마다 따로 읽힘 `per-foot`(실제로 읽힌 글 `spokenText`가 그 음보의 글). 어느 방법이든 경로·이름·칸 한도는 같다. 낭송용 발음 표기 표(`tools/voice/pronounce.json`, 예: 뫼→뭬)가 걸린 글은 TTS에 바꾼 글을 보내고 그 글을 `spokenText`에 남긴다(화면 글 `text`·`lineText`는 그대로) |
 
 | 오류 상황 | 결과 |
 | --- | --- |

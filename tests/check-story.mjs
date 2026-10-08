@@ -137,19 +137,30 @@ function seedCards({ bonus = false, textScale = 1 } = {}) {
 
 // ───────── 페이지 안 도우미(문자열로 넘어간다) ─────────
 
-// 재기 화면을 끝까지(빗금 모드): 안내 → 접기 → 빗금 → 계단 → 감정서 받기. 본 안내의 종류를 차례로 남긴다.
-async function solveMeasure() {
+// 형식 분석 화면을 끝까지(빗금 모드): 안내 → ① 나누기 → ② 빗금 → ③ 계단 → ④ 갈래 판별(picks 차례로 고르고, 틀린 판별 뒤의
+// 맞대어 보기 창은 실제로 눌러 풀어 다시 고른다) → 확인. 본 안내의 종류, ④ 안내가 가리킨 갈래, 맞대어 보기 창을 남긴다.
+async function solveMeasure(picks = ['sijo']) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const rewind = async () => { for (let k = 0; k < 200; k++) { const p = document.querySelector('.measure .m-prev'); if (!p || p.disabled) return; p.click(); await sleep(2); } };
   const intros = [];
   let last = null;
   let tapMode = null;
   let sheet = null;
+  let guide = null;
+  let decided = null;
+  const contrasts = [];
+  const queue = [...picks];
   for (let i = 0; i < 6000; i++) {
     const root = document.querySelector('.measure');
-    if (!root) return { done: true, intros, tapMode, sheet };
+    if (!root) return { done: true, intros, tapMode, sheet, guide, decided, contrasts };
     const intro = root.querySelector('.m-intro');
-    if (intro) { intros.push(intro.dataset.intro); intro.querySelector('.m-intro-ok').click(); await sleep(30); continue; }
+    if (intro) {
+      intros.push(intro.dataset.intro);
+      if (intro.dataset.intro === 'decide') guide = root.querySelector('.m-genre.is-intro-target')?.dataset.genre ?? null;
+      intro.querySelector('.m-intro-ok').click();
+      await sleep(30);
+      continue;
+    }
     const step = root.dataset.step;
     if (step !== last) { last = step; await rewind(); }
     if (step === 'fold') {
@@ -177,6 +188,26 @@ async function solveMeasure() {
       if (l) { l.click(); await sleep(2); continue; }
       const none = box?.querySelector('button.m-none');
       if (none) { none.click(); await sleep(30); continue; }
+    } else if (step === 'decide') {
+      if (!sheet) sheet = [...root.querySelectorAll('.m-sheet-line')].map((e) => e.textContent);
+      const cp = document.querySelector('.play-contrast');
+      if (cp) {
+        if (!cp.dataset.seen) { cp.dataset.seen = '1'; contrasts.push({ mode: cp.dataset.mode, song: cp.dataset.song, notes: [...cp.querySelectorAll('.play-contrast-note')].map((n) => n.dataset.lineId) }); }
+        const back = cp.querySelector('.play-contrast-back:not([hidden])');
+        if (back) { back.click(); await sleep(30); continue; }
+        const b = [...cp.querySelectorAll('.play-contrast-line:not([disabled])')].find((x) => !x.dataset.tried);
+        if (b) { b.dataset.tried = '1'; b.click(); }
+        await sleep(30);
+        continue;
+      }
+      const g = queue[0];
+      const b = root.querySelector('.m-genre[data-genre="' + g + '"]:not([disabled])');
+      if (b) { queue.shift(); b.click(); await sleep(80); continue; }
+    } else if (step === 'decided') {
+      decided = { genre: root.dataset.decided, sheet: [...root.querySelectorAll('.m-sheet-line')].map((e) => e.textContent), note: root.querySelector('.m-decide-note')?.textContent ?? '' };
+      root.querySelector('.m-finish')?.click();
+      await sleep(30);
+      continue;
     } else if (step === 'sheet') {
       sheet = [...root.querySelectorAll('.m-sheet-line')].map((e) => e.textContent);
       root.querySelector('.m-finish')?.click();
@@ -441,23 +472,31 @@ async function playEntrance(page, label) {
   const mission = await text(page, '.story-entrance .story-mission');
   ok(missionMatches(mission), label + ': 미션 문장이 spec 0절과 한 글자도 다르지 않다 ' + JSON.stringify(mission));
   ok(lines.some((l) => l?.includes('편지')) && lines.some((l) => l?.includes('목소리')), label + ': 선대 사서의 편지와 안개 속 목소리');
+  // 전제(교사 결정 2026-10-08): 편지가 노래가 뒤섞였고 관마다 다른 관의 노래가 있으며, 노래마다 형식 분석 → 갈래 판별 → 제자리라고 분명히 말한다
+  const premise = STORY.entrance.letter.filter((t) => /뒤섞|다른 관의 노래|판별/.test(t));
+  ok(premise.some((t) => /뒤섞/.test(t) && /다른 관의 노래/.test(t)) && premise.some((t) => /형식을 분석/.test(t) && /판별/.test(t)) && premise.every((t) => lines.some((l) => l?.includes(t))), label + ': 편지가 전제(뒤섞임, 다른 관의 노래, 분석·판별 뒤 제자리)를 화면에 보인다 ' + JSON.stringify(premise));
   const ly = await layout(page, '.story-entrance');
   ok(ly.length === 0, label + ': 입구 화면 배치 문제 없음 ' + JSON.stringify(ly));
   await click(page, '.story-tutorial-start');
   await waitSel(page, '.world.is-split .measure', 15000);
   const hidden = await ev(page, () => { const e = document.querySelector('.story-entrance'); return !e || e.hidden || getComputedStyle(e).display === 'none'; });
   ok(hidden, label + ': 재는 동안 입구 이야기 겹은 비킨다');
-  const r = await ev(page, () => window.__solve());
-  ok(r.done, label + ': 튜토리얼 재기를 마친다 ' + JSON.stringify(r));
-  ok(r.tapMode === 'slash', label + ': 빗금 모드로 잰다');
-  ok(same(r.intros, ['fold', 'tap', 'unique']), label + ': 접기 → 두드리기 → 계단 순서로 하나씩 안내 ' + JSON.stringify(r.intros));
-  ok(r.sheet?.[0] === '[세 덩이]' && r.sheet?.[1] === '[덩이마다 네 음보]', label + ": 튜토리얼 감정서도 단위를 '덩이'라 부른다 " + JSON.stringify(r.sheet));
+  // ④ 갈래 판별: 먼저 향가를 골라 보고(틀림 → 고른 갈래와 맞대어 보기 → 다시), 그다음 안내대로 시조
+  const r = await ev(page, () => window.__solve(['hyangga', 'sijo']));
+  ok(r.done, label + ': 튜토리얼 형식 분석과 갈래 판별을 마친다 ' + JSON.stringify(r));
+  ok(r.tapMode === 'slash', label + ': 빗금 모드로 분석한다');
+  ok(same(r.intros, ['fold', 'tap', 'unique', 'decide']), label + ': ① 나누기 → ② 음보 나누기 → ③ 계단 → ④ 갈래 판별 순서로 하나씩 안내 ' + JSON.stringify(r.intros));
+  ok(r.guide === 'sijo', label + ': 튜토리얼의 ④는 손가락으로 시조를 가리키며 안내한다 ' + JSON.stringify(r.guide));
+  ok(r.sheet?.[0] === '[세 부분]' && r.sheet?.[1] === '[부분마다 네 음보]', label + ": 판별 전에는 튜토리얼 분석표도 단위를 '부분'이라 부른다 " + JSON.stringify(r.sheet));
+  ok(r.contrasts.length === 1 && r.contrasts[0].mode === 'decide' && r.contrasts[0].song === 'taesan' && r.contrasts[0].notes.length > 0 && r.contrasts[0].notes.every((id) => id.startsWith('hyangga')), label + ': 튜토리얼에서도 틀리게 판별하면 고른 갈래(향가)의 수첩 쪽과 맞대어 본 뒤 다시 고른다 ' + JSON.stringify(r.contrasts));
+  ok(r.decided?.genre === 'sijo' && r.decided.sheet[0] === '[세 장]' && r.decided.note === STORY.entrance.decideNote, label + ': 시조로 판별하면 단위 이름(장)이 드러난다 ' + JSON.stringify(r.decided));
   await waitSel(page, '.story-entrance[data-step="done"]');
   const doneText = await text(page, '.story-entrance');
-  ok(doneText.includes(STORY.entrance.unitReveal) && (await text(page, '.story-entrance .story-reveal')) === STORY.entrance.unitReveal, label + ': 재기를 마치면 이 노래의 단위 이름(장)이 드러난다');
+  ok(doneText.includes(STORY.entrance.unitReveal) && (await text(page, '.story-entrance .story-reveal')) === STORY.entrance.unitReveal, label + ': 판별을 마치면 이 노래의 단위 이름(장)이 드러난다는 글');
   ok(doneText.includes('선대 사서의 첫 노래') && doneText.includes('향가관'), label + ': 첫 노래가 일지에 담기고 향가관이 열린다는 글');
   const rec = await record(page);
   ok(rec.progress.tutorialDone === true && rec.progress.wings.hyangga.state === 'open' && rec.progress.wings.goryeo.state === 'locked', label + ': 튜토리얼을 마치면 향가관만 열린다');
+  ok(Object.values(rec.progress.wings).every((w) => w.wrongCount === 0 && w.measured.length === 0), label + ': (음성) 튜토리얼의 틀린 판별은 관 오답으로 기록하지 않는다');
   ok(rec.progress.concepts['sijo-3jang'].songs.includes('taesan'), label + ': 첫 노래가 개념을 확인해 준다');
   ok(Object.values(rec.progress.wings).every((w) => [...w.placements.shelf, ...w.placements.bonus].every((s) => !s || s.songId !== 'taesan')), label + ': 첫 노래는 어느 칸도 차지하지 않는다');
   await click(page, '.story-to-corridor');
@@ -600,6 +639,43 @@ try {
     ok(ly.length === 0, '글자 크기 1.3에서도 설정 화면 배치 문제 없음 ' + JSON.stringify(ly));
     await click(page, '.story-settings .story-recalibrate');
     await waitSel(page, '.story-firstrun[data-step="calibrate"]');
+    // 박자 맞추기 알림(교사 결정 2026-10-07): 안내와 '시작' 뒤 셋 · 둘 · 하나를 크게 세고(종과 같은 0.8초 간격) 종이 울린다.
+    // 세는 동안 친 것은 종과 짝짓지 않는다. 움직임 줄이기면 세는 글자에 움직임이 없다(지금 켜져 있다)
+    const calInfo = await ev(page, () => ({ text: document.querySelector('.story-firstrun')?.textContent ?? '', start: document.querySelector('.story-cal-start')?.textContent ?? '' }));
+    ok(calInfo.text.includes(STORY.firstRun.calText) && calInfo.start === STORY.firstRun.calStart, '박자 맞추기: 시작 전에 안내와 시작 단추 ' + JSON.stringify(calInfo.start));
+    await click(page, '.story-cal-start');
+    const cd = await page.evaluate(() => new Promise((resolve) => {
+      const out = { counts: [], earlyLit: null, bellLit: null, statusDuring: null, statusBells: null };
+      const t0 = performance.now();
+      const tapBtn = () => document.querySelector('.story-cal-tap')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      const lit = () => document.querySelectorAll('.story-cal-bell.is-on').length;
+      const look = () => {
+        const c = document.querySelector('.story-cal-count');
+        const shown = c && !c.hidden ? c.textContent : null;
+        if (shown && out.counts.at(-1)?.text !== shown) {
+          const r = c.getBoundingClientRect();
+          out.counts.push({ text: shown, at: Math.round(performance.now() - t0), anim: getComputedStyle(c).animationName, font: parseFloat(getComputedStyle(c).fontSize), inView: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, onTop: (() => { const pe = c.style.pointerEvents; c.style.pointerEvents = 'auto'; const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); c.style.pointerEvents = pe; return !!top && (top === c || c.contains(top)); })() });
+          if (out.counts.length === 2) { tapBtn(); out.earlyLit = lit(); out.statusDuring = document.querySelector('.story-cal-status')?.textContent ?? ''; }
+        }
+        if (out.counts.length >= 3 && (!c || c.hidden) && out.bellLit === null) {
+          out.statusBells = document.querySelector('.story-cal-status')?.textContent ?? '';
+          tapBtn();
+          out.bellLit = lit();
+          resolve(out);
+          return;
+        }
+        if (performance.now() - t0 > 15000) { resolve(out); return; }
+        setTimeout(look, 10);
+      };
+      look();
+    }));
+    const gaps = cd.counts.slice(1).map((c, i) => c.at - cd.counts[i].at);
+    ok(cd.counts.map((c) => c.text).join(' ') === '셋 둘 하나', "박자 맞추기: 종 앞에 '셋 · 둘 · 하나'를 차례로 보인다 " + JSON.stringify(cd.counts));
+    ok(gaps.length === 2 && gaps.every((g) => Math.abs(g - 800) < 200), '박자 맞추기: 세는 간격은 종과 같은 약 0.8초 ' + JSON.stringify(gaps));
+    ok(cd.counts.every((c) => c.font >= 40 && c.inView && c.onTop), '박자 맞추기: 세는 글자는 크고(40px 이상) 화면 안에서 가리지 않는다(글자 크기 1.3) ' + JSON.stringify(cd.counts.map((c) => [c.font, c.inView, c.onTop])));
+    ok(cd.counts.every((c) => c.anim === 'none'), '박자 맞추기: 움직임 줄이기면 세는 글자에 움직임이 없다 ' + JSON.stringify(cd.counts.map((c) => c.anim)));
+    ok(cd.earlyLit === 0 && cd.statusDuring === STORY.firstRun.calReady, '박자 맞추기: 세는 동안 친 것은 종소리 표시에 들지 않는다 ' + JSON.stringify({ earlyLit: cd.earlyLit, status: cd.statusDuring }));
+    ok(cd.bellLit === 1 && cd.statusBells === STORY.firstRun.calListening, '음성 사례: 종이 울리기 시작한 뒤 친 것은 종소리 표시에 든다 ' + JSON.stringify({ bellLit: cd.bellLit, status: cd.statusBells }));
     await click(page, '.story-cal-skip');
     await waitGone(page, '.story-firstrun');
     ok((await saved(page)).device.calibrationOffsetMs === 0, '박자 다시 맞추기를 열고 건너뛸 수 있다');
@@ -724,6 +800,7 @@ try {
     await page.waitForFunction(() => document.querySelector('.play')?.dataset.place === 'hyangga', null, { timeout: 15000, polling: 100 });
     await waitSel(page, '.story-wing-intro[data-wing="hyangga"]');
     ok((await text(page, '.story-wing-intro'))?.includes('향가관'), '관에 처음 들어가면 짧은 들어가기 글');
+    ok((await text(page, '.story-wing-intro .story-wing-intro-premise')) === STORY.wingPremise && /다른 관의 노래/.test(STORY.wingPremise), '들어가기 글에 전제(이 관에도 다른 관의 노래가 섞여 있다, 분석·판별 뒤 제자리)를 붙인다');
     ly = await layout(page, '.story-wing-intro');
     ok(ly.length === 0, '들어가기 글 배치 문제 없음 ' + JSON.stringify(ly));
     await click(page, '.story-wing-intro .story-wing-intro-close');

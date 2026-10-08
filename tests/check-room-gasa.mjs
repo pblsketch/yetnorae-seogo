@@ -317,6 +317,8 @@ async function runBrowser(server) {
       check(await page.evaluate(() => [...document.querySelectorAll('link[rel=stylesheet]')].some((l) => l.href.endsWith('/css/room-gasa.css'))), '방이 스스로 css/room-gasa.css를 붙인다');
       const introText = await page.$eval('.rg-intro', (e) => e.textContent);
       check(introText.includes('교과서 밖 원문'), '시작 안내에 교과서 밖 원문 이야기가 있다');
+      // 그림판은 gasa-3d.js를 불러온 뒤에 생긴다(시작 안내는 먼저 그려진다). 생길 때까지 기다린 뒤 본다.
+      await page.waitForSelector('canvas.rg-canvas', { timeout: 15000 }).catch(() => {});
       check(await page.$('canvas.rg-canvas') !== null, '3D 장면을 그린다');
       const word = await walkThrough(page, { pick: (_, chips) => chips.map((c) => c.id), label: '3D 박자', beat: true, layoutAt: [0, 21, 'stream', 'finale'] });
       const st = await result(page);
@@ -520,8 +522,11 @@ async function runBrowser(server) {
       const { page } = g;
       page.setDefaultTimeout(20000);
       await open(page, { mode: '3d', hostThree: true, noBeat: true, reduceMotion: true });
-      check(await page.$('canvas.rg-canvas') === null, 'ctx.three가 있으면 그림판을 따로 만들지 않는다');
+      // 3D 장면은 gasa-3d.js를 불러온 뒤에 붙는다(시작 단추는 그보다 먼저 그려진다). 붙을 때까지 기다린 뒤 본다.
+      await page.waitForFunction(() => (window.__r.hostChildren() ?? 0) >= 1, null, { timeout: 15000 }).catch(() => {});
       check(await page.evaluate(() => window.__r.hostChildren()) >= 1, '방 장면을 부르는 쪽의 root에 붙인다');
+      // 장면이 붙은 뒤에 본다(일찍 보면 늦게 생기는 그림판을 놓친다)
+      check(await page.$('canvas.rg-canvas') === null, 'ctx.three가 있으면 그림판을 따로 만들지 않는다');
       const w = await walkThrough(page, { pick: (_, chips) => [chips.at(-1).id], label: 'ctx.three' });
       check(w.maxCalls > 0 && w.maxCalls <= 60, '부르는 쪽 그림판에서도 그리기 호출 60 이하(' + w.maxCalls + ')');
       const st = await result(page);

@@ -1,7 +1,7 @@
 // 처음부터 끝까지 완주 점검(T30, spec 2·3.2·5·6·7·10·11·12·13·14·15·19·20·21 '처음부터 끝까지 완주').
 // 제품 그대로(index.html)를 새 기록으로 연다. 로컬 저장소에 상태를 넣지 않고, 학생이 하듯 실제 입력(마우스 누르기,
 // 손가락 탭, 글자 입력)으로만 시작 화면 → 이어폰 안내·박자 맞추기 → 입구 튜토리얼 → 향가관 → 고려가요관 → 시조관
-// → 가사관 → 사설시조관(관마다 재기, 칸·탑·바구니 꽂기, 작품 방, 판 카드) → 보스 세 단계 → 엔딩(한 줄, 관, 먹 개념,
+// → 가사관 → 사설시조관(관마다 형식 분석과 ④ 갈래 판별, 칸·탑 꽂기(바구니는 판별이 행선지와 함께 채움), 작품 방, 판 카드) → 보스 세 단계 → 엔딩(한 줄, 관, 먹 개념,
 // 한마디) → 마지막 카드까지 간다.
 //
 // 세 화면(spec 21):
@@ -10,7 +10,7 @@
 //   태블릿 1180×820   — 강제 2D 그림 판(손가락 탭, 소리 끄기로 박자 없는 방식)
 //
 // 점검 도우미는 화면(DOM)과 세계 바탕이 내보이는 손잡이(자리의 화면 좌표, 학생 자리)를 읽어 무엇을 누를지 정하고,
-// 노래 데이터로 노래가 어느 갈래인지 판단한다(학생이 감정서와 수첩으로 하는 판단을 대신한다). 누르기는 모두 실제 입력이다.
+// 노래 데이터로 노래가 어느 갈래인지 판단한다(학생이 분석표와 수첩으로 하는 갈래 판별을 대신한다). 누르기는 모두 실제 입력이다.
 // 박자 방식에서는 '귀'(점검 도구가 소리 판에 예약되는 소리의 시각을 엿듣는 것)로 종소리와 박을 듣는다. 게임 상태는 바꾸지 않는다.
 //
 // 확인하는 것
@@ -67,6 +67,10 @@ function ok(cond, msg) {
 // 낭송 조각 목록(T28). 게임이 요청하는 낭송 조각은 모두 여기 있어야 한다.
 const VOICE = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets/audio/voice/manifest.json'), 'utf8'));
 const VOICE_PATHS = new Set(VOICE.clips.map((c) => '/' + c.path.replace(/^\/+/, '')));
+// 쉼에 두드리기: 귀는 음보 조각이 끝난 뒤 이만큼 지나 쉼 가운데쯤에 친다(쉼 1초, 창은 조각 끝 −150ms ~ 쉼 끝 +150ms)
+const TAP_IN_PAUSE_SEC = 0.35;
+// 고려가요 여음·후렴·되풀이 머리 조각(쉼도 판정 창도 없다. 귀는 치지 않는다). 귀의 조각 이름 'voice/<노래>/<연>-<줄>-<음보>.mp3'
+const OFFBEAT_CLIPS = songs.filter((s) => s.genre === 'goryeo').flatMap((s) => s.units.flatMap((u, ui) => u.lines.flatMap((l, li) => l.feet.map((f, fi) => (f.kind ? 'voice/' + s.id + '/' + ui + '-' + li + '-' + fi + '.mp3' : null))))).filter(Boolean);
 
 // ───────── PNG 읽기(점검 도구 안의 작은 풀개, 8비트 RGB·RGBA, 비월 없음) ─────────
 export function decodePng(buf) {
@@ -358,7 +362,8 @@ function watchSilence(page, S, close, { hardStopMs = 120000 } = {}) {
   return dog;
 }
 
-// 장구 탭이 예약된 박에서 얼마나 떨어졌는지(ms, 늦으면 양수). from: 이 번호 뒤의 탭만. 페이지로 넘겨진다.
+// 장구 탭이 바로 앞 음보 조각의 끝(쉼 시작)에서 얼마나 지났는지(ms). from: 이 번호 뒤의 탭만. 페이지로 넘겨진다.
+// outside: 쉼의 판정 창(조각 끝 −150ms ~ 쉼 1초 + 150ms, 보정값 0 기준) 밖의 탭 수
 function tapTiming(from) {
   const e = window.__ears;
   if (!e?.ctx) return null;
@@ -366,11 +371,15 @@ function tapTiming(from) {
   for (const tp of e.taps) {
     if (tp.i < from || !tp.on.includes('m-drum')) continue;
     let best = null;
-    for (const s of e.starts.slice(0, tp.n)) if (s.ahead && s.voice && (best === null || Math.abs(tp.t - s.when) < Math.abs(tp.t - best))) best = s.when;
+    for (const s of e.starts.slice(0, tp.n)) {
+      if (!s.ahead || !s.voice || window.__offbeatClips?.has(s.src)) continue;
+      const end = s.when + s.dur;
+      if (end <= tp.t + 0.15 && (best === null || end > best)) best = end;
+    }
     if (best !== null) d.push(Math.round((tp.t - best) * 1000));
   }
   const sorted = [...d].sort((a, b) => a - b);
-  return { next: e.tapCount, n: d.length, median: sorted[sorted.length >> 1] ?? null, max: sorted.at(-1) ?? null, over150: d.filter((x) => Math.abs(x) > 150).length };
+  return { next: e.tapCount, n: d.length, median: sorted[sorted.length >> 1] ?? null, max: sorted.at(-1) ?? null, outside: d.filter((x) => x < -150 || x > 1150).length };
 }
 
 // page.evaluate 같은 약속을 ms 안에 끝나지 않으면 timedOut 오류로 거절한다(렌더러가 멈추면 evaluate는 끝없이 기다린다)
@@ -424,8 +433,9 @@ function makeUi(page, S) {
   return { ev, has, waitFn, waitSel, waitGone, press, pressAt, saved, record, place, waitContext };
 }
 
-// ───────── 재기 화면(실제 입력) ─────────
-// 지금 무엇을 누를지 정한다(페이지 안). info: { action, aaUnit, ranges, tool }
+// ───────── 형식 분석 화면(실제 입력) ─────────
+// 지금 무엇을 누를지 정한다(페이지 안). info: { action, aaUnit, ranges, tool, genre }
+// ④ 갈래 판별에서는 노래 데이터의 갈래(info.genre)를 고른다(학생이 분석표와 수첩으로 하는 판별을 대신함). 판별 뒤 '확인'.
 function measureNext(info) {
   const root = document.querySelector('.measure');
   if (!root) return { kind: 'done' };
@@ -493,16 +503,24 @@ function measureNext(info) {
       if (b && !b.disabled) return { kind: 'unroll', sel: '.measure .m-action button.m-unroll-btn' };
       if (none) return { kind: 'none', sel: '.measure .m-action button.m-none' };
     }
+  } else if (step === 'decide') {
+    if (document.querySelector('.play-contrast')) return { kind: 'wait' };
+    const g = root.querySelector('.m-genre[data-genre="' + info.genre + '"]');
+    if (g && !g.disabled) return { kind: 'decide', sel: '.measure .m-genre[data-genre="' + info.genre + '"]', sheet: root.querySelector('.m-side')?.textContent ?? '' };
+  } else if (step === 'decided') {
+    const f = root.querySelector('.m-finish');
+    if (f) return { kind: 'decided', sel: '.measure .m-finish', sheet: root.querySelector('.m-side')?.textContent ?? '', genre: root.dataset.decided };
   } else if (step === 'sheet') {
     return { kind: 'sheet', sel: '.measure .m-finish', sheet: root.querySelector('.m-side')?.textContent ?? '' };
   }
   return { kind: 'wait' };
 }
 
-// 박자 두드리기: 귀로 낭송을 듣고(소리 판에 예약된 낭송 조각의 시각) 그 조각이 울리는 때에 장구를 친다.
-// 화면의 '지금 울리는 음보' 표시는 입구·향가관과 다시 듣기에서만 보이므로 기대지 않는다. 박 알림(새로 시작할 때의
-// 장구 한 번)은 효과음이라 낭송 조각이 아니므로 치지 않는다. 고려가요 여음·후렴 조각에 친 탭은 판정 창 밖이라 무시된다.
-// 한 단위에서 박을 놓치면 게임이 그 단위에서 멈추고 다시 들려준다(실패 아님). 예약을 거둔 조각(멈춘 단위 뒤)은 치지 않는다.
+// 박자 두드리기(쉼에 두드리기): 귀로 낭송을 듣고(소리 판에 예약된 낭송 조각의 시각과 길이) 그 음보 조각이 끝난 뒤
+// 쉬는 사이(조각 끝 + TAP_IN_PAUSE_SEC)에 장구를 친다. 음보가 울리기 시작할 때 치면 판정 창 밖이다.
+// 화면의 '지금 울리는 음보' 표시는 입구·향가관과 다시 듣기에서만 보이므로 기대지 않는다. '준비' 딱 소리는 효과음이라
+// 낭송 조각이 아니므로 치지 않는다. 고려가요 여음·후렴·되풀이 머리 조각(OFFBEAT_CLIPS)은 쉼이 없으니 치지 않는다.
+// 한 단위에서 쉼을 놓치면 게임이 그 단위에서 멈추고 다시 들려준다(실패 아님). 예약을 거두었거나 도중에 멈춘 조각은 치지 않는다.
 // 빗금 권유는 '계속 칠래요'로 넘긴다. '같은 걸음으로 넘기기'는 누르지 않고 끝까지 친다.
 async function beatTapping(page, ui, S, stats) {
   const drumBox = async () => (await page.locator('.measure .m-drum').boundingBox());
@@ -516,6 +534,7 @@ async function beatTapping(page, ui, S, stats) {
     if (!S.touch && box) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   };
   await toDrum();
+  await page.evaluate((list) => { window.__offbeatClips = new Set(list); }, OFFBEAT_CLIPS);
   const started = Date.now();
   const tapsBefore = stats.taps;
   const tapFrom = await ui.ev(() => window.__ears?.tapCount ?? 0);
@@ -528,8 +547,8 @@ async function beatTapping(page, ui, S, stats) {
     if (Date.now() - started > LIMITS.beatPhaseMs) {
       throw await stall(page, S, '두드리기가 ' + LIMITS.beatPhaseMs / 60000 + '분 안에 끝나지 않음(이번 노래에서 ' + (stats.taps - tapsBefore) + '번 침, 탭 시각 ' + JSON.stringify(await within(ui.ev(tapTiming, tapFrom), 10000).catch(() => null)) + ')');
     }
-    // 다음 낭송 조각이 울리는 때, 또는 단계 바뀜·빗금 권유·듣기 단추를 기다린다(4초까지)
-    const r = await within(page.evaluate((afterT) => new Promise((resolve) => {
+    // 다음 음보 조각이 끝나고 쉬는 때(조각 끝 + inPause), 또는 단계 바뀜·빗금 권유·듣기 단추를 기다린다(4초까지)
+    const r = await within(page.evaluate(({ afterT, inPause }) => new Promise((resolve) => {
       const look = () => {
         const m = document.querySelector('.measure');
         if (!m || m.dataset.step !== 'tap' || m.dataset.tapMode !== 'beat') return { kind: 'end' };
@@ -542,12 +561,14 @@ async function beatTapping(page, ui, S, stats) {
         let next = null;
         for (const s of e.starts) {
           if (!s.voice || s.when <= afterT + 1e-4) continue;
-          if (s.stoppedAt !== undefined && s.stoppedAt <= s.when) continue;   // 거둔 예약
+          if (window.__offbeatClips?.has(s.src)) continue;                        // 여음·후렴: 쉼이 없다
+          if (s.stoppedAt !== undefined && s.stoppedAt < s.when + s.dur) continue; // 거둔 예약, 도중에 멈춘 조각
           if (!next || s.when < next.when) next = s;
         }
-        if (next && t >= next.when - 0.004) {
+        if (next && t >= next.when + next.dur + inPause - 0.004) {
           const d = m.querySelector('.m-drum')?.getBoundingClientRect();
-          return { kind: 'beat', when: next.when, src: next.src, lateMs: Math.round((t - next.when) * 1000), drum: d && d.width ? { x: d.x, y: d.y, width: d.width, height: d.height } : null };
+          const tapAt = next.when + next.dur + inPause;
+          return { kind: 'beat', when: next.when, clipEnd: next.when + next.dur, src: next.src, lateMs: Math.round((t - tapAt) * 1000), drum: d && d.width ? { x: d.x, y: d.y, width: d.width, height: d.height } : null };
         }
         return null;
       };
@@ -559,7 +580,7 @@ async function beatTapping(page, ui, S, stats) {
         setTimeout(poll, 2);
       };
       poll();
-    }), after), 30000).catch(async (e) => {
+    }), { afterT: after, inPause: TAP_IN_PAUSE_SEC }), 30000).catch(async (e) => {
       if (e.timedOut) throw await stall(page, S, '페이지가 30초 동안 답하지 않음(렌더러가 멈췄을 수 있음)');
       throw e;
     });
@@ -572,7 +593,7 @@ async function beatTapping(page, ui, S, stats) {
     if (r.kind === 'end') {
       const tt = await within(ui.ev(tapTiming, tapFrom), 10000).catch(() => null);
       note('두드리기 끝: 탭 시각 ' + JSON.stringify(tt));
-      if (tt) { stats.lateTaps = (stats.lateTaps ?? 0) + tt.over150; stats.worstTapMs = Math.max(stats.worstTapMs ?? 0, Math.abs(tt.max ?? 0), Math.abs(tt.median ?? 0)); }
+      if (tt) { stats.lateTaps = (stats.lateTaps ?? 0) + tt.outside; stats.worstTapMs = Math.max(stats.worstTapMs ?? 0, Math.abs(tt.max ?? 0), Math.abs(tt.median ?? 0)); }
       return;
     }
     if (r.kind === 'suggest') { stats.suggest++; await ui.press('.measure .m-suggest-no'); await toDrum(); continue; }
@@ -607,18 +628,20 @@ async function beatTapping(page, ui, S, stats) {
   }
 }
 
-// 재기 하나를 끝까지(접기 → 두드리기·빗금 → 고유 동작 → 감정서). 돌려주는 값: { intros, sheet, steps }
+// 형식 분석 하나를 끝까지(① 나누기 → ② 두드리기·빗금 → ③ 고유 동작 → 분석표 → ④ 갈래 판별 → 확인).
+// 돌려주는 값: { intros, sheet, steps, decided }
 async function solveMeasure(page, ui, S, info, stats) {
   const intros = [];
   const steps = [];
   let sheet = '';
+  let decided = null;
   info = { ...info, toolUsed: false };
   const started = Date.now();
   let waitSince = null;
   for (let guard = 0; guard < 4000;) {
     if (Date.now() - started > LIMITS.measureMs) throw await stall(page, S, '재기가 ' + LIMITS.measureMs / 60000 + '분 안에 끝나지 않음 ' + JSON.stringify(steps));
     const n = await ui.ev(measureNext, info);
-    if (n.kind === 'done') return { intros, sheet, steps };
+    if (n.kind === 'done') return { intros, sheet, steps, decided };
     if (steps.at(-1) !== n.kind) { steps.push(n.kind); note('재기 ' + n.kind); }
     if (n.kind === 'wait') {
       waitSince ??= Date.now();
@@ -630,7 +653,8 @@ async function solveMeasure(page, ui, S, info, stats) {
     guard++;
     if (n.kind === 'beat') { await beatTapping(page, ui, S, stats); continue; }
     if (n.kind === 'intro') intros.push(n.intro);
-    if (n.kind === 'sheet') sheet = n.sheet;
+    if (n.kind === 'sheet' || n.kind === 'decide') sheet = n.sheet;
+    if (n.kind === 'decided') decided = n.genre;
     if (n.kind === 'tool') info.toolUsed = true;
     if (n.kind === 'page-back') info.rewinding = true;
     else if (n.kind === 'page' || n.kind === 'refrain') info.rewinding = false;
@@ -638,8 +662,15 @@ async function solveMeasure(page, ui, S, info, stats) {
       await ui.press(n.sel, 8000);
     } catch (e) {
       // 누를 것이 그사이 바뀌었으면(쪽 넘김, 단계 바뀜) 다시 본다
-      if (!(await ui.has('.measure'))) return { intros, sheet, steps };
+      if (!(await ui.has('.measure'))) return { intros, sheet, steps, decided };
       stats.retries++;
+      // 쪽 넘김 단추가 가운데를 눌러도 눌리지 않으면(그 자리 맨 위가 다른 요소) 무엇이 가렸는지 남기고,
+      // 키보드 사용자처럼 초점을 옮겨 Enter로 누른다(실제 입력).
+      if (n.kind === 'page' || n.kind === 'page-back') {
+        const cover = await ui.ev((s) => { const b = document.querySelector(s); if (!b) return 'no-button'; const r = b.getBoundingClientRect(); const t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return t === b || b.contains(t) ? 'top' : (t ? t.tagName.toLowerCase() + '.' + [...t.classList].join('.') : 'none'); }, n.sel).catch(() => 'eval-failed');
+        note('쪽 넘김 누르기 실패, 그 자리 맨 위: ' + cover + ' → 초점 + Enter');
+        await page.focus(n.sel).then(() => page.keyboard.press('Enter')).catch(() => {});
+      }
       if (stats.retries > 200) throw e;
     }
     if (n.kind === 'walk') await ui.waitFn(() => { const b = document.querySelector('.measure .m-action button.m-walk-step'); return !b || !b.disabled; }, null, 60000);
@@ -648,7 +679,7 @@ async function solveMeasure(page, ui, S, info, stats) {
 }
 
 function actionInfo(actionId, s, tool = null) {
-  return { action: actionId, tool, ranges: (s.features?.refrains ?? []).flatMap((r) => r.ranges) };
+  return { action: actionId, tool, genre: s.genre, ranges: (s.features?.refrains ?? []).flatMap((r) => r.ranges) };
 }
 
 // ───────── 3D 걷기: 바닥을 눌러 목표 자리까지 간다 ─────────
@@ -732,11 +763,19 @@ async function pressFloatingSong(ui, id) {
 
 async function catchAndMeasure(page, ui, S, wingId, id, stats) {
   await pressFloatingSong(ui, id);
-  // 잡기 단추를 누르는 사이 재기 화면이 이미 열렸으면(단추가 사라져 Playwright가 기다리다 끝남) 그대로 잇는다
+  // 잡기 단추를 누르는 사이 분석 화면이 이미 열렸으면(단추가 사라져 Playwright가 기다리다 끝남) 그대로 잇는다
   try { await ui.press('.world-context'); } catch (e) { if (!(await ui.has('.world.is-split .measure'))) throw e; }
   await ui.waitSel('.world.is-split .measure', 20000);
   const r = await solveMeasure(page, ui, S, actionInfo(ACTION_OF[wingId], song(id)), stats);
-  await ui.waitSel(`.play-hand-song[data-song="${id}"]`, 20000);
+  // 그 관 갈래로 판별한 노래(와 미리 분석한 노래)는 손에, 다른 갈래로 판별한 노래는 행선지와 함께 바구니(차면 곧 보내짐)에
+  if (song(id).genre === wingById(wingId).genre) await ui.waitSel(`.play-hand-song[data-song="${id}"]`, 20000);
+  else {
+    await ui.waitGone('.measure', 20000);
+    const rec = await ui.record();
+    const p = rec?.progress;
+    const there = p && (p.wings[wingId].placements.basket.some((x) => x?.songId === id) || Object.values(p.prewaiting).some((l) => l.includes(id)) || Object.values(p.returned).some((l) => l.includes(id)));
+    if (!there) throw new Error('다른 갈래로 판별한 「' + song(id).title + '」이 바구니에 담기지 않음');
+  }
   return r;
 }
 
@@ -746,16 +785,14 @@ async function openSpot(ui, sel, label) {
   await ui.press('.world-context');
 }
 
-async function placeInto(ui, area, index, id, to = null) {
-  const sel = area === 'basket' ? '.play-spine[data-area="basket"][data-index="0"]' : `.play-spine[data-area="${area}"][data-index="${index}"]`;
+// 칸·탑·덤에 판별한 노래를 꽂는다. 바구니는 갈래 판별이 행선지와 함께 저절로 채우므로 꽂지 않는다(행선지 고르기 없음)
+async function placeInto(ui, area, index, id) {
+  if (area === 'basket') throw new Error('바구니는 갈래 판별이 저절로 채운다');
+  const sel = `.play-spine[data-area="${area}"][data-index="${index}"]`;
   const wrongBefore = await wrongTotal(ui);
   await openSpot(ui, sel, '꽂기');
   await ui.waitSel('.play-dialog');
   await ui.press(`.play-dialog .play-pick[data-song="${id}"]`);
-  if (area === 'basket') {
-    await ui.waitSel('.play-dialog .play-dest');
-    await ui.press(`.play-dialog .play-dest[data-wing="${to}"]`);
-  }
   await ui.waitGone('.play-dialog', 10000);
   // 판정에서 돌아온 노래가 있으면(오답 수가 늘면) 맞대어 보기 창이 뜰 수 있다. 실제 입력으로 푼다
   if ((await wrongTotal(ui)) > wrongBefore) await resolveContrast(ui);
@@ -1125,7 +1162,8 @@ async function runSetup(server, S) {
     await ui.press('.story-tutorial-start');
     await ui.waitSel('.world.is-split .measure', 30000);
     const tut = await solveMeasure(page, ui, S, actionInfo('stairs', song('taesan')), stats);
-    ok(same(tut.intros, ['fold', 'tap', 'unique']), L + ': 튜토리얼은 접기 → 두드리기 → 계단 순서로 하나씩 안내한다 ' + JSON.stringify(tut.intros));
+    ok(same(tut.intros, ['fold', 'tap', 'unique', 'decide']), L + ': 튜토리얼은 ① 나누기 → ② 음보 나누기 → ③ 계단 → ④ 갈래 판별 순서로 하나씩 안내한다 ' + JSON.stringify(tut.intros));
+    ok(tut.decided === 'sijo' && tut.steps.includes('decide'), L + ': 튜토리얼도 ④ 갈래 판별(시조)을 한다');
     await ui.waitSel('.story-entrance[data-step="done"]', 30000);
     await ui.press('.story-to-corridor');
     await ui.waitGone('.story-entrance');
@@ -1152,7 +1190,7 @@ async function runSetup(server, S) {
       const t = WING_TABLE[W];
       const pool = [...t.shelf, ...t.stray.map((s) => s.songId)];
 
-      // 1. 떠도는 노래와 입구에서 기다리는 노래를 모두 잡아 잰다
+      // 1. 뒤섞인 노래와 입구에서 기다리는 노래를 모두 잡아 형식을 분석하고 갈래를 판별한다(미리 분석한 노래는 판별 없이)
       const floating = await ui.ev(() => [...document.querySelectorAll('.play-song')].map((e) => ({ id: e.dataset.song, pre: e.classList.contains('is-premeasured') })));
       ok(same(floating.map((f) => f.id).sort(), [...pool].sort()), wl + ': 칸 노래와 길 잃은 노래 다섯 편이 떠다니거나 입구에서 기다린다 ' + JSON.stringify(floating));
       const premeasured = floating.filter((f) => f.pre).map((f) => f.id).sort();
@@ -1160,18 +1198,22 @@ async function runSetup(server, S) {
       let first = true;
       for (const f of floating) {
         const r = await catchAndMeasure(page, ui, S, W, f.id, stats);
-        if (f.pre) ok(r.steps[0] === 'sheet', wl + ': 미리 잰 「' + song(f.id).title + '」은 감정서가 채워진 채로 온다');
-        else if (first) { ok(same(r.intros, ['unique']), wl + ': 관에 처음 들어와 처음 재면 고유 동작 안내 하나만 본다 ' + JSON.stringify(r.intros)); first = false; }
-        ok(r.sheet.length > 0 && !SCORE_RE.test(r.sheet), wl + ': 「' + song(f.id).title + '」 감정서(점수 없음)');
+        if (f.pre) ok(r.steps[0] === 'sheet' && !r.steps.includes('decide'), wl + ': 미리 분석한 「' + song(f.id).title + '」은 분석표가 채워진 채로 오고 판별하지 않는다');
+        else {
+          ok(r.decided === song(f.id).genre, wl + ': 「' + song(f.id).title + '」은 ④ 갈래 판별을 거친다(' + r.decided + ')');
+          if (first) { ok(same(r.intros, ['unique']), wl + ': 관에 처음 들어와 처음 분석하면 고유 동작 안내 하나만 본다 ' + JSON.stringify(r.intros)); first = false; }
+        }
+        ok(r.sheet.length > 0 && !SCORE_RE.test(r.sheet), wl + ': 「' + song(f.id).title + '」 분석표(점수 없음)');
       }
 
-      // 2. 꽂기: 갈래가 이 관이면 칸(향가관은 구 수에 맞는 층), 아니면 바구니에 갈 관과 함께
+      // 2. 꽂기: 이 관 갈래로 판별한 노래는 손에서 칸(향가관은 구 수에 맞는 층)으로. 다른 갈래로 판별한 노래는
+      //    판별할 때 행선지와 함께 바구니에 담겼고, 두 자리가 차면 보내졌다(행선지를 고르지 않는다)
       const hand = await ui.ev(() => [...document.querySelectorAll('.play-hand-song')].map((e) => e.dataset.song));
-      ok(same([...hand].sort(), [...pool].sort()), wl + ': 잰 노래 다섯 편이 손에 있다');
       const shelfIds = hand.filter((id) => song(id).genre === wingById(W).genre);
-      const strays = hand.filter((id) => song(id).genre !== wingById(W).genre);
-      for (const id of strays) await placeInto(ui, 'basket', 0, id, wingOfGenre(song(id).genre).id);
+      ok(same([...hand].sort(), [...t.shelf].sort()) && same(shelfIds, hand), wl + ': 이 관 갈래로 판별한 칸 노래 세 편만 손에 있다 ' + JSON.stringify(hand));
       await ui.waitFn((w) => !document.querySelector('.play-spine[data-area="basket"]'), W, 30000);
+      rec = await ui.record();
+      ok(rec.progress.wings[W].basketDone && t.stray.every((x) => (rec.progress.prewaiting[x.to] ?? []).includes(x.songId) || (rec.progress.returned[x.to] ?? []).includes(x.songId)), wl + ': 길 잃은 노래 두 편은 판별한 갈래의 관으로 보내졌다');
       for (const [i, id] of shelfIds.entries()) {
         const index = t.shelfFloors ? t.shelfFloors.indexOf(song(id).units.length) : i;
         await placeInto(ui, 'shelf', index, id);
@@ -1274,7 +1316,7 @@ async function runSetup(server, S) {
   ok(probs.length === 0, L + ': 콘솔 오류·실패한 요청(404 포함)·바깥 요청·목록에 없는 낭송 조각 요청이 없다 ' + probs.slice(0, 6).join(' | '));
   if (S.beat || S.voiceExpected) ok(voiceCount > 0, L + ': 낭송 조각을 실제로 불러왔다(' + voiceCount + '건, 모두 낭송 목록 안)');
   const sec = Math.round((Date.now() - started) / 1000);
-  console.log(`  (${L}: ${Math.floor(sec / 60)}분 ${sec % 60}초, 탭 ${stats.taps}, 다시 본 누르기 ${stats.retries}, 빗금 권유 ${stats.suggest}, 리믹스 탭 ${stats.remixTaps}, 낭송 조각 요청 ${voiceCount}` + (S.beat ? `, 다시 들은 음보 ${stats.replayFeet ?? 0}, ±150ms 밖 탭 ${stats.lateTaps ?? 0}, 가장 먼 탭 ${stats.worstTapMs ?? 0}ms` : '') + ')');
+  console.log(`  (${L}: ${Math.floor(sec / 60)}분 ${sec % 60}초, 탭 ${stats.taps}, 다시 본 누르기 ${stats.retries}, 빗금 권유 ${stats.suggest}, 리믹스 탭 ${stats.remixTaps}, 낭송 조각 요청 ${voiceCount}` + (S.beat ? `, 다시 들은 음보 ${stats.replayFeet ?? 0}, 쉼 창 밖 탭 ${stats.lateTaps ?? 0}, 조각 끝에서 가장 먼 탭 ${stats.worstTapMs ?? 0}ms` : '') + ')');
   try { await game.close(); } catch { /* 감시견이 이미 닫음 */ }
   dog.disarm();
   return sec;

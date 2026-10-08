@@ -129,7 +129,7 @@ export const BOSS_TABLE = {
 };
 
 // 행선지 규칙(spec 4.3)을 노래 표에 적용한 결과. 관 id → 노래 id 목록.
-// prewait: 그 관 입구에서 미리 잰 상태로 기다리는 노래. returned: 그 관 '돌아온 노래' 선반에 꽂히는 노래.
+// prewait: 그 관 입구에서 미리 분석한 상태로 기다리는 노래. returned: 그 관 '돌아온 노래' 선반에 꽂히는 노래.
 // 검증기가 규칙으로 다시 계산해 이 목록과 맞는지 확인한다.
 export const ROUTING = {
   prewait: {

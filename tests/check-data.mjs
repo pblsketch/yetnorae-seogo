@@ -147,55 +147,48 @@ console.log('\n[6] 맞대어 보기 규칙의 건전성과 맞대어 볼 줄이 
   const towerBad = contrastSoundness(real.songs, actionIds, { rules: [...CONTRAST_RULES, { tower: true, lineKind: 'fold', conceptId: 'hyangga-lines', test: (e) => e.fold.units !== 10 }], tableWings: SONG_TABLE.wings });
   check(towerBad.some((x) => x.songId === 'seodongyo'), '(음성) 탑 규칙이 제 층의 향가를 걸면 잡는다');
 
-  // 반드시 지나는 길의 노래 × 그 관에서 꽂을 수 있는 틀린 자리: 맞대어 볼 줄이 없는(창을 열지 않는) 경우를 센다
+  // 반드시 지나는 길의 노래 × 그 관에서 할 수 있는 틀린 고르기(교사 결정 2026-10-08):
+  //  - 갈래 판별: 그 관에서 분석하는 노래(미리 분석한 노래는 판별하지 않는다)마다 틀린 갈래 넷. 대상은 고른 갈래, 동작은 그 관의 동작
+  //  - 향가관 탑: 판별을 마친 칸 노래를 다른 두 층에
+  // 맞대어 볼 줄이 없으면 창은 짝짓기 없이 분석표와 고른 갈래 쪽을 나란히 보인다(탑에는 그런 경우가 없어야 한다).
   const byId = new Map(real.songs.map((x) => [x.id, x]));
   let total = 0;
   const empty = [];
   for (const [w, t] of Object.entries(SONG_TABLE.wings)) {
-    const genre = wingById(w).genre;
     const pre = SONG_TABLE.routing.prewait[w] ?? [];
+    const action = wingById(w).action;
     for (const id of [...t.shelf, ...t.stray.map((x) => x.songId)]) {
       const song = byId.get(id);
       if (!song) continue;
-      let action = wingById(w).action;
-      if (pre.includes(id)) action = wingById(song.roles.find((r) => r.role === 'stray' && r.to === w).wing).action;
-      const isShelf = t.shelf.includes(id);
       const targets = [];
-      if (Array.isArray(t.shelfFloors)) t.shelfFloors.forEach((n, i) => { if (t.shelf[i] !== id) targets.push(['탑 ' + n + '구 층', { towerUnits: n }]); });
-      else if (!isShelf) targets.push(['칸', { genre }]);
-      for (const d of ['hyangga', 'goryeo', 'sijo', 'gasa', 'saseol']) {
-        if (!isShelf && d === song.genre) continue;   // 맞는 행선지
-        targets.push(['바구니 → ' + d, { genre: d }]);
-      }
+      if (!pre.includes(id)) for (const d of GENRES.map((g) => g.id)) if (d !== song.genre) targets.push(['판별 → ' + d, { genre: d }]);
+      if (Array.isArray(t.shelfFloors) && t.shelf.includes(id)) t.shelfFloors.forEach((n, k) => { if (t.shelf[k] !== id) targets.push(['탑 ' + n + '구 층', { towerUnits: n }]); });
       for (const [name, target] of targets) {
         total++;
         if (!mismatches(song, target, action).length) empty.push(w + ' ' + id + ' → ' + name);
       }
     }
   }
-  const inherent = empty.filter((e) => { const [w, id] = e.split(' '); return SONG_TABLE.wings[w].shelf.includes(id) && e.endsWith('바구니 → ' + wingById(w).genre); });
-  // 학생의 재기에서 대상 갈래와 어긋나는 증거가 나오지 않는 경우(2026-10-07, Codex 점검 C2·C3 반영 뒤).
+  // 학생의 분석에서 고른 갈래와 어긋나는 증거가 나오지 않는 경우(2026-10-07, Codex 점검 C2·C3 반영 뒤).
   // 두드리기 방식(향가의 구 세기)은 프로그램이 고른 것이라 증거로 쓰지 않고, 고려가요는 세 음보 줄이 하나도 없을 때만 어긋난다.
-  // 그래서 아래 여덟 가지는 창 없이 손으로만 돌아온다(수첩 도움은 대상 갈래 개념 모두). 목록과 실제가 한 가지라도 다르면 실패한다.
+  // 그래서 아래 여섯 가지는 짝짓기 없이 나란히 견준다(수첩 도움은 고른 갈래 개념 모두). 목록과 실제가 한 가지라도 다르면 실패한다.
   const NO_EVIDENCE = [
-    'hyangga seodongyo → 바구니 → goryeo',          // 향가(구 세기)·'아아' 문 열기: 고려가요의 연·후렴·세 음보를 가를 증거 없음
-    'hyangga cheoyongga → 바구니 → goryeo',
-    'hyangga chan-giparangga → 바구니 → goryeo',
-    'hyangga gasiri → 탑 4구 층',                   // 네 덩이(연) = 4구 층, 감탄사는 10구 층만
-    'hyangga gasiri → 바구니 → hyangga',            // 네 덩이는 4구 향가와 같은 수
-    'goryeo cheongsan-byeolgok → 바구니 → hyangga', // 여덟 덩이는 8구 향가와 같은 수
-    'goryeo gasiri → 바구니 → hyangga',
-    'gasa gyuwonga → 바구니 → goryeo',              // 세 음보 행이 섞여 있고 걷기는 고려가요 개념과 맞대지 않는다
+    'hyangga seodongyo → 판별 → goryeo',          // 향가(구 세기)·'아아' 문 열기: 고려가요의 연·후렴·세 음보를 가를 증거 없음
+    'hyangga cheoyongga → 판별 → goryeo',
+    'hyangga chan-giparangga → 판별 → goryeo',
+    'hyangga gasiri → 판별 → hyangga',            // 네 부분(연)은 4구 향가와 같은 수
+    'goryeo cheongsan-byeolgok → 판별 → hyangga', // 여덟 부분은 8구 향가와 같은 수
+    'gasa gyuwonga → 판별 → goryeo',              // 세 음보 행이 섞여 있고 걷기는 고려가요 개념과 맞대지 않는다
   ];
-  const expected = new Set([...inherent, ...NO_EVIDENCE]);
-  console.log('  · 틀린 자리 ' + total + '가지 가운데 맞대어 볼 줄이 없는 것 ' + empty.length + '가지(지금처럼 손으로만 돌아온다)');
+  console.log('  · 틀린 고르기 ' + total + '가지 가운데 맞대어 볼 줄이 없는 것 ' + empty.length + '가지(짝짓기 없이 나란히 견준다)');
   for (const e of empty) console.log('      - ' + e + (NO_EVIDENCE.includes(e) ? '  (어긋나는 증거 없음)' : ''));
-  const unexpected = empty.filter((e) => !expected.has(e));
+  const unexpected = empty.filter((e) => !NO_EVIDENCE.includes(e));
   const vanished = NO_EVIDENCE.filter((e) => !empty.includes(e));
-  check(inherent.length === 15 && !unexpected.length && !vanished.length, '맞대어 볼 줄이 없는 경우는 칸 노래를 자기 갈래 행선지로 바구니에 넣은 것(' + inherent.length + ')과 어긋나는 증거가 없는 정해진 ' + NO_EVIDENCE.length + '가지뿐이다 (뜻밖 ' + JSON.stringify(unexpected) + ', 사라짐 ' + JSON.stringify(vanished) + ')');
+  check(total === 82 && !unexpected.length && !vanished.length, '틀린 고르기 82가지(판별 76, 탑 6) 가운데 맞대어 볼 줄이 없는 것은 어긋나는 증거가 없는 정해진 ' + NO_EVIDENCE.length + '가지뿐이다 (모두 ' + total + ', 뜻밖 ' + JSON.stringify(unexpected) + ', 사라짐 ' + JSON.stringify(vanished) + ')');
+  check(!empty.some((e) => e.includes('탑 ')), '탑의 틀린 층에는 언제나 맞대어 볼 줄이 있다');
   // 음성 사례: 예전 '향가는 구마다 한 번이 아니면 어긋남' 규칙을 다시 넣으면 목록의 향가 자리가 사라진다(목록이 실제를 따라가는지)
   const oldHyangga = [...CONTRAST_RULES, { genre: 'hyangga', lineKind: 'tap', conceptId: 'hyangga-lines', test: (e) => e.tap.mode !== 'gu' }];
-  check(mismatches(byId.get('gasiri'), { genre: 'hyangga' }, 'aa-door', oldHyangga).length > 0 && mismatches(byId.get('gasiri'), { genre: 'hyangga' }, 'aa-door').length === 0, "(음성) 두드리기 방식을 증거로 쓰던 예전 향가 규칙은 「가시리」를 향가 바구니에서 걸고, 지금 규칙은 걸지 않는다");
+  check(mismatches(byId.get('gasiri'), { genre: 'hyangga' }, 'aa-door', oldHyangga).length > 0 && mismatches(byId.get('gasiri'), { genre: 'hyangga' }, 'aa-door').length === 0, "(음성) 두드리기 방식을 증거로 쓰던 예전 향가 규칙은 「가시리」를 향가로 판별할 때 걸고, 지금 규칙은 걸지 않는다");
   // 고려가요 세 음보 규칙: 네 음보 줄이 섞여 있어도 세 음보 줄이 있으면 걸지 않고, 세 음보 줄이 하나도 없으면 건다
   const goryeoTap = CONTRAST_RULES.find((r) => r.genre === 'goryeo' && r.lineKind === 'tap');
   check(!goryeoTap.test({ tap: { mode: 'lines', feet: [[3, 4], [2]] } }) && goryeoTap.test({ tap: { mode: 'feet', feet: [4, 4, 4] } }) && !goryeoTap.test({ tap: { mode: 'gu', gu: 10 } }), '고려가요 두드리기 규칙: 세 음보 줄이 하나라도 있으면 걸지 않고(네 음보 줄이 섞여도), 하나도 없을 때만 건다. 향가의 구 세기는 증거로 쓰지 않는다');

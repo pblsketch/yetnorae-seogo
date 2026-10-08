@@ -3,7 +3,8 @@
 // 0) 노래마다 낭송 빠르기(tempo)가 노래 데이터에 있는지. 빠르기는 갈래 기본값이 아니라 그 노래의 가장 긴 음보가
 //    자연 빠르기로 칸에 들어가도록 노래마다 정한다(js/data/README.md '추가 제안(F5)')
 // 2) 조각마다 길이가 박자 칸(60 / 그 노래의 빠르기 초) 안에 드는지. 길이는 MP3 프레임 머리를 직접 읽어 잰다(빠르고 ffmpeg가 필요 없다)
-//    조각은 줄(장·행·줄·구)을 한 번에 읽힌 소리를 음보 경계에서 자른 것이어야 하고, 빠르게 줄이거나(stretch) 빨리 읽히면 안 된다
+//    조각은 줄(장·행·줄·구)을 한 번에 읽힌 소리를 음보 경계에서 자른 것이거나, 경계가 어긋난 줄을 음보마다 따로 읽힌 것
+//    (cut: per-foot, 읽힌 글 spokenText = 그 음보의 글)이어야 하고, 빠르게 줄이거나(stretch) 빨리 읽히면 안 된다
 // 3) 생성 기록(assets/audio/voice/manifest.json): 출처 Fish Audio, 유료 모델, 승인된 목소리, 사용권, 조각마다 글·길이·칸·sha256이 실제와 같은지
 //    목소리는 노래마다 승인 배정(tools/voice/voices.json approved: { default, bySong })대로여야 한다. 조각마다 기록한 voice가
 //    그 노래의 배정과 같고, 생성 기록의 목소리 목록(generator.voices)에 그 목소리의 기준 음성 해시가 있으며,
@@ -26,6 +27,21 @@ const VOICE_DIR = 'assets/audio/voice';
 const DURATION_TOL = 0.005;        // 칸 비교 여유(초)
 const RECORD_TOL = 0.06;           // 생성 기록의 길이와 잰 길이의 차이 한도(초)
 const MIN_CLIP_SEC = 0.15;         // 이보다 짧으면 빈 조각으로 본다
+// 조각을 만든 방법: 줄을 읽혀 받아쓰기 시각으로 자름(asr)·음절 비율로 자름(energy)·자르지 않음(whole)·
+// 경계가 어긋난 줄을 음보마다 따로 읽힘(per-foot, tools/voice/build_voice.py --per-foot)
+const CUTS = ['asr', 'energy', 'whole', 'per-foot'];
+
+// ── 낭송용 발음 표기(tools/voice/pronounce.json): TTS에 보낸 글에만 쓰는 바꿈 표. 화면 글은 그대로 ──
+const hangulOnly = (s) => String(s ?? '').replace(/[^가-힣]/g, '');
+export function judgePronounce(rules) {
+  const problems = [];
+  for (const r of rules) {
+    if (!nonEmpty(r?.from) || !nonEmpty(r?.to) || !hangulOnly(r.from) || !hangulOnly(r.to)) problems.push('낭송용 발음 표기 규칙이 이상하다: ' + JSON.stringify(r));
+    else if (hangulOnly(r.from).length !== hangulOnly(r.to).length) problems.push(`낭송용 발음 표기 "${r.from}" → "${r.to}"는 음절 수가 다르다`);
+  }
+  return problems;
+}
+export const pronounce = (text, rules) => rules.reduce((t, r) => t.split(r.from).join(r.to), String(text ?? ''));
 
 let failures = 0;
 const pass = (msg) => console.log('  ✓ ' + msg);
@@ -132,8 +148,8 @@ export function judgeApproval(approved, songs, candidates = null) {
 // ── 판정(실제 저장소와 음성 사례가 함께 쓴다) ──
 // songs: 노래 데이터, approved: 승인 배정(없으면 null), pinned: { 후보 id: 승인한 기준 음성 sha256 }
 // 돌려주는 값: { clipCount, expectedCount, problems: [글], rows: [{ path, sec, slot }] }
-export function judgeVoice({ root: base, songs, approved, pinned = {} }) {
-  const problems = judgeApproval(approved, songs);
+export function judgeVoice({ root: base, songs, approved, pinned = {}, rules = [] }) {
+  const problems = [...judgeApproval(approved, songs), ...judgePronounce(rules)];
   const rows = [];
   const voiceRoot = path.join(base, VOICE_DIR);
   const expected = new Map();   // 경로 → { song, text, slot }
@@ -220,7 +236,16 @@ export function judgeVoice({ root: base, songs, approved, pinned = {} }) {
       if (typeof c.stretch === 'number' && Math.abs(c.stretch - 1) > 1e-3) problems.push(`${p}: 자연 빠르기가 아니다 — 소리를 ${c.stretch}배로 줄였다`);
       if (typeof c.ttsSpeed === 'number' && c.ttsSpeed > 1 + 1e-3) problems.push(`${p}: 자연 빠르기가 아니다 — 말 빠르기 ${c.ttsSpeed}로 빨리 읽혔다`);
       if (!nonEmpty(c.lineText) || !c.lineText.includes(exp.text)) problems.push(`${p}: 줄 단위로 읽힌 기록(lineText)이 없거나 이 음보의 글을 담지 않는다`);
-      if (!['asr', 'energy', 'whole'].includes(c.cut)) problems.push(`${p}: 자른 방법(cut: asr·energy·whole)이 없다`);
+      if (!CUTS.includes(c.cut)) problems.push(`${p}: 자른 방법(cut: ${CUTS.join('·')})이 없다`);
+      // 음보마다 따로 읽힌 조각(per-foot): 실제로 읽힌 글(spokenText)이 이 음보의 글을 발음 표기 표로 바꾼 것이어야 한다(뒤에 쉼표 같은 가벼운 맥락만 허용)
+      const said = pronounce(exp.text, rules);
+      if (c.cut === 'per-foot' && !(nonEmpty(c.spokenText) && c.spokenText.startsWith(said) && /^[\s,.…!?]*$/.test(c.spokenText.slice(said.length)))) {
+        problems.push(`${p}: 음보마다 읽힌 조각인데 읽힌 글(spokenText "${c.spokenText ?? ''}")이 이 음보의 글 "${said}"(낭송용 발음 표기 적용, 뒤 쉼표 정도만 허용)이 아니다`);
+      }
+      // 줄 단위 조각: 실제로 읽힌 글(spokenText, 없으면 lineText)이 줄 글을 발음 표기 표로 바꾼 것이어야 한다(표를 바꾼 뒤 다시 만들지 않으면 잡힌다)
+      if (c.cut !== 'per-foot' && nonEmpty(c.lineText) && (c.spokenText ?? c.lineText) !== pronounce(c.lineText, rules)) {
+        problems.push(`${p}: 실제로 읽힌 글 "${c.spokenText ?? c.lineText}"이 낭송용 발음 표기 표를 따른 "${pronounce(c.lineText, rules)}"와 다르다 — 표를 바꿨으면 그 줄을 다시 만든다`);
+      }
     }
   }
 
@@ -312,7 +337,7 @@ function selfTest() {
     const fx = makeFixture();
     try { return f(fx); } finally { fs.rmSync(fx.dir, { recursive: true, force: true }); }
   };
-  const run = (fx, approved = 'narrator-a', pinned = {}) => judgeVoice({ root: fx.dir, songs: fx.songs, approved, pinned }).problems;
+  const run = (fx, approved = 'narrator-a', pinned = {}, rules = []) => judgeVoice({ root: fx.dir, songs: fx.songs, approved, pinned, rules }).problems;
   const has = (problems, word) => problems.some((p) => p.includes(word));
 
   same((fx) => {
@@ -342,6 +367,31 @@ function selfTest() {
   same((fx) => { delete fx.rec.clips[0].lineText; fx.write(); check(has(run(fx), 'lineText'), '줄 단위로 읽히지 않은(음보 따로) 조각을 잡는다'); });
   same((fx) => { fx.rec.clips[0].lineText = '다른 줄'; fx.write(); check(has(run(fx), 'lineText'), '다른 줄에서 잘라 온 조각을 잡는다'); });
   same((fx) => { delete fx.rec.clips[0].cut; fx.write(); check(has(run(fx), '자른 방법'), '자른 방법이 기록되지 않은 조각을 잡는다'); });
+  same((fx) => { fx.rec.clips[0].cut = 'guess'; fx.write(); check(has(run(fx), '자른 방법'), '모르는 자른 방법(cut: guess)을 잡는다'); });
+  // 음보마다 따로 읽힌 조각(cut: per-foot)
+  same((fx) => {
+    Object.assign(fx.rec.clips[0], { cut: 'per-foot', spokenText: fx.rec.clips[0].text });
+    Object.assign(fx.rec.clips[1], { cut: 'per-foot', spokenText: fx.rec.clips[1].text + ',' });
+    fx.write();
+    const p = run(fx);
+    check(p.length === 0, '음보마다 따로 읽힌 조각(cut: per-foot, 읽힌 글 = 음보 글, 뒤 쉼표 허용)은 통과한다' + (p.length ? ' — ' + p.join('; ') : ''));
+  });
+  same((fx) => { Object.assign(fx.rec.clips[0], { cut: 'per-foot' }); fx.write(); check(has(run(fx), '읽힌 글(spokenText'), '읽힌 글(spokenText)이 없는 per-foot 조각을 잡는다'); });
+  same((fx) => { Object.assign(fx.rec.clips[0], { cut: 'per-foot', spokenText: fx.rec.clips[0].lineText }); fx.write(); check(has(run(fx), '읽힌 글(spokenText'), '줄 전체를 읽혀 놓고 per-foot로 기록한 조각을 잡는다'); });
+  same((fx) => { Object.assign(fx.rec.clips[0], { cut: 'per-foot', spokenText: fx.rec.clips[1].text }); fx.write(); check(has(run(fx), '읽힌 글(spokenText'), '다른 음보 글로 읽힌 per-foot 조각을 잡는다'); });
+  same((fx) => { Object.assign(fx.rec.clips[0], { cut: 'per-foot', spokenText: fx.rec.clips[0].text, lineText: '다른 줄' }); fx.write(); check(has(run(fx), 'lineText'), 'per-foot 조각도 줄 글(lineText)에 이 음보 글이 없으면 잡는다'); });
+  // 낭송용 발음 표기 표('나' → '라'): 가짜 시조 첫 음보 '가나', 줄 '가나 다라'
+  const rule = [{ from: '나', to: '라' }];
+  same((fx) => {
+    Object.assign(fx.rec.clips[0], { cut: 'per-foot', spokenText: '가라' });
+    Object.assign(fx.rec.clips[1], { spokenText: '가라 다라' });
+    fx.write();
+    const p = run(fx, 'narrator-a', {}, rule);
+    check(p.length === 0, '낭송용 발음 표기 표대로 읽힌 조각(음보마다·줄 단위)은 통과한다' + (p.length ? ' — ' + p.join('; ') : ''));
+  });
+  same((fx) => { Object.assign(fx.rec.clips[0], { cut: 'per-foot', spokenText: '가나' }); fx.write(); check(has(run(fx, 'narrator-a', {}, rule), '낭송용 발음 표기 적용'), '발음 표기 표를 따르지 않고 읽힌 per-foot 조각을 잡는다'); });
+  same((fx) => { fx.write(); check(has(run(fx, 'narrator-a', {}, rule), '표를 바꿨으면'), '발음 표기 표를 바꾼 뒤 다시 만들지 않은 줄 단위 조각을 잡는다'); });
+  same((fx) => { check(has(run(fx, 'narrator-a', {}, [{ from: '나', to: '라라' }]), '음절 수가 다르다'), '음절 수가 바뀌는 발음 표기 규칙을 잡는다'); });
   same((fx) => {
     check(judgeTempo(fx.songs).length === 0, '노래마다 빠르기가 있으면 통과한다');
     const noTempo = fx.songs.map((s, i) => (i === 1 ? { ...s, tempo: undefined } : s));
@@ -407,6 +457,9 @@ async function main() {
     approved = cfg.approved ?? null;
     candidates = cfg.candidates ?? {};
   } catch { /* 없으면 승인 없음 */ }
+  let rules = [];
+  try { rules = JSON.parse(fs.readFileSync(path.join(root, 'tools/voice/pronounce.json'), 'utf8')).rules ?? []; } catch { /* 없으면 바꿈 없음 */ }
+  console.log('      낭송용 발음 표기: ' + (rules.length ? rules.map((r) => `${r.from}→${r.to}`).join(', ') : '없음'));
   const pinned = Object.fromEntries(Object.entries(candidates).filter(([, c]) => nonEmpty(c.referenceSha256)).map(([k, c]) => [k, c.referenceSha256]));
   const ap = judgeApproval(approved, songs, candidates);
   check(ap.length === 0, '승인 배정(tools/voice/voices.json approved)이 노래 데이터·후보와 맞는다');
@@ -420,7 +473,7 @@ async function main() {
   check(tp.length === 0, `노래 ${songs.length}편 모두 노래마다 낭송 빠르기(tempo)가 있다`);
   for (const p of tp.slice(0, 12)) console.log('      - ' + p);
   if (tp.length > 12) console.log('      … 그 밖에 ' + (tp.length - 12) + '개');
-  const r = judgeVoice({ root, songs, approved, pinned });
+  const r = judgeVoice({ root, songs, approved, pinned, rules });
   if (r.clipCount === 0) {
     const v = emptyVerdict(process.env);
     check(v.ok, v.msg + ` (노래 ${songs.length}편, 만들 조각 ${r.expectedCount}개)`);

@@ -1,8 +1,8 @@
 // 보스전 「서고의 밤」(spec 10). 다섯 관을 모두 마치면 열리는 세 단계.
-//   1단계 낯선 노래 다섯: 회색 글줄 → 재기(다섯 고유 동작을 도구로, 수첩 대신 일지) → 다섯 관 자리에 꽂기(노래마다 바로 판정)
+//   1단계 낯선 노래 다섯: 회색 글줄 → 형식 분석(다섯 고유 동작을 도구로, 수첩 대신 일지) → 다섯 관 자리에 꽂기(노래마다 바로 판정)
 //          → 맞으면 '누가 불렀을까?'(다섯 무리, 틀려도 정답 무리를 보이고 다음으로)
 //   2단계 엉킨 낭송: 리믹스(js/data/remix.js)에서 갈래가 바뀌는 순간 짚기(js/boss/remix-stage.js)
-//   3단계 좀 대왕: 「태산이 높다 하되」를 다시 재어 시조 자리에 꽂으면 좀 대왕이 흩어지고 선대 사서가 풀려난다
+//   3단계 좀 대왕: 「태산이 높다 하되」를 다시 분석해 시조 자리에 꽂으면 좀 대왕이 흩어지고 선대 사서가 풀려난다
 // 틀리면 먹안개가 잠시 짙어진다. 같은 단계에서 기준(3)만큼 틀리면 진행 엔진이 일지 도움 신호를 내고 일지가 반짝인다.
 // 시간 제한도, 판이 끝나 버리는 실패도, 매기는 값도 없다. 무작위도 없다(노래 순서는 진행 엔진과 노래 표가 정한다).
 // 판정과 기록은 모두 진행 엔진(js/core/progress.js)이 한다. 이 화면은 엔진의 결과를 보이기만 한다.
@@ -199,7 +199,7 @@ export async function start(ctx = {}) {
     b.classList.add('is-wrong');
   }
 
-  // 재기 화면(보스 방식): 오른쪽 반에 연다. 왼쪽 반에는 장면이 남는다.
+  // 분석 화면(보스 방식): 오른쪽 반에 연다. 왼쪽 반에는 장면이 남는다.
   async function measure(song) {
     journal.close();
     root.classList.add('is-measuring');
@@ -223,7 +223,7 @@ export async function start(ctx = {}) {
     }
   }
 
-  // 재기 결과에서 학생이 실제로 쓴 도구(고유 동작 id, 쓴 순서)
+  // 형식 분석 결과에서 학생이 실제로 쓴 도구(고유 동작 id, 쓴 순서)
   const toolsOf = (sheet) => [...new Set((sheet?.actions ?? []).map((a) => a?.action).filter(Boolean))];
 
   // 단계 안내: 이야기 몇 줄과 '시작하기'
@@ -274,7 +274,7 @@ export async function start(ctx = {}) {
       c.append(actions);
       say('mentor', T.stage1.needMeasure);
       await waitClick(mBtn, signal);
-      // 쓴 도구: 일지 도움은 꽂은 자리 갈래의 개념 가운데 이 도구들(과 접기·두드리기)의 증거와 어긋나는 것만 싣는다
+      // 쓴 도구: 일지 도움은 꽂은 자리 갈래의 개념 가운데 이 도구들(과 ① 나누기·② 음보 나누기)의 증거와 어긋나는 것만 싣는다
       const used = toolsOf(await measure(song));
       mBtn.hidden = true;
       enableSlots(true);

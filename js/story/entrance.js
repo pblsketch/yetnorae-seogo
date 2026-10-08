@@ -1,9 +1,11 @@
-// 입구(spec 2-2, 5.6, 11): 먹빛으로 바랜 서고, 선대 사서의 편지와 먹안개 속 목소리, 미션 문장(spec 0 그대로),
-// 그리고 「태산이 높다 하되」로 재는 법 익히기. 재기 화면(openMeasure)이 접기 → 두드리기 → 계단 오르기를 하나씩
-// 손가락으로 보여 준다(입구는 고유 동작 대신 튜토리얼 동작 stairs). 마치면 이 노래는 '선대 사서의 첫 노래'로 일지에
+// 입구(spec 2-2, 5.6, 11): 먹빛으로 바랜 서고, 선대 사서의 편지(노래가 뒤섞였다는 전제)와 먹안개 속 목소리, 미션 문장
+// (spec 0 그대로), 그리고 「태산이 높다 하되」로 형식 분석 익히기. 분석 화면(openMeasure)이 ① 연·장·행·구 나누기 →
+// ② 음보 나누기 → ③ 계단 오르기를 하나씩 손가락으로 보여 주고(입구는 고유 동작 대신 튜토리얼 동작 stairs),
+// ④ 갈래 판별은 시조를 가리키며 안내한다. 마치면 이 노래는 '선대 사서의 첫 노래'로 일지에
 // 담기고(어느 칸도 차지하지 않는다) 향가관이 열린다(진행 엔진 completeTutorial).
 // 낭송 음성은 아직 없으므로 목소리는 글줄로 보인다.
 import { openMeasure } from '../measure/measure.js';
+import { openGenreContrast } from '../play/contrast-panel.js';
 import { SONG_TABLE } from '../data/song-table.js';
 import { MISSION, STORY } from '../data/story.js';
 import { el, button, spriteImg, boardUrl, quoted } from './dom.js';
@@ -111,15 +113,23 @@ export function runEntrance({ host, session, manifest, signal, reread = false } 
           setSlashMode: session.setSlashMode,
           notebook: session.notebook,
           notebookGlow: session.glows,
-          // 입구는 공통 동작(접기·두드리기)과 튜토리얼 동작(계단)을 처음 보는 곳이다.
+          // 입구는 공통 동작(①·②)과 튜토리얼 동작(③ 계단)을 처음 보는 곳이다.
           introSeen: { common: false, unique: false },
           onIntroSeen: () => {},
+          // ④ 갈래 판별을 안내하며 한 번 해 본다(시조). 다른 갈래를 고르면 관과 같이 고른 갈래와 맞대어 본 뒤 다시 고른다.
+          // 튜토리얼의 판별은 기록하지 않는다(관의 오답 수에도 들지 않는다).
+          decideGuide: song?.genre,
+          decide: async (genre, sheet) => {
+            if (genre === song?.genre) return { correct: true, note: E.decideNote };
+            await openGenreContrast(session.root, { song, sheet, genre, notebook: session.notebook, neutral: true, signal: measureAc?.signal });
+            return { correct: false };
+          },
           reduceMotion: () => session.world.reduceMotion(),
           signal: measureAc.signal,
         });
         finished = true;
       } catch (e) {
-        if (e?.name !== 'AbortError') console.error('[story] 튜토리얼 재기 실패', e);
+        if (e?.name !== 'AbortError') console.error('[story] 튜토리얼 형식 분석 실패', e);
       } finally {
         session.root.classList.remove('is-measuring');
         measureAc = null;
@@ -133,7 +143,7 @@ export function runEntrance({ host, session, manifest, signal, reread = false } 
 
     function done() {
       root.dataset.step = 'done';
-      // 재기를 마치면 이 노래의 단위 이름이 드러난다(재는 동안은 '덩이'). 관에서는 맞게 꽂힐 때 드러난다.
+      // 갈래를 판별하면 이 노래의 단위 이름이 드러난다(분석하는 동안은 '부분'). 관에서도 판별에서 맞힐 때 드러난다.
       card.replaceChildren(el('h2', 'story-h', E.doneTitle), el('p', 'story-p story-reveal', E.unitReveal), ...E.done.map((t) => el('p', 'story-p', t)));
       const go = button('story-btn story-to-corridor', E.toCorridor);
       go.addEventListener('click', end, { once: true });

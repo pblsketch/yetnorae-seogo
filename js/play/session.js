@@ -132,7 +132,7 @@ export async function createSession({
   };
   document.addEventListener('visibilitychange', onVisibility);
 
-  // ── 오답 도움(수첩 반짝임). 이번 창에서 받은 도움을 모아 수첩과 재기 화면에 넘긴다 ──
+  // ── 오답 도움(수첩 반짝임). 이번 창에서 받은 도움을 모아 수첩과 분석 화면에 넘긴다 ──
   const glows = [];
   offs.push(bus.on('help:notebook-glow', (d) => { if (d) glows.push({ wing: d.wing, genre: d.genre, conceptIds: [...(d.conceptIds ?? [])] }); }));
 
@@ -146,7 +146,7 @@ export async function createSession({
     appearance: record?.appearance ?? 'a',
     reduceMotion: device.reduceMotion,
     onArrive: (a) => (current ? current.onArrive(a) : (onCorridorArrive?.(a) === true ? undefined : corridorArrive(a))),
-    // 3D 그림판을 되찾지 못해 2D가 되면 판 중인 관을 2D로 다시 그린다(재기·작품 방은 처음부터, 기록은 그대로)
+    // 3D 그림판을 되찾지 못해 2D가 되면 판 중인 관을 2D로 다시 그린다(형식 분석·작품 방은 처음부터, 기록은 그대로)
     onModeChange: () => { if (current) playWing(current.wingId); },
   });
   container.append(root);

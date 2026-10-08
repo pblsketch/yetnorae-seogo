@@ -190,6 +190,76 @@ console.log('— 고려가요 여음·후렴: 박이 아닌 칸(판정 창 없�
   ok(R.buildGrid(goryeo, { tempo: 60 }).beats.every((b) => !b.offbeat) && R.buildGrid(sijo, { tempo: 60 }).beats.every((b) => !b.offbeat) && R.buildGrid(hyangga, { tempo: 20 }).beats.every((b) => !b.offbeat), '표시 없는 고려가요·시조·향가에는 offbeat 칸이 없다');
 }
 
+console.log('— 쉼에 두드리기 칸(교사 결정 2026-10-07): 음보 조각 뒤 쉼, 판정 창은 쉼에');
+{
+  ok(R.TAP_PAUSE_SEC === 1 && R.TAP_PAUSE_LEAD_MS === 150 && R.TAP_PAUSE_AFTER_MS === 150, '쉼 1초, 판정 창은 조각 끝 150ms 앞부터 쉼 끝 150ms 뒤까지(기본값)');
+  ok(R.TAP_READY_SEC > 0 && R.TAP_READY_SOUND === 'tick' && R.TAP_READY_SOUND !== 'janggu' && R.TAP_READY_SOUND !== 'bell', "새로 시작할 때 '준비' 소리는 장구·종과 다른 딱 소리");
+  const g = R.buildPauseGrid(sijo);
+  ok(g.pause === true && g.beats.length === 12 && g.segments.length === 3 && g.segments.every((s) => s.beats.length === 4), '시조 세 장 = 음보 12개, 단위 셋(장)');
+  ok(g.beats.every((b) => b.pauseSec === 1 && !b.offbeat) && g.beats[5].path === 'assets/audio/voice/t-sijo/1-1.mp3', '음보마다 조각 경로와 쉼 1초');
+  ok(near(g.tailSec, 0.15 + R.PAUSE_TAIL_SEC) && near(R.buildPauseGrid(sijo, { offsetMs: 200 }).tailSec, 0.15 + 0.2 + R.PAUSE_TAIL_SEC) && near(R.buildPauseGrid(sijo, { offsetMs: -200 }).tailSec, 0.15 + R.PAUSE_TAIL_SEC), '단위의 끝은 마지막 창이 닫힌 뒤(늦게 치는 기기의 보정값만큼 더 기다린다)');
+  ok(g.countInSec === R.TAP_READY_SEC && g.countInSound === 'tick', "칸은 '준비' 소리와 그 뒤 첫 음보까지의 시간을 싣는다");
+  ok(R.segmentIndexOf(R.buildPauseGrid(goryeo), 1, 0) === 2 && R.buildPauseGrid(hyangga).beats.length === 4, '고려가요는 줄, 향가는 구마다 조각 하나');
+  ok(sijo.tempo === undefined && JSON.stringify(R.buildPauseGrid({ ...sijo, tempo: 240 }).beats) === JSON.stringify(g.beats), '쉼 칸은 노래 빠르기(tempo)를 쓰지 않는다');
+  // 시각: 조각 길이 + 쉼이 이어진다
+  const dur = [0.4, 0.7, 0.5, 0.9];
+  const tm = R.pauseSegmentTiming(g, 0, 10, (b) => dur[b.foot]);
+  ok(near(tm.beats[0].when, 10) && near(tm.beats[0].clipEnd, 10.4) && near(tm.beats[0].pauseEnd, 11.4) && near(tm.beats[1].when, 11.4), '음보 조각이 끝나면 쉼 1초, 그 뒤 다음 음보');
+  ok(near(tm.beats[3].pauseEnd, 10 + 2.5 + 4) && near(tm.end, tm.beats[3].pauseEnd + g.tailSec), '단위 끝 = 마지막 쉼 끝 + 꼬리');
+  ok(near(R.pauseSegmentTiming(g, 0, 0).beats[1].when, R.PAUSE_FALLBACK_CLIP_SEC + 1), '조각 길이를 모르면 어림 길이');
+  // 판정 창
+  const s = R.createPauseTapSession(g, { offsetMs: 0 });
+  ok(s.tap(10.6).hit === false, '단위를 열기 전 탭은 인정하지 않는다');
+  s.arm(0, 10, tm);
+  let r = s.tap(10.1);
+  ok(r.hit === false && r.outside === true, '첫 음보를 읽는 동안(조각 끝 300ms 앞)의 탭은 창 밖(놓친 것이 아니라 안내만)');
+  ok(s.tap(10.4 - 0.151).hit === false, '조각 끝 151ms 앞은 밖');
+  r = s.tap(10.4 - 0.15);
+  ok(r.hit && r.foot === 0 && r.unit === 0, '조각 끝 150ms 앞은 안(경계 포함)');
+  r = s.tap(10.9);
+  ok(r.hit === false && r.again === true, '같은 쉼에 두 번 쳐도 한 번만(두 번째는 again)');
+  ok(s.tap(tm.beats[1].pauseEnd + 0.15).hit === true, '쉼 끝 150ms 뒤까지 안(경계 포함)');
+  ok(s.tap(tm.beats[2].pauseEnd + 0.151).hit === false, '쉼 끝 151ms 뒤는 밖');
+  r = s.close(0);
+  ok(r.ok === false && r.missed === 2 && JSON.stringify(r.missedBeats) === '[2,3]' && r.replay === true && r.totalMissed === 2 && r.suggestSlash === false, '쉼에 치지 않은 음보만 놓친 것(창 밖 탭은 세지 않는다) → 그 단위를 다시 듣는다');
+  s.arm(1, 30, R.pauseSegmentTiming(g, 1, 30, (b) => dur[b.foot]));
+  r = s.close(1);
+  ok(r.totalMissed === 6 && r.suggestSlash === true, '놓친 음보가 모두 3에 닿으면 빗금을 한 번 권한다');
+  // 보정값은 탭 시각에서 뺀다
+  const so = R.createPauseTapSession(g, { offsetMs: 100 });
+  so.arm(0, 0, R.pauseSegmentTiming(g, 0, 0, () => 0.5));
+  ok(so.tap(1.5 + 0.15 + 0.1).hit === true, '보정값 100: 쉼 끝 250ms 뒤 탭도 보정 뒤 150ms라 안');
+  ok(so.tap(2.0 - 0.15).hit === false, '보정값 100: 둘째 조각 끝 150ms 앞 탭은 보정 뒤 250ms 앞이라 밖(첫 쉼 창도 지났다)');
+  // 고려가요 여음·후렴: 쉼 없이 이어 읽고 판정 창이 없다
+  const mk = (t, kind) => (kind ? { original: t, reading: t, kind } : { original: t, reading: t });
+  const gy = { id: 't-goryeo-p', genre: 'goryeo', units: [{ lines: [
+    { feet: [mk('가'), mk('나'), mk('다'), mk('라', 'yeoeum')], gloss: 'ㄱ' },
+    { feet: [mk('후', 'refrain'), mk('렴', 'refrain')], gloss: 'ㄴ' },
+  ] }] };
+  const pg = R.buildPauseGrid(gy);
+  ok(pg.beats[3].offbeat === 'yeoeum' && pg.beats[3].pauseSec === 0 && pg.beats[4].pauseSec === 0 && pg.beats[2].pauseSec === 1, '여음·후렴 조각 뒤에는 쉼이 없다');
+  const t2 = R.pauseSegmentTiming(pg, 1, 0, () => 0.5);
+  ok(near(t2.beats[1].when, 0.5) && near(t2.beats[1].pauseEnd, 1.0), '후렴 조각은 쉼 없이 이어 읽는다');
+  const sg = R.createPauseTapSession(pg, {});
+  ok(sg.listenOnly(1) && !sg.listenOnly(0), '후렴만 있는 줄은 듣기만 하는 단위');
+  sg.arm(1, 0, t2);
+  ok(sg.tap(0.5).outside === true && sg.close(1).missed === 0, '후렴 줄에는 판정 창이 없고 놓친 음보도 없다');
+  const t0 = R.pauseSegmentTiming(pg, 0, 0, () => 0.5);
+  sg.arm(0, 0, t0);
+  [0, 1, 2].forEach((k) => sg.tap(t0.beats[k].clipEnd + 0.3));
+  ok(sg.tap(t0.beats[3].clipEnd).hit === false && sg.close(0).ok === true, '박 셋을 쉼에 치면 여음을 치지 않아도 그 줄을 마친다(여음 끝에는 창이 없다)');
+  // 음성 사례: 예전처럼 음보가 시작할 때(조각 시작) 치면 쉼 칸에서는 하나도 인정되지 않는다
+  const old = R.createPauseTapSession(g, {});
+  old.arm(0, 10, tm);
+  const onset = tm.beats.map((b) => old.tap(b.when + 0.2));
+  ok(onset.every((x) => x.hit === false && x.outside) && old.close(0).missed === 4, '음성 사례: 음보를 읽기 시작할 때(시작 200ms 뒤) 친 탭(예전 방식)은 모두 창 밖이다');
+  // 음성 사례: 예전 박자 회차(음보 시작 ±150ms)였다면 쉼 가운데 탭은 하나도 인정되지 않는다(점검이 두 창을 가른다)
+  const oldGrid = R.buildGrid(sijo, { tempo: 60, gapSec: 0.8 });
+  const os = R.createTapSession(oldGrid, {});
+  os.arm(0, 10);
+  ok([0, 1, 2, 3].every((k) => os.tap(10 + k + 0.6).hit === false), '음성 사례: 음보 시작 기준 창이라면 쉼 가운데(시작 600ms 뒤) 탭은 밖이다');
+}
+
 console.log('— 박자 보정 계산');
 {
   const bells = R.calibrationBells({ startAt: 2, intervalSec: 0.8 });
@@ -219,6 +289,15 @@ console.log('— 박자 보정 계산');
   ok(c.ok === false && c.offsetMs === R.CALIBRATION_SKIP_OFFSET_MS, '건너뛰면 0');
   const cg = R.calibrationGrid({ intervalSec: 0.5 });
   ok(cg.beats.length === 8 && cg.segments.length === 1 && cg.beats.every((b) => b.sound === 'bell' && b.path === null) && near(cg.beats[3].time, 1.5), '보정용 박자 칸(종소리 여덟)');
+  ok(R.CALIBRATION_COUNTDOWN === 3, "종 앞에 '셋 · 둘 · 하나'를 센다(기본 3)");
+  const cd = R.calibrationGrid({ intervalSec: 0.8, countdown: 3 });
+  ok(cd.beats.length === 11 && cd.beats.slice(0, 3).every((b, i) => b.cue === 'count' && b.n === 3 - i && b.sound === R.TAP_READY_SOUND) && cd.beats.slice(3).every((b) => b.sound === 'bell' && !b.cue), '세는 박 셋(딱 소리, 3·2·1) 뒤에 종 여덟');
+  ok(near(cd.beats[1].time - cd.beats[0].time, 0.8) && near(cd.beats[3].time, 2.4), '세는 박은 종과 같은 0.8초 간격이고 첫 종은 세 번째 셈 0.8초 뒤');
+  // 세는 동안의 탭(셋·둘·하나에 맞춰 친 것)은 종과 짝짓지 않는다: 첫 종과 800ms 이상 떨어져 400ms 한계 밖이다
+  const cb = cd.beats.filter((b) => b.sound === 'bell').map((b) => 10 + b.time);
+  const countTaps = cd.beats.filter((b) => b.cue).map((b) => 10 + b.time);
+  c = R.calibrationOffset(cb, [...countTaps, ...cb.map((b) => b + 0.05)]);
+  ok(c.ok && c.offsetMs === 50 && c.matched === 8, '셋·둘·하나에 맞춰 친 탭은 보정값에 들지 않는다');
 }
 
 console.log('— 걷기 한 걸음: 노래 빠르기로 장구 네 번(낭송을 다시 내지 않는다)');
@@ -367,6 +446,16 @@ try {
   ok(Math.abs(st.gap - 1.5) < 1e-6 && Math.abs(st.beatSec - 3.75) < 1e-6, '느린 노래(박 3.75초)의 박 알림은 첫 박 1.5초 앞(min(박 길이, 1.5초)) ' + JSON.stringify(st));
   ok(st.gap < st.beatSec, '음성 사례: 박 길이만큼 앞이었다면 알림 뒤 ' + st.beatSec + '초가 비었다(점검이 차이를 알아본다)');
   ok(st.armBeforeCountIn === true && st.completed === true, '느린 노래에서도 판정 회차는 박 알림보다 먼저 열린다');
+  console.log('— 쉼에 두드리기 칸: 조각 길이 + 쉼, 준비 소리, 시각을 정할 때 여는 판정 회차');
+  st = await page.evaluate(() => window.__audioTest.pauseGridCase());
+  const vw = [1.15, 2.55, 4.15, 5.65, 7.35, 9.88, 11.38, 13.28, 14.78];
+  ok(st.ready.length === 1 && Math.abs(st.ready[0] - 0.15) < 1e-6, "새로 시작할 때 '준비' 딱 소리 한 번 " + JSON.stringify(st.ready));
+  ok(st.voiceWhen.every((w, i) => Math.abs(w - vw[i]) < 1e-3), '첫 음보는 준비 1초 뒤, 음보마다 조각 길이 + 쉼 1초 뒤 다음 음보, 단위 사이는 마지막 쉼 + 꼬리 + 틈 ' + JSON.stringify(st.voiceWhen));
+  ok(st.voiceNames.slice(4, 6).join(',') === 'voice/t-sijo/1-0,voice/t-sijo/1-2' && st.clickWhen.length === 1 && Math.abs(st.clickWhen[0] - 8.85) < 1e-3, '없는 조각 자리에는 딸깍 소리, 그 뒤 쉼은 딸깍 소리 길이로 센다 ' + JSON.stringify(st.clickWhen));
+  ok(st.beat0 && Math.abs(st.beat0.clipEnd - 1.55) < 1e-3 && Math.abs(st.beat0.pauseEnd - 2.55) < 1e-3, '박 알림(onBeat)에 조각 끝·쉼 끝 시각이 실린다 ' + JSON.stringify(st.beat0));
+  ok(st.arms.length === 3 && st.arms.every((a) => a.beats === 4 && a.now < a.firstOpen - 0.5), '판정 회차는 단위마다 시각표와 함께, 첫 창이 열리기 넉넉히 전에 열린다 ' + JSON.stringify(st.arms));
+  ok(st.closes.length === 3 && st.closes.every((c) => c.ok && c.missed === 0) && st.completed === true, '쉼 가운데 친 탭으로 세 단위를 모두 마친다(마지막 음보 창이 단위 끝 판정 전에 닫힌다) ' + JSON.stringify(st.closes));
+  ok(JSON.stringify(st.restarts) === '[0]' && st.readyAfter === st.readyBefore + 1 && st.rearmed === 2 && st.completed2 === true, "멈췄다 재개하면 '준비' 소리부터 다시, 진행 중이던 단위를 새 시각에 다시 연다 " + JSON.stringify({ restarts: st.restarts, readyBefore: st.readyBefore, readyAfter: st.readyAfter, rearmed: st.rearmed }));
   st = await page.evaluate(() => window.__audioTest.stopOnEndCase());
   ok(JSON.stringify(st.starts) === '[0]' && st.reason === 'stopped', '단위 끝에서 멈추면 다음 단위를 내지 않는다 ' + JSON.stringify(st));
   ok(st.laterFed > 0 && st.laterStopped === true, '미리 예약해 둔 다음 단위 소리도 멈춘다');
@@ -382,6 +471,10 @@ try {
   ok(st.tapTime > 0 && st.tapSound === 'sfx:janggu', '두드리면 장구 소리와 소리 판 시각');
   ok(st.bells.length === 8 && st.bells.every((b, i) => i === 0 || Math.abs(b - st.bells[i - 1] - 0.2) < 0.002), '박자 보정 종소리 여덟 번을 일정 간격으로 낸다');
   ok(st.bellSound === 'sfx:bell', '종소리는 효과음 bell');
+  ok(st.calNames.slice(0, 3).join(',') === 'tick,tick,tick' && st.calNames.slice(3).every((n) => n === 'sfx:bell') && st.calNames.length === 11, "종 여덟 번 앞에 '셋 · 둘 · 하나' 딱 소리 셋(종이 아님) " + st.calNames.join(','));
+  ok(st.countAt.length === 3 && st.countAt.every((t, i) => Math.abs((st.countAt[i + 1] ?? st.firstBellAt) - t - 0.2) < 0.002) && Math.abs(st.bells[0] - st.firstBellAt) < 1e-6, '세는 소리는 종과 같은 간격이고, 보정의 종 시각(bells)에는 들지 않는다 ' + JSON.stringify({ countAt: st.countAt, firstBell: st.firstBellAt, bell0: st.bells[0] }));
+  ok(st.calBeats.join(',') === 'count3,count2,count1,bell0,bell1,bell2,bell3,bell4,bell5,bell6,bell7', '세기·종마다 알림(onBeat)이 온다(화면의 셋·둘·하나) ' + st.calBeats.join(','));
+  ok(st.tickMissing === false, "딱 소리는 합성만 한다(없는 파일 'tick.mp3'를 찾지 않는다)");
   ok(st.fetch404Missing === true && st.fetch404Completed === true, '실제 없는 파일도 오류 없이 알림 + 딸깍 대체');
   ok(st.sfxMissing === true, '없는 효과음은 알리고 넘어간다');
 

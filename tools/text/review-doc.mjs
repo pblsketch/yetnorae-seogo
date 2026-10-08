@@ -69,7 +69,7 @@ export const SOURCES = [
   { file: 'js/data/boss-text.js', what: '보스전 글', route: () => 'boss' },
   { file: 'js/data/remix.js', what: '보스 2단계 리믹스', route: () => 'boss' },
   { file: 'js/data/credits.js', what: '출처 화면 글', route: () => 'entrance' },
-  { file: 'js/measure/labels.js', what: '재기 화면의 짧은 글', route: () => 'entrance' },
+  { file: 'js/measure/labels.js', what: '형식 분석 화면의 짧은 글', route: () => 'entrance' },
   { file: 'js/play/labels.js', what: '한 판 화면의 짧은 글', route: () => 'entrance' },
 ];
 // 결과 카드의 말(js/result/card.js 안의 상수, 내보내지 않으므로 파일에서 읽는다)
@@ -146,7 +146,9 @@ export async function collect(root = ROOT) {
   const voices = JSON.parse(fs.readFileSync(path.join(root, 'tools/voice/voices.json'), 'utf8'));
   const vmPath = path.join(root, 'assets/audio/voice/manifest.json');
   const voiceManifest = fs.existsSync(vmPath) ? JSON.parse(fs.readFileSync(vmPath, 'utf8')) : { clips: [] };
-  return { texts, songs, WING_TABLE, BOSS_TABLE, TUTORIAL_SONG_ID, remix, GENRES, WINGS, voices, voiceManifest };
+  const pronPath = path.join(root, 'tools/voice/pronounce.json');
+  const pronounce = fs.existsSync(pronPath) ? JSON.parse(fs.readFileSync(pronPath, 'utf8')).rules ?? [] : [];
+  return { texts, songs, WING_TABLE, BOSS_TABLE, TUTORIAL_SONG_ID, remix, GENRES, WINGS, voices, voiceManifest, pronounce };
 }
 
 // ───────── 노래 한 편 ─────────
@@ -154,8 +156,8 @@ const UNIT = { hyangga: '구', goryeo: '연', sijo: '장', saseol: '장', gasa: 
 const JANG = ['초장', '중장', '종장'];
 const ROLE = { tutorial: '튜토리얼', shelf: '칸', stray: '길 잃은 노래', room: '작품 방', bonus: '덤', unseen: '낯선 노래' };
 
-// 음보를 ' / '로 나눠 보인다. 고려가요의 박에 들지 않는 음보(여음·후렴·되풀이 머리)는 [여음 …]처럼 이름을 붙여 묶는다.
-// 낱말 안에서 나눈 음보(joined, 예: '가시리 / 잇고')도 ' / '로 나누어 보인다. 줄 끝에 박에 드는 음보 수를 적는다.
+// 음보를 ' / '로 나눠 보인다. 고려가요의 음보로 세지 않는 말(여음·후렴·되풀이 머리)은 [여음 …]처럼 이름을 붙여 묶는다.
+// 낱말 안에서 나눈 음보(joined, 예: '가시리 / 잇고')도 ' / '로 나누어 보인다. 줄 끝에 음보로 세는 음보 수를 적는다.
 const MARK = { yeoeum: '여음', refrain: '후렴', repeat: '되풀이' };
 function feetLine(feet, key) {
   return (feet ?? []).map((f) => (f?.kind ? `[${MARK[f.kind] ?? f.kind} ${f?.[key] ?? ''}]` : f?.[key] ?? '')).join(' / ');
@@ -203,7 +205,7 @@ export function songBlock(s, ctx) {
       L.push(`- **${name}**${beyond}`);
       (u.lines ?? []).forEach((l, j) => {
         const beats = (l.feet ?? []).filter((x) => !x?.kind).length;
-        L.push(`  - ${j + 1}줄 원문: ${feetLine(l.feet, 'original')} · ${beats ? '박 ' + beats + '개' : '듣기만 하는 줄(박 없음)'}`);
+        L.push(`  - ${j + 1}줄 원문: ${feetLine(l.feet, 'original')} · ${beats ? '음보 ' + beats + '개' : '듣기만 하는 줄(음보로 세지 않음)'}`);
         L.push(`    - 오늘 소리: ${feetLine(l.feet, 'reading')}`);
         L.push(`    - 풀이: ${l.gloss}`);
       });
@@ -238,22 +240,38 @@ function voiceSection(ctx) {
   const byLine = new Map();
   for (const c of clips) {
     const k = lineKey(c);
-    if (!byLine.has(k)) byLine.set(k, { songId: c.songId, unit: c.unit, line: c.line, lineText: c.lineText ?? c.text, lineAsr: c.lineAsr ?? '', match: c.lineAsrMatch, energy: false, paths: [] });
+    if (!byLine.has(k)) byLine.set(k, { songId: c.songId, unit: c.unit, line: c.line, lineText: c.lineText ?? c.text, lineAsr: c.lineAsr ?? '', match: c.lineAsrMatch, energy: false, perFoot: false, paths: [] });
     const r = byLine.get(k);
     if (c.cut === 'energy') r.energy = true;
+    if (c.cut === 'per-foot') r.perFoot = true;
     r.paths.push(c.path.split('/').pop());
   }
   const title = (id) => quoted(ctx.songs.find((s) => s.id === id)?.title ?? id);
   const where = (r) => (r.line !== null && r.line !== undefined ? `${r.unit + 1}연 ${r.line + 1}줄` : `${r.unit + 1}${UNIT[ctx.songs.find((s) => s.id === r.songId)?.genre] ?? ''}`);
   const low = [...byLine.values()].filter((r) => typeof r.match === 'number' && r.match < 0.6);
   const energy = [...byLine.values()].filter((r) => r.energy);
+  const perFoot = [...byLine.values()].filter((r) => r.perFoot);
   L.push('## 먼저 들어 볼 낭송', '');
-  L.push('낭송은 줄 단위로 읽힌 뒤 음보로 잘랐다. 받아쓰기(Fish ASR)가 다른 말로 들은 줄(일치 0.6 아래)과, 받아쓰기로 자르지 못해 음절 비율로 자른 줄(`cut: \'energy\'`)을 먼저 들어 보면 된다. 받아쓰기는 옛말을 오늘말로 바꿔 듣는 일이 많아 일치가 낮아도 낭송은 맞을 수 있다.', '');
-  L.push(`- 받아쓰기 일치 0.6 아래: ${low.length}줄, 음절 비율로 자른 줄: ${energy.length}줄 (모든 조각 ${clips.length}개)`);
+  L.push('낭송은 줄 단위로 읽힌 뒤 음보로 잘랐다. 받아쓰기(Fish ASR)가 다른 말로 들은 줄(일치 0.6 아래)과, 받아쓰기로 자르지 못해 음절 비율로 자른 줄(`cut: \'energy\'`)을 먼저 들어 보면 된다. 받아쓰기는 옛말을 오늘말로 바꿔 듣는 일이 많아 일치가 낮아도 낭송은 맞을 수 있다. 잘라 낸 경계가 어긋났던 줄은 음보마다 따로 읽혀 다시 만들었다(`cut: \'per-foot\'`). 따로 읽혀 줄 억양이 줄 단위와 다르므로 들어 본다.', '');
+  L.push(`- 받아쓰기 일치 0.6 아래: ${low.length}줄, 음절 비율로 자른 줄: ${energy.length}줄, 음보마다 따로 읽은 줄: ${perFoot.length}줄 (모든 조각 ${clips.length}개)`);
   L.push(`- 특히 먼저: ${LISTEN_FIRST.map((id) => `${title(id)} ${low.filter((r) => r.songId === id).length}줄`).join(', ')}`, '');
   L.push('### 음절 비율로 자른 줄(cut: energy)', '');
   if (!energy.length) L.push('- 없음');
   for (const r of energy) L.push(`- ${title(r.songId)} ${where(r)} — ${r.lineText} (조각 ${r.paths.join(', ')})`);
+  L.push('');
+  L.push('### 음보마다 따로 읽은 줄(cut: per-foot)', '');
+  if (!perFoot.length) L.push('- 없음');
+  for (const r of perFoot) L.push(`- ${title(r.songId)} ${where(r)} — ${r.lineText}`);
+  L.push('');
+  L.push('### 낭송용 발음 표기', '');
+  L.push('낭송 목소리(TTS)가 옛 표기를 다른 소리로 읽는 곳만, 낭송에 보내는 글을 바꿔 읽혔다. 화면에 보이는 오늘 소리는 그대로다. 표는 `tools/voice/pronounce.json`이고, 고르는 과정은 `design/voice-audit/report.md` 9절에 있다.', '');
+  const pron = ctx.pronounce ?? [];
+  if (!pron.length) L.push('- 없음');
+  for (const r of pron) {
+    const used = clips.filter((c) => c.spokenText && (c.text.includes(r.from) || (c.lineText ?? '').includes(r.from)));
+    const lines = [...new Set(used.map((c) => `${title(c.songId)} ${where({ songId: c.songId, unit: c.unit, line: c.line })}`))];
+    L.push(`- **${r.from} → ${r.to}** — ${r.why ?? ''} ${r.standard ?? ''} 이 표기로 읽힌 줄 ${lines.length}개: ${lines.join(', ')}`);
+  }
   L.push('');
   const order = [...LISTEN_FIRST, ...ctx.songs.map((s) => s.id).filter((id) => !LISTEN_FIRST.includes(id))];
   L.push('### 받아쓰기 일치 0.6 아래인 줄(노래별)', '');
